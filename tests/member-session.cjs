@@ -27,7 +27,7 @@ function harness({member='alice', selected='space_a', parent, search='', pathnam
         calls.push({url:String(url),init});
         const path = new URL(url instanceof Request ? url.url : String(url),location.href).pathname;
         if (accountFailure && path === accountFailure.path) return Response.json({detail:{code:accountFailure.code}},{status:accountFailure.status});
-        if (path === '/api/auth/status') return Response.json({authenticated:true,mode:'members',member:{id:member,display_name:member,avatar:''}});
+        if (path === '/api/auth/status') return Response.json({authenticated:true,mode:'members',member:{id:server.member || member,display_name:member,avatar:''}});
         if (path === '/api/auth/workspaces') {
             if(server.workspaceFailure)throw new Error('network unavailable');
             return Response.json({workspaces:spaces});
@@ -42,6 +42,19 @@ function harness({member='alice', selected='space_a', parent, search='', pathnam
     return {window,calls,nodes,store,frames,spaces,server};
 }
 async function settle(){for(let i=0;i<20;i++) await new Promise(resolve=>setImmediate(resolve));}
+
+test('fresh-tab recovery remains bound to the original workspace and requires the original member',async()=>{
+    const h=harness({selected:'space_b'});await h.window.CanvasSession.ready;
+    await h.window.CanvasSession.pause('登录状态改变');
+    const check=h.nodes.find(node=>node.tag==='button'&&node.textContent==='重新检查登录');
+    h.server.member='bob';await check.events.click();
+    assert.equal(h.nodes.some(node=>node.tag==='a'&&node.textContent==='在新标签页恢复草稿'),false);
+    h.server.member='alice';await check.events.click();
+    const recovery=h.nodes.find(node=>node.tag==='a'&&node.textContent==='在新标签页恢复草稿');
+    assert.equal(new URL(recovery.href).searchParams.get('workspace'),'space_b');
+    assert.equal(recovery.target,'_blank');assert.equal(recovery.rel,'noopener');
+    assert.equal(h.window.CanvasSession.paused,true);
+});
 
 test('a login-state signal only pauses the page and never adopts identity or clears drafts',async()=>{
     const h=harness();await h.window.CanvasSession.ready;

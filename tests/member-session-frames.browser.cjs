@@ -1,10 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
 
-async function setup(t){
+async function setup(t,permissions=['canvas.read','canvas.edit']){
     const browser=await chromium.launch({channel:'chrome',headless:true});t.after(()=>browser.close());
     const context=await browser.newContext(),page=await context.newPage(),errors=[],requests=[];
-    const state={expired:false,permissions:['canvas.read','canvas.edit'],available:true};
+    const state={expired:false,permissions,available:true};
     page.on('pageerror',error=>errors.push(error.message));
     await context.route('**/*',async route=>{
         const request=route.request(),url=new URL(request.url());requests.push(url.pathname);
@@ -26,7 +26,7 @@ async function setup(t){
     });
     await page.goto('https://member-session.test/workspaces/space_a');
     await page.evaluate(async()=>{await CanvasSession.ready;for(const name of ['first','second']){
-        const frame=document.createElement('iframe');frame.name=name;frame.src='/editor?workspace=space_a';document.body.append(frame);
+        const frame=document.createElement('iframe');frame.name=name;frame.src='/editor?workspace=space_a&id='+name;document.body.append(frame);
     }});
     await page.waitForFunction(()=>Array.from(document.querySelectorAll('iframe')).every(frame=>frame.contentWindow.CanvasSession?.context));
     for(const frame of page.frames().filter(frame=>frame.parentFrame())){
@@ -82,6 +82,7 @@ for(const trigger of ['focus','visibility','menu'])test(`${trigger} detects chan
         await page.getByRole('button',{name:'重新检查登录',exact:true}).click();
         await page.getByText('当前空间仍不可用，请先保留草稿，再返回工作台选择可用空间。',{exact:true}).waitFor();
         assert.equal(await page.getByRole('button',{name:'重新打开',exact:true}).count(),0);
+        assert.equal(await page.getByRole('link',{name:'在新标签页恢复草稿',exact:true}).count(),0);
     }
     assert.deepEqual(errors,[]);
 });
@@ -111,4 +112,34 @@ for(const action of ['login','logout'])test(`another tab's successful ${action} 
     }
     assert.equal(await page.evaluate(()=>CanvasSession.context.member.id),'alice');
     assert.deepEqual(errors,[]);
+});
+
+test('confirmed login can open a fresh tab and copy the old draft while the paused page stays intact',async t=>{
+    const {page,context}=await setup(t,['canvas.read','canvas.edit','canvas.create','asset.read']);
+    await page.setViewportSize({width:1280,height:1000});
+    await page.locator('iframe[name="first"]').evaluate(frame=>{frame.style.cssText='display:block;width:1000px;height:700px;margin-top:60px';});
+    const source=page.frame({name:'first'}),copies=[];
+    await context.route('**/api/canvas-draft-copies',route=>{
+        copies.push(route.request().postDataJSON());
+        return route.fulfill({json:{canvas:{id:'copy-first',kind:'smart',revision:1,title:'Recovered copy'}}});
+    });
+    await page.evaluate(()=>CanvasSession.pause('其他标签页更新了登录状态'));
+    await source.getByRole('button',{name:'重新检查登录',exact:true}).click();
+    const recovery=source.getByRole('link',{name:'在新标签页恢复草稿',exact:true});
+    await recovery.waitFor({timeout:1500});
+    const opened=context.waitForEvent('page');await recovery.click();const fresh=await opened;
+    await fresh.waitForLoadState();
+    await fresh.evaluate(async()=>{
+        await CanvasSession.ready;
+        await MemberCanvasEdit.mount({id:new URL(location.href).searchParams.get('id'),dirty:()=>false,flush:async()=>true,
+            snapshot:()=>({id:'first',kind:'smart',revision:1,nodes:[]}),reload:async()=>({revision:1})});
+    });
+    await fresh.locator('.member-canvas-more > summary').click();await fresh.getByRole('button',{name:'自动草稿',exact:true}).click();
+    await fresh.getByRole('button',{name:'另存副本',exact:true}).click();await fresh.getByRole('button',{name:'确认另存副本',exact:true}).click();
+    await fresh.getByText('已创建副本：Recovered copy',{exact:true}).waitFor();
+    assert.equal(copies.length,1);assert.equal(copies[0].document.title,'unsaved local draft');
+    assert.equal(await source.locator('#draft').inputValue(),'unsaved local draft');
+    assert.equal(await source.evaluate(()=>CanvasSession.paused),true);
+    assert.equal(await fresh.evaluate(()=>MemberCanvasEdit.canEdit),false);
+    assert.equal(await fresh.evaluate(()=>window.opener),null);
 });

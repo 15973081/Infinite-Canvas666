@@ -95,7 +95,9 @@
                     const spaces = await json('/api/auth/workspaces', {headers:{'X-Member-ID':context.member.id}});
                     if (!spaces.workspaces?.some(space => space.id === context.workspace.id)) throw new Error('当前空间仍不可用，请先保留草稿，再返回工作台选择可用空间。');
                     feedback.textContent='';
-                    banner.replaceChildren(element('span', '身份已确认。请先保留草稿，再重新打开页面领取编辑资格。'), button('重新打开', async () => {
+                    const recovery=element('a','在新标签页恢复草稿');
+                    recovery.href=scopedUrl(location.href);recovery.target='_blank';recovery.rel='noopener';
+                    banner.replaceChildren(element('span', '身份已确认。可在新标签页打开同一空间，在画布的“自动草稿”中另存副本；本页内容继续保留。'), recovery, button('重新打开', async () => {
                         if (!await flushPages()) {feedback.textContent='当前更改尚未保存，请先在自动草稿中保留或另存副本，再重新打开。';return;}
                         location.reload();
                     }),feedback);
