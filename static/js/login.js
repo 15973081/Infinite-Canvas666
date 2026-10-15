@@ -129,6 +129,8 @@
             // A fresh member login starts with a fresh workspace choice.
             if (members && signedIn.member?.id) {
                 try { sessionStorage.removeItem('canvas:workspace:' + signedIn.member.id); } catch (_) {}
+                // An opaque invalidation hint only; never store credentials or account data.
+                try { localStorage.setItem('canvas:member-session-change', Date.now() + ':' + Math.random()); } catch (_) {}
             }
             label.textContent = '准备就绪，正在进入…';
             location.replace(destination());

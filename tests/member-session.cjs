@@ -43,6 +43,16 @@ function harness({member='alice', selected='space_a', parent, search='', pathnam
 }
 async function settle(){for(let i=0;i<20;i++) await new Promise(resolve=>setImmediate(resolve));}
 
+test('a login-state signal only pauses the page and never adopts identity or clears drafts',async()=>{
+    const h=harness();await h.window.CanvasSession.ready;
+    assert.equal(typeof h.window.events.storage,'function');
+    h.window.events.storage({key:'unrelated',newValue:'change'});assert.equal(h.window.CanvasSession.paused,false);
+    h.window.events.storage({key:'canvas:member-session-change',newValue:null});assert.equal(h.window.CanvasSession.paused,false);
+    h.window.events.storage({key:'canvas:member-session-change',newValue:'opaque-event'});await settle();
+    assert.equal(h.window.CanvasSession.paused,true);assert.equal(h.window.CanvasSession.context.member.id,'alice');
+    await assert.rejects(h.window.fetch('/api/canvases'),/暂停/);
+});
+
 for(const origin of ['parent','child']) test(`session pause from ${origin} freezes the entire embedded workbench once`,async()=>{
     const root=harness();await root.window.CanvasSession.ready;
     const child=harness({parent:root.window}), sibling=harness({parent:root.window});

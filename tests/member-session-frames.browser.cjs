@@ -3,10 +3,10 @@ const {chromium}=require('playwright');
 
 async function setup(t){
     const browser=await chromium.launch({channel:'chrome',headless:true});t.after(()=>browser.close());
-    const page=await browser.newPage(),errors=[],requests=[];
+    const context=await browser.newContext(),page=await context.newPage(),errors=[],requests=[];
     const state={expired:false,permissions:['canvas.read','canvas.edit'],available:true};
     page.on('pageerror',error=>errors.push(error.message));
-    await page.route('**/*',async route=>{
+    await context.route('**/*',async route=>{
         const request=route.request(),url=new URL(request.url());requests.push(url.pathname);
         if(url.pathname.startsWith('/static/js/'))return route.fulfill({contentType:'text/javascript; charset=utf-8',body:fs.readFileSync(path.resolve('.'+url.pathname),'utf8')});
         if(url.pathname.startsWith('/static/css/'))return route.fulfill({contentType:'text/css; charset=utf-8',body:fs.readFileSync(path.resolve('.'+url.pathname),'utf8')});
@@ -37,7 +37,7 @@ async function setup(t){
             await MemberCanvasEdit.active.lease.start(async()=>({revision:1}));
         });
     }
-    return {page,state,errors,requests};
+    return {page,context,state,errors,requests};
 }
 
 for(const origin of ['parent','child'])test(`401 in ${origin} stops both real embedded editors and preserves drafts`,async t=>{
@@ -83,5 +83,32 @@ for(const trigger of ['focus','visibility','menu'])test(`${trigger} detects chan
         await page.getByText('当前空间仍不可用，请先保留草稿，再返回工作台选择可用空间。',{exact:true}).waitFor();
         assert.equal(await page.getByRole('button',{name:'重新打开',exact:true}).count(),0);
     }
+    assert.deepEqual(errors,[]);
+});
+
+for(const action of ['login','logout'])test(`another tab's successful ${action} pauses existing editors without focusing them`,async t=>{
+    const {page,context,errors}=await setup(t);
+    const other=await context.newPage();
+    if(action==='login'){
+        await other.route('**/api/auth/status',route=>route.fulfill({json:{authenticated:false,mode:'members'}}));
+        await other.route('**/api/auth/login',route=>route.fulfill({json:{member:{id:'alice'}}}));
+        await other.route('https://member-session.test/',route=>route.fulfill({contentType:'text/html',body:'signed in'}));
+        await other.route('https://member-session.test/login',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:fs.readFileSync('static/login.html','utf8').replace(/<script type="module"[^>]*><\/script>/g,'')}));
+        await other.goto('https://member-session.test/login');
+        await other.locator('#username').fill('alice');await other.locator('#password').fill('test-only-password');
+        await other.locator('#submit-button').click();
+    }else{
+        await other.goto('https://member-session.test/workspaces/space_a');
+        await other.evaluate(async()=>{await CanvasSession.ready;document.querySelector('.member-session-account').open=true;});
+        // Keep the new tab on a blank login page after the successful logout.
+        await other.route('**/login',route=>route.fulfill({contentType:'text/html',body:'signed out'}));
+        await other.getByRole('button',{name:'退出登录',exact:true}).click();
+    }
+    await page.waitForFunction(()=>CanvasSession.paused);
+    for(const frame of page.frames().filter(frame=>frame.parentFrame())){
+        assert.equal(await frame.evaluate(()=>MemberCanvasEdit.canEdit),false);
+        assert.equal(await frame.locator('#draft').inputValue(),'unsaved local draft');
+    }
+    assert.equal(await page.evaluate(()=>CanvasSession.context.member.id),'alice');
     assert.deepEqual(errors,[]);
 });

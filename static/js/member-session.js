@@ -31,6 +31,9 @@
         await observeResponse(response);
         const data = await response.json();
         if (!response.ok) throw new Error(errorText(data));
+        if (path === '/api/auth/logout') {
+            try { localStorage.setItem('canvas:member-session-change', Date.now() + ':' + Math.random()); } catch (_) {}
+        }
         return data;
     }
     async function observeResponse(response) {
@@ -506,5 +509,11 @@
         return sessionRefresh;
     }
     window.addEventListener('focus', recheckSession);
+    window.addEventListener('storage', event => {
+        // A new session for the same member also invalidates this page's lease.
+        // Signals may stop work, but never authorize or restore an identity.
+        if (event.key === 'canvas:member-session-change' && event.newValue)
+            void pause('其他标签页更新了登录状态，已暂停本页。请先保留草稿并重新确认登录。');
+    });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) void recheckSession(); });
 })();
