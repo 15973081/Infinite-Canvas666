@@ -57,6 +57,12 @@
         if (blocked) return;
         blocked = true;
         window.dispatchEvent(new CustomEvent('member-session:paused', {detail:{message}}));
+        // Every embedded editor shares this workbench identity. Set the guard
+        // before notifying relatives so propagation cannot recurse indefinitely.
+        try { if (window.parent !== window) void window.parent.CanvasSession?.pause(message).catch(() => {}); } catch (_) {}
+        for (const frame of document.querySelectorAll('iframe')) {
+            try { void frame.contentWindow.CanvasSession?.pause(message).catch(() => {}); } catch (_) {}
+        }
         await domReady;
         const banner = element('section', undefined, 'member-session-banner'); banner.setAttribute('role', 'alert');
         const login = element('a', '重新登录'); login.href = '/login'; login.target = '_blank'; login.rel = 'noopener';
@@ -373,7 +379,10 @@
     async function initialize() {
         try {
             let inherited = null;
-            if (window.parent !== window && window.parent.CanvasSession?.enabled) inherited = await window.parent.CanvasSession.ready;
+            const parentSession = window.parent !== window && window.parent.CanvasSession?.enabled ? window.parent.CanvasSession : null;
+            const checkActive = () => { if (blocked || parentSession?.paused) throw new Error('工作台会话已暂停，请先保留内容并重新打开工作台。'); };
+            if (parentSession) inherited = await parentSession.ready;
+            checkActive();
             const status = await json('/api/auth/status');
             if (!status.authenticated) { location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search)); throw new Error('请登录成员账号。'); }
             if (status.mode !== 'members') throw new Error('服务模式已改变，请重新打开工作台。');
@@ -393,6 +402,7 @@
             if (!workspace) workspace = spaces.length === 1 ? spaces[0] : await choose(status.member, spaces, true);
             context = Object.freeze({member:Object.freeze(status.member), workspace:Object.freeze(workspace)});
             await domReady;
+            checkActive();
             document.documentElement.classList.remove('member-session-pending');
             document.documentElement.classList.add('member-session-enter'); renderBar();
             window.dispatchEvent(new CustomEvent('member-session:ready', {detail:context}));

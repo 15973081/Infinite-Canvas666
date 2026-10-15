@@ -18,12 +18,12 @@ class Node {
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
 }
 function harness({member='alice', selected='space_a', parent, search='', pathname='/static/canvas.html', failBusiness=false, accountFailure=null}={}) {
-    const calls=[], body=new Node('body'), nodes=[], store=new Map();
+    const calls=[], body=new Node('body'), nodes=[], store=new Map(), frames=[];
     if (selected) store.set('canvas:workspace:' + member, selected);
     const spaces = [{id:'space_a',name:'A',permissions:['canvas.read']},{id:'space_b',name:'B',permissions:['canvas.edit']}];
     const location = {href:'http://localhost'+pathname + search, origin:'http://localhost',host:'localhost',pathname,search,replace(){},assign(){},reload(){}};
-    const document = {addEventListener(){},removeEventListener(){},readyState:'complete',body,documentElement:new Node('html'),createElement(tag){const node = new Node(tag);nodes.push(node);return node;}, querySelectorAll(){return [];}};
-    const window = {location,document,events:{},addEventListener(name,fn){this.events[name]=fn;},removeEventListener(){},dispatchEvent(){},alert(){},fetch:async (url,init={}) => {
+    const document = {addEventListener(){},removeEventListener(){},readyState:'complete',body,documentElement:new Node('html'),createElement(tag){const node = new Node(tag);nodes.push(node);return node;}, querySelectorAll(selector){return selector==='iframe' ? frames : [];}};
+    const window = {location,document,events:{},addEventListener(name,fn){this.events[name]=fn;},removeEventListener(){},dispatchEvent(event){this.events[event.type]?.(event);},alert(){},fetch:async (url,init={}) => {
         calls.push({url:String(url),init});
         const path = new URL(url instanceof Request ? url.url : String(url),location.href).pathname;
         if (accountFailure && path === accountFailure.path) return Response.json({detail:{code:accountFailure.code}},{status:accountFailure.status});
@@ -36,9 +36,36 @@ function harness({member='alice', selected='space_a', parent, search='', pathnam
         CustomEvent:class {constructor(type,init){this.type=type;this.detail=init?.detail;}},
         sessionStorage:{getItem:key=>store.get(key),setItem:(key,value)=>store.set(key,value),removeItem:key=>store.delete(key)}};
     vm.runInNewContext(source,context);
-    return {window,calls,nodes,store};
+    return {window,calls,nodes,store,frames};
 }
 async function settle(){for(let i=0;i<20;i++) await new Promise(resolve=>setImmediate(resolve));}
+
+for(const origin of ['parent','child']) test(`session pause from ${origin} freezes the entire embedded workbench once`,async()=>{
+    const root=harness();await root.window.CanvasSession.ready;
+    const child=harness({parent:root.window}), sibling=harness({parent:root.window});
+    root.frames.push({contentWindow:child.window},{contentWindow:sibling.window},
+        {get contentWindow(){throw new Error('foreign frame');}});
+    await Promise.all([child.window.CanvasSession.ready,sibling.window.CanvasSession.ready]);
+    const pages=[root,child,sibling], events=new Map();
+    for(const page of pages)page.window.addEventListener('member-session:paused',()=>events.set(page,(events.get(page)||0)+1));
+    await (origin==='parent'?root:child).window.CanvasSession.pause('登录已失效');
+    await settle();
+    for(const page of pages){
+        assert.equal(page.window.CanvasSession.paused,true);
+        assert.equal(events.get(page),1);
+        await assert.rejects(page.window.fetch('/api/canvases'),/暂停/);
+        assert.equal(page.nodes.filter(node=>node.className==='member-session-banner').length,1);
+    }
+});
+
+test('new embedded pages cannot inherit a paused workbench session',async()=>{
+    const root=harness();await root.window.CanvasSession.ready;
+    await root.window.CanvasSession.pause('登录已失效');
+    const child=harness({parent:root.window});
+    await assert.rejects(child.window.CanvasSession.ready,/暂停/);
+    await assert.rejects(child.window.fetch('/api/canvases'),/暂停/);
+    assert.equal(child.calls.some(call=>call.url==='/api/canvases'),false);
+});
 
 test('canonical page workspace overrides remembered space and refuses conflicting query',async()=>{
     const h=harness({selected:'space_b',pathname:'/workspaces/space_a/canvases/one'});
