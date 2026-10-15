@@ -514,3 +514,22 @@ test('trash restore cannot take over another editor or bypass server permissions
  const denied=folderFixture({writeStatus:403});const result=await denied.context.CanvasApi.restoreCanvas('a');assert.equal(result.status,403);assert.equal(denied.held(),false);
  assert.ok(denied.calls.at(-1)[0].endsWith('/release'));
 });
+
+test('failed occupancy refresh is explicit and manual recovery never acquires a lease',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);
+    const entry=f.api.active,transport=entry.lease.transport;
+    entry.lease.status={...status,holder:{id:'other',display_name:'乙',is_self:false}};
+    entry.lease.emit();assert.match(entry.label.textContent,/乙 正在编辑/);
+    entry.lease.transport=async()=>{throw new Error('offline');};
+    const tick=[...f.timers].find(([id])=>f.delays.get(id)===15000)[1];
+    await tick();assert.equal(entry.label.textContent,'占用状态待确认');
+    assert.match(entry.notice.textContent,/刷新占用状态/);
+    const all=node=>[node,...(node.children||[]).flatMap(all)];
+    const refresh=all(entry.bar).find(node=>node.textContent==='刷新占用状态');
+    assert.ok(refresh);entry.lease.transport=transport;
+    await refresh.onclick();
+    assert.equal(entry.label.textContent,'查看模式 · 无人编辑');
+    assert.equal(entry.stateError,'');assert.equal(entry.feedback,'');
+    assert.equal(entry.begin.hidden,false);assert.equal(entry.lease.canEdit,false);
+    assert.equal(f.calls.some(([path])=>path.endsWith('/acquire')),false);
+});

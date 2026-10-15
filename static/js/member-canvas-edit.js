@@ -337,7 +337,9 @@
         options.changed?.(lease);
         const holder=lease.status?.holder;
         label.textContent=lease.canSave ? (lease.maintenance==='draining' ? '准备维护 · 请完成保存' : '你正在编辑')
-            : holder ? `${holder.display_name || '成员'} 正在编辑${holder.is_self ? '（你的其他页面）' : ''}` : '查看模式';
+            : active.stateError ? '占用状态待确认' : !active.lastStateAt ? '正在检查占用状态…'
+            : holder ? `${holder.display_name || '成员'} 正在编辑${holder.is_self ? '（你的其他页面）' : ''}` : '查看模式 · 无人编辑';
+        label.title=active.stateError && holder ? `上次编辑者：${holder.display_name || '成员'}，当前占用尚未确认` : label.textContent;
         const editableRole=window.CanvasSession.context.workspace.permissions?.includes('canvas.edit');
         const cannotStart=!editableRole || ['starting','requesting','waiting'].includes(lease.state) || window.CanvasSession.paused || !['normal','scheduled'].includes(lease.maintenance);
         begin.hidden=lease.canSave || Boolean(holder && !holder.is_self); begin.disabled=cannotStart;
@@ -348,9 +350,9 @@
         active.force.disabled=cannotStart;
         end.hidden=!lease.canSave; end.disabled=lease.finishing;
         save.hidden=!lease.canSave; save.disabled=lease.finishing;
-        notice.textContent=[...new Set([lease.message,active.feedback,active.streamMessage,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
+        notice.textContent=[...new Set([lease.message,active.feedback,active.stateError,active.streamMessage,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
         bar.setAttribute('data-state', lease.canSave ? 'editing' : 'view');
-        notice.setAttribute('data-tone', lease.state==='paused' || ['draining','read_only','offline','recovering'].includes(lease.maintenance) || active.feedback || active.streamMessage || active.reportMessage ? 'warning' : 'quiet');
+        notice.setAttribute('data-tone', lease.state==='paused' || ['draining','read_only','offline','recovering'].includes(lease.maintenance) || active.feedback || active.stateError || active.streamMessage || active.reportMessage ? 'warning' : 'quiet');
         if(!notice.textContent) notice.textContent=lease.canSave ? '更改已保存' : '查看中 · 开始编辑后可修改';
         notice.title=notice.textContent;
         renderRequests(active);
@@ -418,10 +420,15 @@
                     return entry.options.reload();
                 });
                 entry.lastStateAt=Date.now();
+                entry.stateError='';
+                render();
                 if(validEntry(entry) && api.canRefresh && !entry.options.busy?.() && entry.options.refresh &&
                     entry.lease.status?.revision>Number(entry.options.snapshot().revision || 0)) await entry.options.refresh();
             } while(entry.refreshAgain && validEntry(entry));
-        })().finally(()=>{entry.refreshing=null;});
+        })().catch(error=>{
+            if(entry===active){entry.stateError='占用状态刷新失败，请点击“刷新占用状态”重试。';render();}
+            throw error;
+        }).finally(()=>{entry.refreshing=null;});
         return entry.refreshing;
     }
     function subscribe(entry) {
@@ -455,7 +462,7 @@
             if(!document.hidden && (!entry.subscription?.healthy || entry.lease.pending ||
                 Date.now()-(entry.lastStateAt || 0)>=60000)) await refreshState(entry);
         }
-        catch(error) {if(entry===active){entry.feedback=error.message;render();}}
+        catch(error) {if(entry===active){if(!entry.stateError)entry.feedback=error.message;render();}}
         finally {entry.ticking=false;}
         const delay=entry.lease.canSave ? Math.max(1000,Math.min(10000,(entry.lease.status?.heartbeat_seconds || 5)*1000)) :
             entry.lease.pending ? 5000 : 15000;
@@ -498,6 +505,11 @@
             const more=element('details'), moreSummary=element('summary','更多'), moreItems=element('div');
             more.className='member-canvas-more'; moreItems.className='member-canvas-menu';
             moreItems.append(button('自动草稿',() => {more.open=false;return showDrafts();}),
+                button('刷新占用状态',async () => {
+                    if(!validEntry(entry))throw new Error('当前会话已暂停，请先确认登录状态。');
+                    await refreshState(entry);
+                    entry.feedback='';render();
+                }),
                 force);
             more.append(moreSummary,moreItems);
             begin.className=end.className=ask.className='member-canvas-primary';
