@@ -63,6 +63,32 @@ test('slow acquisition and a changed reload revision cannot grant editing', asyn
     await assert.rejects(g.lease.start(async () => ({revision:4})),/版本/);
     assert.equal(g.lease.canSave,false);
 });
+
+for(const failure of ['load','revision'])test(`failed ${failure} after acquire releases only the unused private grant`,async()=>{
+    const f=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'unused'})):json({released:true,generation:1,revision:3}));
+    await assert.rejects(f.lease.start(async()=>{if(failure==='load')throw Error('load failed');return {revision:4};}));
+    assert.equal(f.lease.canEdit,false);assert.equal(f.lease.token,null);
+    assert.deepEqual(f.calls.map(([path])=>path.split('/').at(-1)),['acquire','release']);
+    assert.deepEqual(f.calls[1][1].headers,{'X-Canvas-Edit-Token':'unused','X-Canvas-Generation':'1','X-Canvas-Revision':'3'});
+    assert.equal(f.lease.status.holder,null);
+});
+
+for(const cancel of ['pause','dispose'])test(`late acquire after ${cancel} is relinquished without reviving editing`,async()=>{
+    let resolve;const gate=new Promise(done=>resolve=done);
+    const f=fixture(async path=>path.endsWith('/acquire')?gate:json({released:true,generation:1,revision:3}));
+    const start=f.lease.start(()=>{throw Error('cancelled page must not reload');});
+    await new Promise(done=>setImmediate(done));f.lease[cancel]();
+    resolve(json(publicLease({edit_token:'unused'})));await start;
+    assert.equal(f.lease.state,cancel==='pause'?'paused':'closed');assert.equal(f.lease.canEdit,false);
+    assert.equal(f.calls.at(-1)[0].endsWith('/release'),true);
+});
+
+test('unconfirmed cleanup preserves the original load error and never retries with newer ownership',async()=>{
+    const f=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'old'})):json({detail:{code:'canvas_lease_lost'}},409));
+    await assert.rejects(f.lease.start(async()=>{f.lease.status=publicLease({generation:2,holder:{id:'other'}});throw Error('load failed');}),/load failed/);
+    assert.equal(f.lease.canEdit,false);assert.equal(f.calls.length,2);assert.equal(f.lease.status.generation,2);
+    assert.equal(f.lease.message,'load failed');
+});
 test('renewal extends time but never replaces the acknowledged document revision', async () => {
     const f = fixture(path => json(publicLease(path.endsWith('/acquire') ? {edit_token:'private'} : {revision:9})));
     await f.start(); await f.lease.renew();

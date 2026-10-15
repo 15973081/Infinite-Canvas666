@@ -19,6 +19,26 @@ const transport=actor=>async(path,init={})=>{
     const owner=new Lease({id,fetch:ownerFetch}),recipient=new Lease({id,fetch:recipientFetch});
     const reload=fetch=>async()=>{const response=await fetch(path);assert.equal(response.ok,true);return (await response.json()).canvas;};
     const write=(client,title)=>client.write(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,nodes:[{id:'prompt',type:'prompt',prompt:title}],connections:[]})});
+    if(process.argv[3]==='startup-recovery'){
+        await assert.rejects(owner.start(async()=>{throw Error('load failed');}),/load failed/);
+        assert.equal(owner.canEdit,false);
+        await recipient.start(reload(recipientFetch));assert.equal(recipient.canEdit,true);
+        assert.equal(await recipient.finish(async()=>true),true);
+        await owner.start(reload(ownerFetch));await recipient.requestTransfer();
+        await owner.refreshTransfers(reload(ownerFetch));
+        assert.equal(await owner.resolveTransfer(recipient.pending.id,{approve:true,confirm:true},async()=>true),true);
+        await assert.rejects(recipient.refreshTransfers(async()=>{throw Error('handoff load failed');}),/handoff load failed/);
+        assert.equal(recipient.canEdit,false);
+        await assert.rejects(owner.start(async()=>{
+            // A new holder can take over while the old page is still loading.
+            // The old page's cleanup must never release this newer grant.
+            await recipient.start(reload(recipientFetch),{takeover:'force',expected_generation:owner.generation,confirm:true,reason:'startup recovery acceptance'});
+            throw Error('superseded load');
+        }),/superseded load/);
+        await recipient.renew();assert.equal(recipient.canEdit,true);assert.equal(owner.canEdit,false);
+        assert.equal(await recipient.finish(async()=>true),true);
+        process.stdout.write(JSON.stringify({done:true,revision:recipient.revision})+'\n');lines.close();process.exit(0);
+    }
     await owner.start(reload(ownerFetch));
     await recipient.requestTransfer();
     await owner.refreshTransfers(reload(ownerFetch));

@@ -76,16 +76,10 @@ def test_retired_canvas_lock_routes_are_gone_and_workspace_lease_still_saves(wor
     assert client.post(path + '/edit-lease/release', headers=proof(world, lease, revision)).status_code == 200
 
 
-@pytest.mark.parametrize('kind', ['classic', 'smart'])
-def test_real_frontend_client_transfer_reject_takeover_and_final_save(world, kind):
-    from app.services import members
-    from app.storage.database import connection
-    members.assign_roles(world['operator'], world['people'][0]['id'], [world['a']['roles']['admin']], world['a']['id'])
-    members.assign_roles(world['operator'], world['people'][1]['id'], [world['a']['roles']['editor']], world['a']['id'])
-    path, canvas = setup_canvas(world, kind)
+def run_frontend_client(world, canvas, scenario='collaboration'):
     root = Path(__file__).resolve().parents[1]
     clients = {'owner': world['editor'], 'recipient': world['viewer']}
-    process = subprocess.Popen(['node', str(root / 'tests/helpers/canvas-lease-http.cjs'), canvas['id']], cwd=root,
+    process = subprocess.Popen(['node', str(root / 'tests/helpers/canvas-lease-http.cjs'), canvas['id'], scenario], cwd=root,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8',
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     done = None
@@ -101,21 +95,51 @@ def test_real_frontend_client_transfer_reject_takeover_and_final_save(world, kin
             process.stdin.flush()
         process.wait(timeout=5)
         assert process.returncode == 0, process.stderr.read()
-        assert done and done['revision'] > canvas['revision']
-        assert world['editor'].get(path, headers=headers(world['a'])).json()['canvas']['title'] == 'forced final'
-        with connection() as conn:
-            events = conn.execute('SELECT action,reason FROM collaboration_events WHERE canvas_id=%s', (canvas['id'],)).fetchall()
-            assert [row['action'] for row in events].count('transfer.approve') == 1
-            assert [row['action'] for row in events].count('transfer.reject') == 1
-            assert [row['action'] for row in events].count('release') == 1
-            assert next(row['reason'] for row in events if row['action'] == 'takeover.force') == 'client acceptance takeover'
-            assert conn.execute('SELECT count(*) AS n FROM canvas_release_snapshots WHERE canvas_id=%s', (canvas['id'],)).fetchone()['n'] == 2
+        assert done
+        return done
     finally:
         if process.poll() is None:
             process.kill()
             process.wait(timeout=5)
         for stream in (process.stdin, process.stdout, process.stderr):
             stream.close()
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_real_frontend_client_transfer_reject_takeover_and_final_save(world, kind):
+    from app.services import members
+    from app.storage.database import connection
+    members.assign_roles(world['operator'], world['people'][0]['id'], [world['a']['roles']['admin']], world['a']['id'])
+    members.assign_roles(world['operator'], world['people'][1]['id'], [world['a']['roles']['editor']], world['a']['id'])
+    path, canvas = setup_canvas(world, kind)
+    done = run_frontend_client(world, canvas)
+    assert done['revision'] > canvas['revision']
+    assert world['editor'].get(path, headers=headers(world['a'])).json()['canvas']['title'] == 'forced final'
+    with connection() as conn:
+        events = conn.execute('SELECT action,reason FROM collaboration_events WHERE canvas_id=%s', (canvas['id'],)).fetchall()
+        assert [row['action'] for row in events].count('transfer.approve') == 1
+        assert [row['action'] for row in events].count('transfer.reject') == 1
+        assert [row['action'] for row in events].count('release') == 1
+        assert next(row['reason'] for row in events if row['action'] == 'takeover.force') == 'client acceptance takeover'
+        assert conn.execute('SELECT count(*) AS n FROM canvas_release_snapshots WHERE canvas_id=%s', (canvas['id'],)).fetchone()['n'] == 2
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_real_frontend_failed_start_and_handoff_release_only_unused_grants(world, kind):
+    from app.services import members
+    from app.storage.database import connection
+    for person in world['people'][:2]:
+        members.assign_roles(world['operator'], person['id'], [world['a']['roles']['admin']], world['a']['id'])
+    path, canvas = setup_canvas(world, kind)
+    done = run_frontend_client(world, canvas, 'startup-recovery')
+    assert done['revision'] == canvas['revision']
+    stored = world['editor'].get(path, headers=headers(world['a'])).json()['canvas']
+    assert stored['title'] == canvas['title'] and stored['revision'] == canvas['revision']
+    assert world['editor'].get(path + '/edit-lease', headers=headers(world['a'])).json()['holder'] is None
+    with connection() as conn:
+        events = conn.execute('SELECT action FROM collaboration_events WHERE canvas_id=%s', (canvas['id'],)).fetchall()
+        assert [row['action'] for row in events].count('release') == 4
+        assert [row['action'] for row in events].count('takeover.force') == 1
 
 
 def acquire(world, path, **body):

@@ -64,15 +64,31 @@
             else this.emit();
             return data;
         }
+        async releaseUnused(grant) {
+            // No edits were enabled for this grant. Use its original proof, never
+            // the instance's possibly newer credentials or a freshly read revision.
+            if (grant?.canvas_id !== this.id || !grant.holder?.is_self || typeof grant.edit_token !== 'string' || !grant.edit_token ||
+                !Number.isSafeInteger(grant.generation) || !Number.isSafeInteger(grant.revision)) return;
+            try {
+                const result = await this.request('/release', {method:'POST', headers:{'X-Canvas-Edit-Token':grant.edit_token,
+                    'X-Canvas-Generation':String(grant.generation), 'X-Canvas-Revision':String(grant.revision)}});
+                if (result.released && result.generation === grant.generation && result.revision === grant.revision &&
+                    !this.token && this.state !== 'closed' && this.status?.generation === grant.generation) {
+                    this.status = {...this.status, holder:null, expires_at:null}; this.emit();
+                }
+            } catch (_) {} // Unconfirmed cleanup expires server-side; preserve the original load error.
+        }
         start(reload, options={}) {
             return this.enqueue(async () => {
                 if (this.state === 'closed') throw new Error('画布页面已关闭，请重新打开。');
                 if (this.canSave) return;
                 if (!['normal','scheduled'].includes(this.maintenance)) throw new Error('维护期间不能开始新的编辑。');
                 const epoch = ++this.epoch, sentAt = this.now();
+                let grant = null, editing = false;
                 this.pending = null; this.state = 'starting'; this.message = ''; this.emit();
                 try {
                     const data = await this.request('/acquire', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(options)});
+                    grant = data;
                     if (epoch !== this.epoch) return;
                     this.token = data.edit_token; this.generation = data.generation; this.revision = data.revision;
                     if (!this.token || !Number.isSafeInteger(this.revision)) throw new Error('服务器未返回有效编辑凭据。');
@@ -82,6 +98,7 @@
                     if (document?.revision !== this.revision) throw new Error('画布版本已变化，请重新开始编辑。');
                     this.state = 'editing';
                     if (!this.canSave) return;
+                    editing = true;
                     this.emit();
                 } catch (error) {
                     if (epoch === this.epoch) {
@@ -89,7 +106,7 @@
                         this.pause(error.message);
                     }
                     throw error;
-                }
+                } finally { if (!editing) await this.releaseUnused(grant); }
             });
         }
         renew() {
@@ -179,9 +196,11 @@
                 }
                 this.state = 'starting'; this.emit();
                 const sentAt = this.now();
+                let grant = null, editing = false;
                 try {
                     const accepted = await this.request('/renew', {method:'POST', headers:{'X-Canvas-Edit-Token':pending.token,
                         'X-Canvas-Generation':String(pending.generation + 1)}});
+                    grant = {...accepted, edit_token:pending.token};
                     if (epoch !== this.epoch) return;
                     if (accepted.generation !== pending.generation + 1 || !Number.isSafeInteger(accepted.revision)) throw new Error('交接凭据与当前版本不一致，请重新检查。');
                     this.token = pending.token; this.generation = accepted.generation; this.revision = accepted.revision;
@@ -190,8 +209,9 @@
                     if (epoch !== this.epoch) return;
                     if (document?.revision !== this.revision) throw new Error('交接画布版本已变化，请保留草稿后重新载入。');
                     this.pending = null; this.state = 'editing'; this.message = '已接手编辑';
-                    if (this.canSave) this.emit();
+                    if (this.canSave) { editing = true; this.emit(); }
                 } catch (error) { if (epoch === this.epoch) this.pause(error.message); throw error; }
+                finally { if (!editing) await this.releaseUnused(grant); }
             });
         }
         async resolveTransfer(id, {approve, confirm=false}, flush) {
