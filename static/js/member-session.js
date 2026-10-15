@@ -28,9 +28,20 @@
     }[data?.detail?.code] || (typeof data?.detail === 'string' ? data.detail : '请求未完成，请重试。'));
     async function json(path, init={}) {
         const response = await nativeFetch(path, {credentials:'same-origin', cache:'no-store', ...init, signal:AbortSignal.timeout(15000)});
+        await observeResponse(response);
         const data = await response.json();
         if (!response.ok) throw new Error(errorText(data));
         return data;
+    }
+    async function observeResponse(response) {
+        if (!context) return;
+        if (response.status === 401) await pause('登录已失效，已暂停后续请求。');
+        if ([403,409].includes(response.status)) {
+            try {
+                const data = await response.clone().json();
+                if (['member_identity_changed','workspace_forbidden','workspace_unavailable'].includes(data?.detail?.code)) await pause(errorText(data));
+            } catch (_) {}
+        }
     }
     async function showPanel(title, description) {
         await domReady;
@@ -49,14 +60,19 @@
         await domReady;
         const banner = element('section', undefined, 'member-session-banner'); banner.setAttribute('role', 'alert');
         const login = element('a', '重新登录'); login.href = '/login'; login.target = '_blank'; login.rel = 'noopener';
+        const feedback=element('p');feedback.setAttribute('role','status');
         banner.append(element('span', message + ' 当前页面内容尚未被清除。'), login,
             button('重新检查登录', async () => {
                 try {
                     const status = await json('/api/auth/status');
                     if (!status.authenticated || status.member?.id !== context?.member.id) throw new Error('请先以原账号登录；切换账号须重新打开工作台。');
-                    banner.replaceChildren(element('span', '身份已确认。请先保留草稿，再重新打开页面领取编辑资格。'), button('重新打开', () => location.reload()));
-                } catch (error) { banner.append(element('p', error.message)); }
-            }));
+                    feedback.textContent='';
+                    banner.replaceChildren(element('span', '身份已确认。请先保留草稿，再重新打开页面领取编辑资格。'), button('重新打开', async () => {
+                        if (!await flushPages()) {feedback.textContent='当前更改尚未保存，请先在自动草稿中保留或另存副本，再重新打开。';return;}
+                        location.reload();
+                    }),feedback);
+                } catch (error) { feedback.textContent=error.message; }
+            }),feedback);
         document.body.append(banner);
     }
     function scopedUrl(value, workspace=context?.workspace.id) {
@@ -421,7 +437,12 @@
     session.ready = initialize(); session.ready.catch(() => {});
     window.fetch = async (input, init={}) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-        if (url.origin !== location.origin || !(url.pathname.startsWith('/api/') || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/output/')) || accountPaths.has(url.pathname)) return nativeFetch(input, init);
+        if (url.origin !== location.origin || !(url.pathname.startsWith('/api/') || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/output/'))) return nativeFetch(input, init);
+        if (accountPaths.has(url.pathname)) {
+            const response=await nativeFetch(input,init);
+            await observeResponse(response);
+            return response;
+        }
         const bound = await session.ready;
         if (blocked) throw new Error('页面会话已暂停，请先保留内容并重新确认身份。');
         const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
@@ -443,13 +464,7 @@
             headers.set('X-Workspace-ID', bound.workspace.id); headers.set('X-Member-ID', bound.member.id);
         }
         const response = await nativeFetch(input, {...init, headers, credentials:'same-origin'});
-        if (response.status === 401) await pause('登录已失效，已暂停后续请求。');
-        if ([403,409].includes(response.status)) {
-            try {
-                const data = await response.clone().json();
-                if (['member_identity_changed','workspace_forbidden','workspace_unavailable'].includes(data?.detail?.code)) await pause(errorText(data));
-            } catch (_) {}
-        }
+        await observeResponse(response);
         return response;
     };
     window.addEventListener('focus', async () => {

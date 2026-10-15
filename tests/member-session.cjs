@@ -17,7 +17,7 @@ class Node {
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); }
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
 }
-function harness({member='alice', selected='space_a', parent, search='', pathname='/static/canvas.html', failBusiness=false}={}) {
+function harness({member='alice', selected='space_a', parent, search='', pathname='/static/canvas.html', failBusiness=false, accountFailure=null}={}) {
     const calls=[], body=new Node('body'), nodes=[], store=new Map();
     if (selected) store.set('canvas:workspace:' + member, selected);
     const spaces = [{id:'space_a',name:'A',permissions:['canvas.read']},{id:'space_b',name:'B',permissions:['canvas.edit']}];
@@ -26,6 +26,7 @@ function harness({member='alice', selected='space_a', parent, search='', pathnam
     const window = {location,document,events:{},addEventListener(name,fn){this.events[name]=fn;},removeEventListener(){},dispatchEvent(){},alert(){},fetch:async (url,init={}) => {
         calls.push({url:String(url),init});
         const path = new URL(url instanceof Request ? url.url : String(url),location.href).pathname;
+        if (accountFailure && path === accountFailure.path) return Response.json({detail:{code:accountFailure.code}},{status:accountFailure.status});
         if (path === '/api/auth/status') return Response.json({authenticated:true,mode:'members',member:{id:member,display_name:member,avatar:''}});
         if (path === '/api/auth/workspaces') return Response.json({workspaces:spaces});
         return failBusiness ? Response.json({detail:{code:'member_identity_changed'}},{status:409}) : Response.json({ok:true});
@@ -177,4 +178,37 @@ test('logout forgets the space only after saving succeeds; refresh still restore
     assert.ok(next.nodes.some(n=>n.tag==='h1'&&n.textContent==='选择工作空间'));
     await next.nodes.find(n=>n.tag==='button'&&n.textContent==='A').events.click();
     assert.equal((await next.window.CanvasSession.ready).workspace.id,'space_a');
+});
+
+for(const [path,status,code] of [
+    ['/api/account/billing',401,'authentication_required'],
+    ['/api/account/data',409,'member_identity_changed'],
+    ['/api/auth/profile',401,'authentication_required']
+]) test(`account endpoint ${path} pauses expired sessions without adding workspace headers`,async()=>{
+    const h=harness({accountFailure:{path,status,code}});await h.window.CanvasSession.ready;
+    const response=await h.window.fetch(path);
+    assert.equal(response.status,status);assert.equal(h.window.CanvasSession.paused,true);
+    assert.equal(new Headers(h.calls.find(call=>call.url===path).init.headers).has('X-Workspace-ID'),false);
+    assert.equal((await response.json()).detail.code,code,'observing errors preserves the response body');
+    await assert.rejects(h.window.fetch('/api/canvases'),/暂停/);
+    assert.equal(h.nodes.filter(n=>n.className==='member-session-banner').length,1);
+});
+
+test('ordinary account permission denial does not expire the login',async()=>{
+    const h=harness({accountFailure:{path:'/api/account/billing',status:403,code:'permission_denied'}});
+    await h.window.CanvasSession.ready;await h.window.fetch('/api/account/billing');
+    assert.equal(h.window.CanvasSession.paused,false);
+});
+
+test('reopening a recovered login still waits for unsaved content protection',async()=>{
+    const h=harness();await h.window.CanvasSession.ready;
+    await h.window.CanvasSession.pause('登录已失效');
+    await h.nodes.find(n=>n.tag==='button'&&n.textContent==='重新检查登录').events.click();
+    const reopen=h.nodes.find(n=>n.tag==='button'&&n.textContent==='重新打开');
+    let reloads=0;h.window.location.reload=()=>reloads++;
+    h.window.FrontendVersion={flushPages:async()=>false};
+    await reopen.events.click();assert.equal(reloads,0);
+    assert.ok(h.nodes.some(n=>n.textContent?.includes('当前更改尚未保存')));
+    h.window.FrontendVersion.flushPages=async()=>true;
+    await reopen.events.click();assert.equal(reloads,1);
 });

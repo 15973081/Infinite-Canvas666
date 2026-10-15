@@ -61,3 +61,17 @@ test('profile updates recreate one compact account control and preserve existing
     assert.notEqual(await page.locator('.member-session-account').getAttribute('open'),null);
     assert.equal(await page.locator('body > .member-session-bar').count(),0);assert.deepEqual(errors,[]);
 });
+
+test('expired account request shows one recovery banner and protects unsaved edits',async t=>{
+    const {page,errors}=await setup(t);
+    await page.route('**/api/account/billing',route=>route.fulfill({status:401,json:{detail:{code:'authentication_required'}}}));
+    await page.evaluate(async()=>{await fetch('/api/account/billing');await fetch('/api/account/billing');});
+    assert.equal(await page.locator('.member-session-banner').count(),1);
+    assert.equal(await page.evaluate(()=>CanvasSession.paused),true);
+    await page.getByRole('button',{name:'重新检查登录',exact:true}).click();
+    await page.evaluate(()=>{window.FrontendVersion={flushPages:async()=>false};});
+    await page.getByRole('button',{name:'重新打开',exact:true}).click();
+    await page.getByText('当前更改尚未保存，请先在自动草稿中保留或另存副本，再重新打开。',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>CanvasSession.paused),true);
+    assert.deepEqual(errors,[]);
+});
