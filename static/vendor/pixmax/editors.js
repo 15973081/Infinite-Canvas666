@@ -4683,7 +4683,7 @@ export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params
     container.registerInstance(j_,{debug(){},info(){},warn:console.warn,error:console.error});
     const notify=props.onNotice||(()=>{});container.registerInstance(N_,{success:notify,error:notify,warning:notify,info:notify,pending:notify,remove(){}});container.registerInstance(JSe,props.subjectApi);
     const data=z(props.data),disabled=z(!!props.disabled),view=z({...props.viewport}),graph={get nodes(){return G(data).graph.nodes;},get edges(){return G(data).graph.edges;},...props.graphActions};
-    const rules=Object.create(lk);Object.defineProperty(rules,'configMap',{get(){return new Map([[props.formVariant==='video-gen'?Bp.GenerateVideo:Bp.GenerateImage,G(data).schema]]);}});
+    const rules=Object.create(lk);Object.defineProperty(rules,'configMap',{get(){return new Map([[props.formVariant==='text-gen'?Bp.GenerateText:props.formVariant==='video-gen'?Bp.GenerateVideo:Bp.GenerateImage,G(data).schema]]);}});
     let instance,disposed=false;
     instance=Tf(N1,{target,context:new Map([[tCe,container],[Bz,{user:null}]]),props:{...props,preserveUnavailableModels:true,ruleEngine:rules,hostGraph:graph,modelDefaultPrompt:(_code,value)=>value,resolveValue:value=>value,previewViewport:{get current(){return {zoom:G(view).scale||1};}},
       videoModeSlot:anchor=>XNt(anchor,{ruleEngine:rules,preserveSelection:true,get schema(){return G(data).schema;},get nodes(){return G(data).graph.nodes.filter(node=>node.id!==props.nodeId);},get model(){return G(data).value.model;},get value(){return G(data).value;},get disabled(){return G(disabled);},onChange:value=>props.onChange(value)}),

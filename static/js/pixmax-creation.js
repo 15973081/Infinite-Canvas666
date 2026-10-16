@@ -30,7 +30,7 @@ function pixmaxTextContext(node){
         images:sources.flatMap(source=>(source.images||[]).filter(media=>mediaKindForItem(media)==='image').map(media=>media.url)).slice(0,8),
         videos:sources.flatMap(source=>(source.images||[]).filter(media=>mediaKindForItem(media)==='video').map(media=>media.url)).slice(0,3)};
 }
-async function runPixmaxTextTask(node,request,apply,valid=()=>true,decode=text=>text){
+async function runPixmaxTextTask(node,request,apply,valid=()=>true,decode=text=>text,options={}){
     if(isSmartCanvasLocked())throw new Error('请先开始编辑画布');
     if(pixmaxTextJobs.has(node)||window.PixmaxBatchExecution?.busy(node.id))throw new Error('此节点正在生成，请等待当前任务完成');
     if(!request.message?.trim())throw new Error('请先填写创作内容');
@@ -48,7 +48,7 @@ async function runPixmaxTextTask(node,request,apply,valid=()=>true,decode=text=>
         let task;
         if(binding){
             if(!window.CanvasLLMTasks?.run)throw new Error('文本任务组件尚未加载，请保存后刷新');
-            task=await window.CanvasLLMTasks.run(payload,{binding,canvasId:origin.id});
+            task=await window.CanvasLLMTasks.run(payload,{binding,canvasId:origin.id,onRemember:options.onStatus,onStatus:options.onStatus});
         }else{
             const input=JSON.stringify(smartTaskInputDocument());
             const result=await window.CanvasApi.canvasLLM({...payload,provider:request.providerId});
@@ -93,29 +93,7 @@ function pixmaxCreationModal(title){
     modal.addEventListener('wheel',event=>event.stopPropagation(),{passive:true});
     document.body.appendChild(modal);return modal;
 }
-function openPixmaxTextGeneration(node){
-    if(isSmartCanvasLocked())return;
-    const origin=canvas,epoch=window.MemberCanvasEdit?.active?.lease?.epoch,context=pixmaxTextContext(node),saved=node.textGeneration||{};
-    const modal=pixmaxCreationModal('文本生成'),body=modal.querySelector('.pixmax-creation-content');
-    body.innerHTML=`<div class="pixmax-creation-models">${pixmaxTextModelControls(saved)}</div><label>创作要求<textarea data-text-request aria-label="文本创作要求" placeholder="描述你想写的内容">${escapeHtml(saved.input||context.text||node.text||'')}</textarea></label><label>角色要求<textarea data-text-system aria-label="文本角色要求" placeholder="例如：你是一位电影编剧">${escapeHtml(saved.systemPrompt||'')}</textarea></label><button class="pixmax-creation-primary" type="button" data-text-run>生成文本</button>`;
-    bindPixmaxTextModels(modal);
-    const valid=()=>modal.isConnected&&canvas===origin&&nodes.includes(node)&&!isSmartCanvasLocked()&&window.MemberCanvasEdit?.active?.lease?.epoch===epoch;
-    modal.querySelector('[data-text-run]').onclick=async event=>{
-        const button=event.target,status=modal.querySelector('[role=status]');
-        try{
-            if(!valid())throw new Error('编辑资格已变化，请重新打开文本生成');
-            const config={...pixmaxTextModelValue(modal),input:modal.querySelector('[data-text-request]').value,systemPrompt:modal.querySelector('[data-text-system]').value};
-            if(!config.input.trim())throw new Error('请先填写创作要求');
-            pushUndo();node.textGeneration=config;scheduleSave();
-            button.disabled=true;status.textContent='正在生成文本…';
-            const request=JSON.stringify(config);
-            const liveContext=pixmaxTextContext(node);
-            await runPixmaxTextTask(node,{...config,...liveContext,message:[config.input,liveContext.text?'引用文本：\n'+liveContext.text:''].filter(Boolean).join('\n\n')},text=>node.text=text,()=>valid()&&pixmaxTextModelUnchanged(modal,config)&&modal.querySelector('[data-text-request]').value===config.input&&modal.querySelector('[data-text-system]').value===config.systemPrompt&&JSON.stringify(node.textGeneration)===request);
-            status.textContent='文本已更新到节点';
-        }catch(error){status.textContent=error.message||'文本生成失败';}
-        finally{button.disabled=false;}
-    };
-}
+function openPixmaxTextGeneration(node){return window.PixmaxTextGeneration.open(node);}
 function focusPixmaxNode(node){
     const bounds=nodeRect(node),center=viewportCenter();
     viewport.x+=(center.x-bounds.x-bounds.width/2)*viewport.scale;

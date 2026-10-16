@@ -44,7 +44,8 @@
             const config=node.textGeneration,context=pixmaxTextContext(node);
             if(!config||!pixmaxChatProviders().some(provider=>provider.id===config.providerId&&provider.chat_models.includes(config.model)))throw new Error('请先配置文本供应商和模型');
             if(!config.input?.trim())throw new Error('请填写文本创作要求');
-            return {provider_id:config.providerId,model:config.model,message:[config.input,context.text?'引用文本：\n'+context.text:''].filter(Boolean).join('\n\n'),system_prompt:config.systemPrompt||'',images:context.images,videos:context.videos};
+            const prompt=window.PixmaxTextGeneration?.plainPrompt(node,config.input)??config.input;
+            return {provider_id:config.providerId,model:config.model,message:[prompt,context.text?'引用文本：\n'+context.text:''].filter(Boolean).join('\n\n'),system_prompt:config.systemPrompt||'',images:context.images,videos:context.videos};
         }
         const old=settings;let request,config;
         try{settings={...settings,...cloneSmartSettings(smartSettingsForNode(node))};config=cloneSmartSettings(settings);request=buildPromptRequestForNode(node,null);}finally{settings=old;}

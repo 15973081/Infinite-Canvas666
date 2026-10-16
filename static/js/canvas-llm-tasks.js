@@ -1,7 +1,7 @@
 /* Shared durable text task transport. Result application belongs to the input binding. */
 (function () {
     'use strict';
-    async function run(payload, {binding, canvasId, taskId:requestedId,onRemember,transport=window.fetch.bind(window), sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}) {
+    async function run(payload, {binding, canvasId, taskId:requestedId,onRemember,onStatus,transport=window.fetch.bind(window), sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}) {
         if(!binding || !window.CanvasSession?.enabled)throw new Error('对话任务校验尚未就绪，请保存并刷新页面。');
         const taskId=requestedId||'canvas_llm_'+crypto.randomUUID().replace(/-/g,'');
         if(!/^canvas_llm_[A-Za-z0-9_-]{8,80}$/.test(taskId))throw new Error('任务编号无效');
@@ -25,6 +25,7 @@
                 if(!response.ok)throw new Error('对话任务查询中断；任务会在服务器保留，请稍后查看生成结果。');
                 const task=await response.json();
                 binding.verify(task,taskId);
+                await onStatus?.(task);
                 if(task.status==='succeeded') {
                     if(typeof task.result?.text!=='string' || !task.result.text)throw new Error('回复内容待核对，请检查任务记录。');
                     return task;

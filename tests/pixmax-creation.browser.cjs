@@ -51,7 +51,7 @@ test('text generation uses saved input receipts and updates the existing text no
     const {page,errors,record}=await setup(t),service=await textService(page,['电影剧本已生成']);
     await page.evaluate(()=>{const node=createPromptNode(200,150);node.text='原始内容';openPixmaxTextGeneration(node);});
     await page.getByRole('textbox',{name:'文本创作要求',exact:true}).fill('写一个电影开场');
-    await page.locator('[data-text-run]').click();
+    await page.locator('[data-native-generation-submit]').click();
     await page.waitForFunction(()=>nodes[0].text==='电影剧本已生成');
     assert.equal(service.calls.length,1);assert.equal(service.calls[0].provider_id,'writer');assert.equal(service.calls[0].model,'writer-model');
     assert.equal(service.calls[0].canvas_target.source_node_id,await page.evaluate(()=>nodes[0].id));
@@ -66,7 +66,7 @@ test('text generation captures current upstream references at submission rather 
         source.text='提交时的引用';
     });
     await page.getByRole('textbox',{name:'文本创作要求',exact:true}).fill('依据最新输入创作');
-    await page.locator('[data-text-run]').click();await page.waitForFunction(()=>nodes[1].text==='新引用生成结果');
+    await page.locator('[data-native-generation-submit]').click();await page.waitForFunction(()=>nodes[1].text==='新引用生成结果');
     assert.match(service.calls[0].message,/提交时的引用/);assert.doesNotMatch(service.calls[0].message,/打开时的引用/);assert.deepEqual(errors,[]);
 });
 
@@ -99,16 +99,16 @@ test('storyboard generates shots, prepares assets and generates prompts through 
     assert.equal(result.count,3);assert.equal(result.links,2);assert.deepEqual(result.text,['电影画面提示词 0','电影画面提示词 1']);assert.equal(result.shots[0].duration,4);assert.equal(result.shots[0].asset,'角色和街景 0');assert.equal(service.calls.length,3);assert.deepEqual(errors,[]);
 });
 
-for(const change of ['input','lease','close'])test('text generation refuses delayed results after '+change,async t=>{
+for(const change of ['input','lease','delete'])test('text generation refuses delayed results after '+change,async t=>{
     const {page,errors}=await setup(t),service=await textService(page,['迟到的回复'],{held:true});
     await page.evaluate(()=>{const node=createPromptNode(200,150);node.text='保留文本';openPixmaxTextGeneration(node);});
-    await page.getByRole('textbox',{name:'文本创作要求'}).fill('第一条创作要求');await page.locator('[data-text-run]').click();await service.polling;
-    if(change==='input')await page.getByRole('textbox',{name:'文本创作要求'}).fill('新的创作要求');
+    await page.getByRole('textbox',{name:'文本创作要求'}).fill('第一条创作要求');await page.locator('[data-native-generation-submit]').click();await service.polling;
+    if(change==='input'){assert.equal(await page.getByRole('textbox',{name:'文本创作要求'}).getAttribute('aria-readonly'),'true');await page.evaluate(()=>{nodes[0].textGeneration.input='其他窗口的新创作要求';});}
     if(change==='lease')await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
-    if(change==='close')await page.getByRole('button',{name:'关闭文本生成'}).click();
+    if(change==='delete')await page.evaluate(()=>{window.removedTextNode=nodes[0];nodes=[];render();});
     service.release();
-    await page.waitForFunction(()=>!pixmaxTextJobs.has(nodes[0]));
-    assert.equal(await page.evaluate(()=>nodes[0].text),'保留文本');assert.equal(service.calls.length,1);assert.equal(await page.evaluate(()=>nodes[0].result_task_id),undefined);assert.deepEqual(errors,[]);
+    await page.waitForFunction(()=>!pixmaxTextJobs.has(window.removedTextNode||nodes[0]));
+    assert.equal(await page.evaluate(()=>(window.removedTextNode||nodes[0]).text),'保留文本');assert.equal(service.calls.length,1);assert.equal(await page.evaluate(()=>(window.removedTextNode||nodes[0]).result_task_id),undefined);assert.deepEqual(errors,[]);
 });
 
 test('invalid storyboard reply preserves manually edited shots and reports a useful error',async t=>{

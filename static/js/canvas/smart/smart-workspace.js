@@ -313,7 +313,9 @@ function syncSelectionUi(){
         });
     });
     positionPixmaxVideoToolbars();
+    void window.PixmaxTextGeneration?.sync();
     window.PixmaxNativePrompt?.updateViewport();
+    window.PixmaxTextGeneration?.position();
 }
 
 function isNodeSelected(id){
@@ -552,6 +554,7 @@ function applyViewport(){
     scheduleSmartMinimapRender(true);
     scheduleSmartViewportRefresh();
     window.PixmaxNativePrompt?.updateViewport();
+    window.PixmaxTextGeneration?.position();
 }
 
 // 视野裁剪：判断节点是否在智能画布可见区域内
@@ -2030,10 +2033,10 @@ function restoreMediaPlaybackStates(states){
 }
 
 function promptNodeBodyHtml(node){
+    const task=window.PixmaxTextGeneration?.body(node);if(task)return task;
     return `<div class="prompt-node-card">
         <div class="pixmax-text-view ${node.text?.trim()?'':'empty'}" role="presentation">${escapeHtml(node.text || '双击开始输入...')}</div>
         <textarea class="prompt-node-text prompt-node-control" aria-label="节点文本" hidden readonly placeholder="在此输入文本...">${escapeHtml(node.text || '')}</textarea>
-        <button type="button" class="pixmax-text-generate" data-text-generate aria-label="生成文本">生成文本 ↗</button>
     </div>`;
 }
 
@@ -2123,6 +2126,11 @@ function smartNodeToolbarImageIndex(node){
 function runSmartNodeToolbarAction(nodeId, action){
     const node = nodes.find(n => n.id === nodeId);
     if(!node) return;
+    if(node.type==='smart-prompt'){
+        if(action==='tags')return window.PixmaxTags.openPicker([node.id],world.querySelector(`[data-node-id="${CSS.escape(node.id)}"][data-smart-node-action="tags"]`));
+        if(action==='download-text'&&node.text?.trim())return downloadBlob(new Blob([node.text],{type:'text/plain;charset=utf-8'}),safeExportFileName((node.label||'文本')+'.txt','文本.txt'));
+        return;
+    }
     const index = smartNodeToolbarImageIndex(node);
     const item = imageForDisplay(node.images?.[index]);
     if(!item?.url) return;
@@ -2174,7 +2182,7 @@ function runSmartNodeToolbarAction(nodeId, action){
 
 function smartChangedConnectionNodes(...args){return smartWorkspaceView.changedConnections(...args);}
 
-function render(...args){return smartWorkspaceView.render(...args);}
+function render(...args){const result=smartWorkspaceView.render(...args);void window.PixmaxTextGeneration?.sync();return result;}
 
 function smartAffectedNodeIds(ids){
     const affected = new Set(ids.filter(Boolean)), outgoing = new Map();
@@ -2195,7 +2203,7 @@ function smartAffectedNodeIds(ids){
     return affected;
 }
 
-function refreshSmartNodes(...args){return smartWorkspaceView.refreshNodes(...args);}
+function refreshSmartNodes(...args){const result=smartWorkspaceView.refreshNodes(...args);void window.PixmaxTextGeneration?.sync();return result;}
 
 function measureSmartNodeImages(root=world){
     root.querySelectorAll('.image-node img,.image-node video').forEach(imgEl => {
@@ -2292,8 +2300,6 @@ function clearPortDragVisual(){
 }
 
 function bindPromptNodeControls(el, node){
-    el.querySelector('[data-text-generate]')?.addEventListener('mousedown',event=>event.stopPropagation());
-    el.querySelector('[data-text-generate]')?.addEventListener('click',event=>{event.stopPropagation();openPixmaxTextGeneration(node);});
     const textEl = el.querySelector('.prompt-node-text');
     if(!textEl) return;
     const view=el.querySelector('.pixmax-text-view');
@@ -2809,6 +2815,7 @@ function loadPromptDraft(subject){
 
 function positionComposerForNode(node){
     if(!node) return;
+    if(node.type==='smart-prompt')return window.PixmaxTextGeneration?.position();
     const rect = nodeRect(node);
     const gap = 16;
     const scale=safeScale(viewport.scale),bounds=smartViewportBounds();
@@ -4100,6 +4107,7 @@ function updateSmartNodeToolbarAccess(){
 }
 
 function smartNodeToolbarHtml(node){
+    if(node?.type==='smart-prompt')return `<div class="smart-node-floating-menu pixmax-text-toolbar" role="toolbar" aria-label="文本节点工具" data-smart-node-menu="1"><button type="button" data-smart-node-action="tags" data-node-id="${escapeAttr(node.id)}" aria-label="标签" title="标签"><i data-lucide="tag"></i></button>${node.text?.trim()?`<button type="button" data-smart-node-action="download-text" data-node-id="${escapeAttr(node.id)}" aria-label="下载文本" title="下载文本"><i data-lucide="download"></i></button>`:''}</div>`;
     const isImageNode = node?.type === 'smart-image' || !node?.type;
     const images = node?.images || [];
     if(!isImageNode || !images.some(img => img?.url)) return '';

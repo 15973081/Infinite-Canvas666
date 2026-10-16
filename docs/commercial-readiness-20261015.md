@@ -390,3 +390,31 @@ node --test --test-concurrency=2 tests/pixmax-image-detail.browser.cjs tests/pix
 ```
 
 本轮仅修改图片预览及对应回归，没有改动自动保存协议、数据库或积分规则。未推送、未部署。
+
+## 第十轮：2026-10-16 文本生成节点对齐 Pixmax
+
+用户在文本节点源码对比后确认“升级”。本轮对照 `C:/project/skill-clone/output/pixmax-canvas-1f1b1a95/mirror/app.pixmax.cn/assets/index-Bcq66HVs.js` 中的文本节点、生成表单和文本工具栏实现；该文件是捕获的编译前端资源，并非 Pixmax 原始工程或服务端源码。复用项目已提取的原生生成表单，通过本地适配器接入现有账号、模型和任务接口。
+
+### 四项可独立验收的改动
+
+1. 移除文本节点内部“生成文本 ↗”按钮及旧独立生成弹窗。单选文本节点时，在节点下方显示原生生成面板；随画布平移、缩放和节点位置更新，多选、节点删除或会话暂停时卸载。
+2. 接入原生富文本创作要求、模型选择、全屏编辑和画布 `@` 引用。提示词与节点正文分别保存，浏览面板不会创建配置或触发保存；历史角色要求仍保留并提交，但不再另设旧弹窗字段。已下架、隐藏或停用的模型不自动替换，选用有效模型后才可生成。
+3. 文本节点顶部增加标签与正文下载。生成状态显示提交、排队、执行与失败，阻止同一节点重复提交；失败保留正文与提示词并允许明确重试。切换选择后已提交任务仍写回原节点；输入、节点、来源或编辑资格改变时继续沿用原任务绑定校验，迟到结果不能覆盖不匹配的内容。
+4. 使用现有 `/api/canvas-llm-tasks` 任务与回执，单次和批量文本生成都解析原生引用标记。按钮显示“生成”，没有把截图中的 4 积分写死。未核实的文本扣分报价和排队取消规则不补造；真实支付、订阅均未接入。没有新增任务取消接口。
+
+### 验证与边界
+
+- 去重 **106 项检查通过**：文本升级与创作流程 25 项；原生图片／视频提示词、参数、批量执行、共享文本传输和文本节点 81 项。
+- 覆盖真实 DOM 输入、全屏往返、模型和草稿保存后重载、只读恢复、队列切换节点、失败重试、下载正文、原生引用、下架模型和会话暂停清理。任务接口采用隔离回执替身，验证请求与写回链路；本轮没有调用收费模型验证实际生成质量。
+- 全屏验证发现组件回调早于弹层挂入页面，已改为挂入后再处理根元素并复验通过。
+- 1440px 桌面和 390px 窄屏截图已检查；窄屏沿用画布比例缩放表单并限制其边界。截图：`.local/commercial-kickoff/text-generation-1440.png`、`text-generation-390.png`。
+- 日志：`.local/commercial-kickoff/text-generation-final.log`、`text-generation-regression.log`。相关 JavaScript 语法检查和 `git diff --check` 通过。
+- 任务状态为当前页面会话内反馈；本轮未新增刷新后继续轮询文本任务的恢复机制。服务端任务和既有结果记录仍沿用现有实现。
+
+```powershell
+$env:NODE_PATH='C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
+node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/pixmax-creation.browser.cjs
+node --test --test-concurrency=2 tests/pixmax-generation-parameters.browser.cjs tests/pixmax-native-prompt.browser.cjs tests/canvas-llm-tasks.cjs tests/pixmax-batch-execution.browser.cjs tests/smart-text-nodes.browser.cjs
+```
+
+人工验收：刷新智能画布，单击文本节点，下方出现原生面板；修改创作要求不改变节点正文，展开全屏再退出保持草稿；选择已配置的文本模型后生成，结果回到原节点；顶部标签和文本下载可独立使用。未推送、未部署。

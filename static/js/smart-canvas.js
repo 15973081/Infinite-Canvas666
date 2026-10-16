@@ -353,6 +353,7 @@ async function loadCanvas(options={}){
                     updateSmartNodeToolbarAccess();
                     window.PixmaxSegmentReshoot?.documentChanged();
                     void window.PixmaxNativePrompt?.sync();
+                    void window.PixmaxTextGeneration?.sync();
                     world.querySelectorAll('.prompt-node-text').forEach(input => { input.readOnly = !lease.canEdit; });
                     window.PixmaxNavigator?.documentChanged();
                     if(lease.canEdit) resumeSmartPendingTasks();
