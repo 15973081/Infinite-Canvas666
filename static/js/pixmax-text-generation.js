@@ -158,7 +158,8 @@
                         if(!readable(session) || !surface.isConnected) return;
                         for(const root of session.roots) if(!root.isConnected) session.roots.delete(root);
                         if(fullscreen) { const overlay = surface.parentElement; overlay.classList.add('pixmax-native-generation-fullscreen'); session.roots.add(overlay);
-                            for(const type of ['pointerdown','mousedown','click','dblclick','keydown','wheel']) overlay.addEventListener(type, event => event.stopPropagation()); }
+                            // Portalled native buttons delegate clicks to document, beyond this overlay.
+                            for(const type of ['pointerdown','mousedown','dblclick','keydown','wheel']) overlay.addEventListener(type, event => event.stopPropagation()); }
                         refresh(session);
                     });
                 }});

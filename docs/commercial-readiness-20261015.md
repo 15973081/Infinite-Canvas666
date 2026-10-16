@@ -433,3 +433,19 @@ node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/
 ```
 
 未调用收费模型，未改积分规则，未推送、未部署。
+
+## 2026-10-16 修复全屏文本面板缩小按钮无响应
+
+用户反馈放大后无法通过右上角按钮缩回。新增真实 DOM 点击回归后复现：原生全屏面板挂载到 document.body，其按钮依赖 document 上的事件委托；宿主弹层阻断了 click 冒泡，导致缩小和其他原生按钮收不到点击。上一轮只读往返使用 Esc，没有覆盖按钮路径。
+
+- 移除全屏宿主对 click 的拦截，保留画布拖动、滚轮及快捷键的事件隔离。只读面板可连续通过右上角按钮缩小，正文和编辑权限不变。
+- 补充全屏模型选择回归时发现，挂在 body 的模型菜单被判定为表单外点击，选择模型会提前关闭全屏。将原生模型菜单纳入内部交互范围，并同步运行时提取脚本。
+- 检查可编辑和只读两种状态，覆盖三次按钮开合、草稿与模型保留、缩小后回到原节点下方、节点选择不丢失，以及全屏提交后仅写回原节点；保留原有 Esc 测试。生成使用隔离任务回执，没有调用收费模型。
+- 日志：`.local/commercial-kickoff/text-collapse-repro.log`（修复前点击缩小后仍显示全屏）、`text-collapse-final.log`（完整回归）。
+- 文本与创作流程、原生图片／视频参数及提示词回归 **61/61 通过**；JavaScript 语法和 git diff --check 通过。
+
+```powershell
+node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/pixmax-creation.browser.cjs tests/pixmax-generation-parameters.browser.cjs tests/pixmax-native-prompt.browser.cjs
+```
+
+未修改积分或服务端接口，未推送、未部署。

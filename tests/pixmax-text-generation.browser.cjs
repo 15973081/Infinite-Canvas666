@@ -136,11 +136,26 @@ test('readonly text with no configured model can stay expanded without repeated 
   await page.waitForTimeout(350);
   assert.equal(await full.isVisible(),true);assert.equal(await full.getByRole('textbox',{name:'文本创作要求'}).isEditable(),false);
   assert.equal(await full.locator('[data-native-generation-submit]').isDisabled(),true);
-  await page.keyboard.press('Escape');await full.waitFor({state:'detached'});
+  await full.getByRole('button',{name:'关闭',exact:true}).click();await full.waitFor({state:'detached'});
  }
  await page.evaluate(()=>MemberCanvasEdit.setEditable(true));await editor(page).waitFor();await editor(page).fill('权限变化前的草稿');
  await page.locator('.pixmax-text-generation').getByRole('button',{name:'全屏',exact:true}).click();await full.waitFor();
  await page.evaluate(()=>MemberCanvasEdit.setEditable(false));await full.waitFor({state:'detached'});
  assert.equal(await editor(page).innerText(),'权限变化前的草稿');assert.equal(await editor(page).isEditable(),false);
  assert.equal(await page.evaluate(()=>nodes[0].text),'原有正文');assert.equal(writes.filter(row=>row.path.includes('canvas-llm')).length,0);assert.deepEqual(errors,[]);
+});
+
+test('fullscreen native clicks switch models, collapse with draft intact and submit to the original node',async t=>{
+ const {page,errors}=await setup(t),task=await service(page);
+ const full=page.locator('[data-native-generation-surface][data-fullscreen="true"]');
+ const expand=()=>page.locator('.pixmax-text-generation').getByRole('button',{name:'全屏',exact:true}).click();
+ await expand();await full.waitFor();await full.getByRole('textbox',{name:'文本创作要求'}).fill('放大后填写的创作要求');
+ await full.getByRole('button',{name:'生成模型',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:/推理模型/}).click();
+ await full.getByRole('button',{name:'关闭',exact:true}).click();await full.waitFor({state:'detached'});
+ assert.equal(await editor(page).innerText(),'放大后填写的创作要求');assert.equal(await page.evaluate(()=>nodes[0].textGeneration.model),'推理模型');
+ assert.deepEqual(await page.evaluate(()=>selectedNodeIds()),[await page.evaluate(()=>textId)]);
+ const panel=await page.locator('.pixmax-text-generation').boundingBox(),card=await page.locator('.prompt-smart-node').boundingBox();assert.ok(panel.y>=card.y+card.height);
+ await expand();await full.waitFor();await full.locator('[data-native-generation-submit]').click();
+ await page.waitForFunction(()=>nodes[0].text==='已生成的新正文');await full.waitFor({state:'detached'});
+ assert.equal(task.calls.length,1);assert.equal(task.calls[0].model,'推理模型');assert.equal(task.calls[0].message,'放大后填写的创作要求');assert.deepEqual(errors,[]);
 });

@@ -132,7 +132,7 @@ form_hooks={
     'r.prompt=!i.trim()&&e&&G(M)?jq(m.value.modelDefaultPrompts,G(M),e.modelCode,a):i':'r.prompt=!i.trim()&&e&&G(M)?t.modelDefaultPrompt?t.modelDefaultPrompt(e.modelCode,a):jq(m.value.modelDefaultPrompts,G(M),e.modelCode,a):i',
     'let Rt=R(()=>{if(v()':'let Rt=R(()=>{if(t.generateLabel!==undefined)return null;if(v()',
     'zt=R(()=>{if(v()':'zt=R(()=>{if(t.generateLabel!==undefined)return t.generateLabel;if(v()',
-    '[data-combo-selector-panel], [data-rich-editor-insertion-panel], [data-input-file-link-overlay]':'[data-native-camerawork], [data-native-camera], [data-combo-selector-panel], [data-rich-editor-insertion-panel], [data-input-file-link-overlay]',
+    '[data-combo-selector-panel], [data-rich-editor-insertion-panel], [data-input-file-link-overlay]':'[data-native-camerawork], [data-native-camera], .pixmax-native-form-model-options, [data-combo-selector-panel], [data-rich-editor-insertion-panel], [data-input-file-link-overlay]',
     'var en={insertCameraParamsChip:Yt}':'var en={insertCameraParamsChip:Yt,getRichEditorManager:()=>G(k)?.getRichEditorManager(),getSerializedPrompt:()=>G(k)?.getSerializedPrompt(),insertCameraworkChip:item=>G(k)?.insertCameraworkChip(item),insertChipItem:(type,item)=>G(k)?.insertChipItem(type,item,`caret`),setFullscreen:next=>{if(next!==G(wt))Qt();}}',
     'Le.disabled=t.disabled||G(Tt)||G(be)':'Q(Le,`data-native-generation-submit`,``);Le.disabled=t.disabled||G(Tt)||G(be)',
 }
