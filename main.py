@@ -117,6 +117,9 @@ async def maintenance_generation_tracker(request: Request, call_next):
 # Authentication runs outside maintenance and storage middleware.
 from app.services.auth import AuthenticationMiddleware, router as auth_router
 app.add_middleware(AuthenticationMiddleware)
+if postgres_enabled():
+    from app.storage.availability import DatabaseAvailabilityMiddleware
+    app.add_middleware(DatabaseAvailabilityMiddleware)
 app.include_router(auth_router)
 
 # --- Register all routers ---

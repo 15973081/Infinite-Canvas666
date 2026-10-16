@@ -37,8 +37,32 @@ def pool():
             _pool = ConnectionPool(os.environ["DATABASE_URL"], min_size=1,
                                    max_size=int(os.getenv("DATABASE_POOL_SIZE", "10")),
                                    kwargs={"row_factory": dict_row, "connect_timeout": 10},
-                                   configure=configure, open=True, timeout=15)
+                                   configure=configure, check=ConnectionPool.check_connection,
+                                   open=True, timeout=15)
         return _pool
+
+
+@contextmanager
+def pooled_connection():
+    from psycopg_pool import PoolTimeout
+    global _pool
+    current = pool()
+    # Only acquisition is retried by a future request: never replay a transaction.
+    try:
+        conn = current.getconn()
+    except PoolTimeout:
+        # Reconnection workers eventually give up after a prolonged outage.
+        # Retire that pool so the next request starts fresh, with an identity
+        # guard so concurrent failures cannot retire its replacement.
+        with _lock:
+            if _pool is current:
+                _pool = None
+        current.close()
+        raise
+    try:
+        yield conn
+    finally:
+        current.putconn(conn)
 
 
 @contextmanager
@@ -48,7 +72,7 @@ def connection():
         with active[0].transaction():
             yield active[0]
         return
-    with pool().connection() as conn:
+    with pooled_connection() as conn:
         with conn.transaction():
             token = _transaction.set((conn, get_ident()))
             try:

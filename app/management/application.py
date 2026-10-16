@@ -274,6 +274,8 @@ def create_app(static_dir=None):
 
     app = FastAPI(title='Canvas Management', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_middleware(Admission)
+    from app.storage.availability import DatabaseAvailabilityMiddleware
+    app.add_middleware(DatabaseAvailabilityMiddleware)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_input(request, error):
