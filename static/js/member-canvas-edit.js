@@ -153,12 +153,16 @@
     async function showTaskResults() {
         const entry=active;
         assertDraftScope(entry);
-        const dialog=element('dialog');dialog.className='member-canvas-drafts';dialog.setAttribute('aria-label','生成结果');
+        const dialog=element('dialog');dialog.className='member-canvas-drafts member-canvas-results';dialog.setAttribute('aria-label','生成结果');
         const list=element('div'),status=element('p');status.setAttribute('role','status');
+        list.className='member-results-list';status.className='member-results-status';
+        const empty=element('div');empty.className='member-results-empty';empty.hidden=true;
+        const emptyIcon=element('span');emptyIcon.className='member-results-empty-icon';emptyIcon.setAttribute('aria-hidden','true');
+        empty.append(emptyIcon,element('strong','暂无生成结果'),element('p','完成生成后，可在这里查看并加入画布。'));
         let after='',loading=false;
         const load=async (reset=false) => {
             if(loading)return;
-            loading=true;status.textContent='正在读取结果…';
+            loading=true;status.textContent='正在读取结果…';empty.hidden=true;dialog.setAttribute('data-state','loading');
             try {
                 assertDraftScope(entry);
                 const cursor=reset?'':after;
@@ -169,8 +173,12 @@
                 if(reset)list.replaceChildren();
                 after=data.next_after || '';
                 for(const row of data.results) {
-                    const card=element('section'),line=element('p',(row.model || (row.kind==='llm'?'对话':row.kind==='video'?'视频':row.kind==='audio'?'音频':'图片'))+' · '+row.id);
+                    const kind={llm:'文本',video:'视频',audio:'音频',image:'图片'}[row.kind] || '素材';
+                    const card=element('section'),line=element('strong',row.model || kind),identity=element('p',row.id),badge=element('span',kind),cardHeader=element('div');
+                    cardHeader.className='member-result-heading';badge.className='member-result-kind';identity.className='member-result-id';identity.title=row.id;
+                    cardHeader.append(badge,line);
                     const state=element('p',row.state==='in_canvas'?'已在画布中':row.state==='ready'?'结果已保存 · '+row.outputs.length+(row.kind==='llm'?' 条回复':' 个素材'):'结果素材待核对');
+                    state.className='member-result-state';
                     const add=button('加入为新结果节点',async () => {
                         try {
                             assertDraftScope(entry);
@@ -179,19 +187,24 @@
                         } catch(error) {status.textContent=error.message;}
                     });
                     add.disabled=row.state!=='ready'||!entry.lease.canEdit;
-                    card.className='member-canvas-result-row';card.append(line,state);
+                    card.className='member-canvas-result-row';card.setAttribute('data-state',row.state);card.append(cardHeader,identity,state);
                     if(row.state==='ready' && ['changed','missing'].includes(row.binding?.state)){
                         card.append(element('p',row.binding.state==='missing'?'原节点已删除或不可用，结果仍可独立加入。':'原输入已修改，加入结果时会保留当前内容。'));
                     }
                     card.append(add);list.append(card);
                 }
-                more.hidden=!after;status.textContent=list.children.length?'':'暂无已完成的图片、视频或对话结果。';
-            } catch(error) {status.textContent=error.message;}
+                more.hidden=!after;status.textContent='';empty.hidden=Boolean(list.children.length);dialog.setAttribute('data-state','ready');
+            } catch(error) {status.textContent=error.message;dialog.setAttribute('data-state','error');}
             finally {loading=false;}
         };
         const more=button('加载更多结果',()=>load());more.hidden=true;
-        dialog.append(element('h2','生成结果'),element('p','结果由服务器独立保存。开始编辑后可加入为新节点，原节点和其他更改会保留；此操作不会重新生成或产生新的费用。'),
-            button('刷新结果',()=>load(true)),list,more,status,button('关闭',()=>{dialog.close();dialog.remove();}));
+        const header=element('header'),heading=element('div'),actions=element('div'),caption=element('p','查看已完成的结果，开始编辑后可加入为新节点。');
+        caption.className='member-results-caption';heading.append(element('h2','生成结果'),caption);
+        const refresh=button('刷新结果',()=>load(true)),dismiss=button('关闭',()=>{dialog.close();dialog.remove();});
+        refresh.className='member-results-refresh';dismiss.className='member-preview-dismiss';dismiss.setAttribute('aria-label','关闭');dismiss.title='关闭';
+        actions.className='member-results-actions';actions.append(refresh,dismiss);header.append(heading,actions);
+        const footer=element('footer','加入已有结果不会重新生成或产生费用，原节点会保留。');
+        dialog.append(header,list,empty,status,more,footer);
         document.body.append(dialog);dialog.showModal();await load(true);
     }
     function ownsDraft(entry,row) {

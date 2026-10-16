@@ -33,7 +33,7 @@
     function create({window:win=window,entry,valid}) {
         const doc=win.document, initialEpoch=()=>entry.lease.epoch;
         let disposed=false,dialog=null,media=null,selected=null,openedEpoch=null,zoom=1;
-        let heading,stage,status,previous,next,smaller,larger,reset,download;
+        let heading,stage,status,counter,kindLabel,previous,next,smaller,larger,reset,download;
         const annotations=new Map();
         const permitted=()=>!disposed && valid() && entry.lease.state!=='paused' && !['offline','recovering'].includes(entry.lease.maintenance)
             && ['canvas.read','asset.read'].every(permission=>win.CanvasSession.context?.workspace?.permissions?.includes(permission));
@@ -54,13 +54,19 @@
         function ensureDialog() {
             if(dialog)return;
             dialog=el('dialog');dialog.className='member-media-preview';dialog.setAttribute('aria-label','画布素材预览');
-            const header=el('header'),controls=el('footer');heading=el('strong');status=el('p');status.setAttribute('role','status');
+            const header=el('header'),controls=el('footer'),title=el('div'),navigation=el('div'),zoomControls=el('div');
+            title.className='member-preview-title';navigation.className='member-preview-navigation';zoomControls.className='member-preview-zoom';
+            kindLabel=el('span');kindLabel.className='member-preview-kind';heading=el('strong');title.append(kindLabel,heading);
+            status=el('p');status.setAttribute('role','status');status.className='member-preview-feedback';counter=el('span');counter.className='member-preview-counter';
             stage=el('div');stage.className='member-media-preview-stage';
             previous=button('上一项',()=>step(-1));next=button('下一项',()=>step(1));
             smaller=button('缩小',()=>scale(1/1.25));larger=button('放大',()=>scale(1.25));reset=button('适合窗口',()=>scale(0));
             download=el('a','下载原件');download.rel='noopener';download.target='_blank';
+            download.className='member-preview-download';
             download.addEventListener('click',event=>{if(!permitted() || !win.CanvasSession.context.workspace.permissions.includes('canvas.export')){event.preventDefault();close();}});
-            header.append(heading,button('关闭预览',close));controls.append(previous,next,smaller,larger,reset,download);
+            const dismiss=button('关闭预览',close);dismiss.className='member-preview-dismiss';dismiss.setAttribute('aria-label','关闭预览');dismiss.title='关闭预览';
+            for(const [control,icon] of [[previous,'previous'],[next,'next'],[smaller,'minus'],[larger,'plus']]){control.setAttribute('data-preview-icon',icon);control.setAttribute('aria-label',control.textContent);control.title=control.textContent;}
+            header.append(title,dismiss);navigation.append(previous,counter,next);zoomControls.append(smaller,reset,larger);controls.append(navigation,zoomControls,download);
             dialog.append(header,stage,status,controls);doc.body.append(dialog);
             dialog.addEventListener('close',()=>{win.CanvasMediaLoader?.end('member-preview');selected=null;openedEpoch=null;release();});
             dialog.addEventListener('cancel',close);
@@ -78,11 +84,18 @@
             const url=win.MemberMediaUrl?.(item.url);
             if(!url){close();return;}
             win.CanvasMediaLoader?.begin('member-preview');
-            heading.textContent=item.name;status.textContent=(list.indexOf(item)+1)+' / '+list.length;
+            dialog.setAttribute('data-kind',item.kind);
+            heading.textContent=item.name;heading.title=item.name;kindLabel.textContent='画布素材 · '+({image:'图片',video:'视频',audio:'音频'}[item.kind]);
+            counter.textContent=(list.indexOf(item)+1)+' / '+list.length;status.textContent='';
             media=el(item.kind==='image' ? 'img' : item.kind);media.setAttribute('aria-label',item.name);
             if(item.kind==='image')media.alt=item.name;else{media.controls=true;media.preload='metadata';}
             media.onerror=()=>{if(selected===item)status.textContent='素材加载失败，请确认素材仍可访问后重新打开。';};
-            stage.replaceChildren(media);
+            if(item.kind==='audio'){
+                const card=el('div'),art=el('div'),details=el('p');card.className='member-preview-audio-card';art.className='member-preview-audio-art';art.setAttribute('aria-hidden','true');details.className='member-preview-audio-meta';
+                const format=item.name.match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toUpperCase();details.textContent=format || '音频';
+                const player=media;player.onloadedmetadata=()=>{if(selected!==item||!Number.isFinite(player.duration))return;const seconds=Math.floor(player.duration);details.textContent=[format,Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')].filter(Boolean).join(' · ');};
+                card.append(art,details,media);stage.replaceChildren(card);
+            }else stage.replaceChildren(media);
             win.CanvasMediaLoader?.watch(media,stage,item.url);
             media.src=url;stage.scrollTop=0;stage.scrollLeft=0;
             previous.disabled=list.indexOf(item)===0;next.disabled=list.indexOf(item)===list.length-1;

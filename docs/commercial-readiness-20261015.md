@@ -460,3 +460,19 @@ node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/
 - 使用真实工具栏和编辑租约组件、隔离 HTTP 回执，检查查看／编辑两种状态的 1440、768、390、320px 布局，验证开始编辑、成员与更多菜单可操作，工具栏不超出视口且不遮挡底部控制区。
 - 截图：`.local/commercial-kickoff/collaboration-view-1440.png`、`collaboration-view-390.png`、`collaboration-editing-320.png`；日志：`collaboration-bar-regression.log`。JavaScript 语法及 git diff --check 通过。
 - 未改编辑权、积分或支付逻辑，未推送、未部署。
+
+## 2026-10-16 素材预览与生成结果卡片升级
+
+用户提供音频素材预览和生成结果空弹窗截图，要求延续当前 UI 风格。本轮重排这两个弹窗的展示结构，继续使用现有素材与任务接口。
+
+- 音频采用最大 640px 的紧凑卡片，包含类型与文件名、音符封面、文件扩展名和播放器实际读取的时长；保留浏览器原生播放、进度和音量控件。没有生成虚构波形、封面或时长。
+- 图片与视频保留大预览区，统一右上角关闭、底部上一项／序号／下一项、图片缩放和下载入口。加载反馈定位在预览区内。关闭或切换素材仍释放音视频播放器；下载继续受导出权限控制。
+- 生成结果增加标题说明、右上角刷新及关闭、居中空状态、按模型／类型／任务编号／加入画布状态展示的结果卡片。请求失败单独显示错误，不伪装为空列表；只读状态仍不能加入结果节点。
+- 新增浏览器回归使用真实 2 秒 WAV 和 WebM 测试文件，核对媒体元数据、导航与释放、图片缩放、结果空态／错误／已有结果以及只读加入保护。连同既有协作和预览回归 **58/58 通过**。JavaScript 语法和 git diff --check 通过。
+- 1440、390、320px 截图已核对，无横向溢出。证据：`.local/commercial-kickoff/media-audio-card-1440.png`、`media-audio-card-320.png`、`results-empty-card-1440.png`、`results-filled-card-320.png`；日志 `preview-cards-final.log`。
+
+```powershell
+node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/member-media-preview.cjs tests/member-canvas-edit.cjs tests/commercial-readiness.browser.cjs
+```
+
+未改后端、计费或编辑权规则；未推送、未部署。
