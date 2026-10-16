@@ -512,9 +512,12 @@
                 }),
                 force);
             more.append(moreSummary,moreItems);
+            moreSummary.setAttribute('aria-label','更多操作');moreSummary.title='更多操作';
             begin.className=end.className=ask.className='member-canvas-primary';
+            for(const [control,action] of [[begin,'edit'],[ask,'edit'],[save,'save'],[end,'finish']])control.setAttribute('data-canvas-action',action);
+            const results=button('生成结果',showTaskResults);results.setAttribute('data-canvas-action','results');
             const layout=element('div'); layout.className='member-canvas-layout'; entry.layout=layout;
-            layout.append(label,begin,ask,save,end,button('生成结果',showTaskResults),more,presencePanel,requestList);
+            layout.append(label,begin,ask,save,end,results,more,presencePanel,requestList);
             const statusHost=document.getElementById?.('memberCanvasStatus');
             if(statusHost) {
                 notice.className='member-canvas-title-status';
@@ -522,7 +525,7 @@
             } else layout.append(notice);
             bar.append(layout);
             entry.mediaPreview=window.MemberMediaPreview?.create({entry,valid:()=>validEntry(entry)});
-            if(entry.mediaPreview)layout.insertBefore(entry.mediaPreview.trigger,presencePanel);
+            if(entry.mediaPreview){entry.mediaPreview.trigger.setAttribute('data-canvas-action','preview');layout.insertBefore(entry.mediaPreview.trigger,more);}
             document.body.append(bar); render(); tick(entry); reportTick(entry); subscribe(entry);
             if(options.taskRecovery && window.CanvasTaskResults?.recovery){
                 entry.taskRecovery=window.CanvasTaskResults.recovery({...options.taskRecovery,

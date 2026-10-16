@@ -24,19 +24,95 @@ body.studio-smart-canvas {
 body.studio-smart-canvas .member-canvas-edit {
   --mc-bg: #141416;
   --mc-glass: #141416;
-  --mc-text: #aeb6c5;
-  --mc-muted: #9199a9;
-  --mc-border: #313136;
+  --mc-text: #b5b5bf;
+  --mc-muted: #83838e;
+  --mc-border: #303035;
   --mc-hover: #252529;
-  border-radius: 12px;
-  box-shadow: none;
+  bottom: 72px;
+  padding: 6px;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px #0005, inset 0 1px #ffffff04;
   backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font: 12px/1.5 system-ui,sans-serif;
 }
-
+body.studio-smart-canvas .member-canvas-layout { gap: 4px; }
+body.studio-smart-canvas .member-canvas-layout > strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 220px;
+  padding: 0 12px 0 8px;
+  min-height: 28px;
+  border-right: 1px solid var(--mc-border);
+  margin-right: 4px;
+  font-size: 11px;
+  font-weight: 400;
+}
+body.studio-smart-canvas .member-canvas-layout > strong::before {
+  flex: 0 0 6px;
+  margin: 0;
+  background: #92929d;
+}
+body.studio-smart-canvas .member-canvas-edit[data-state=editing] .member-canvas-layout > strong::before {
+  background: #72c3a1;
+  box-shadow: 0 0 0 3px #72c3a112;
+}
+body.studio-smart-canvas .member-canvas-edit :is(button,summary) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 18px;
+}
+body.studio-smart-canvas .member-canvas-edit [hidden] { display: none; }
 body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary {
-  background: #252529;
-  border-color: #313136;
-  color: #fafafa;
+  background: #e9e9ef;
+  border-color: #e9e9ef;
+  color: #19191c;
+  font-weight: 600;
+}
+body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary:hover:not(:disabled) { background: #fff; border-color: #fff; }
+body.studio-smart-canvas .member-canvas-edit :is(button,summary):focus-visible { outline: 2px solid #aeb0bd; outline-offset: 2px; }
+body.studio-smart-canvas .member-canvas-edit [data-canvas-action]::before,
+body.studio-smart-canvas .member-canvas-presence > summary::before {
+  content: '';
+  display: block;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  background: currentColor;
+  mask: var(--mc-icon) center / contain no-repeat;
+}
+body.studio-smart-canvas [data-canvas-action=edit] { --mc-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 3 5 5-12 12-6 1 1-6Z M14 5l5 5'/%3E%3C/svg%3E"); }
+body.studio-smart-canvas [data-canvas-action=save] { --mc-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M4 3h13l4 4v14H3V3Z M7 3v6h9V3 M7 21v-8h10v8'/%3E%3C/svg%3E"); }
+body.studio-smart-canvas [data-canvas-action=finish] { --mc-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 4 4L19 6'/%3E%3C/svg%3E"); }
+body.studio-smart-canvas [data-canvas-action=results] { --mc-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 9 5-9 5-9-5Z M3 12l9 5 9-5 M3 16l9 5 9-5'/%3E%3C/svg%3E"); }
+body.studio-smart-canvas [data-canvas-action=preview] { --mc-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='3'/%3E%3Ccircle cx='8' cy='8' r='1.4'/%3E%3Cpath d='m3 17 5-5 4 4 4-6 5 7'/%3E%3C/svg%3E"); }
+body.studio-smart-canvas .member-canvas-presence > summary { --mc-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='9' cy='8' r='3'/%3E%3Cpath d='M3 21v-3a6 6 0 0 1 12 0v3 M16 5a3 3 0 0 1 0 6 M18 15a5 5 0 0 1 3 4v2'/%3E%3C/svg%3E"); }
+body.studio-smart-canvas .member-canvas-more > summary { font-size: 0; gap: 0; width: 32px; padding: 6px; }
+body.studio-smart-canvas .member-canvas-more > summary::before { content: '•••'; font-size: 12px; letter-spacing: 2px; padding-left: 2px; }
+body.studio-smart-canvas .member-canvas-more > summary::after { display: none; }
+body.studio-smart-canvas .member-canvas-edit details[open] > summary { background: var(--mc-hover); color: #fafafa; }
+body.studio-smart-canvas .member-canvas-edit .member-canvas-presence { margin-left: 3px; padding-left: 6px; }
+body.studio-smart-canvas .member-canvas-edit :is(.member-canvas-menu,.member-canvas-presence ul) { bottom: calc(100% + 12px); border-radius: 10px; padding: 5px; box-shadow: 0 8px 32px #0008; }
+body.studio-smart-canvas .member-canvas-menu button { justify-content: flex-start; }
+body.studio-smart-canvas:has(.member-canvas-edit:not([hidden])) .smart-minimap { bottom: 132px; }
+@media(max-width:640px) {
+  body.studio-smart-canvas .member-canvas-edit { width: max-content; max-width: calc(100vw - 24px); bottom: 116px; }
+  body.studio-smart-canvas .member-canvas-layout { width: calc(100vw - 38px); max-width: 500px; justify-content: flex-start; gap: 4px; }
+  body.studio-smart-canvas .member-canvas-layout > strong { order: 0; flex: 1 1 calc(100% - 150px); min-width: 0; max-width: none; border: 0; padding-left: 6px; }
+  body.studio-smart-canvas .member-canvas-edit .member-canvas-presence { order: 1; margin: 0; padding: 0; border: 0; }
+  body.studio-smart-canvas .member-canvas-layout > :is(button,.member-canvas-more) { order: 2; }
+  body.studio-smart-canvas .member-canvas-layout > :is(.member-canvas-transfer-list,.member-canvas-edit-notice) { order: 3; }
+  body.studio-smart-canvas .member-canvas-edit :is(button,summary) { padding-inline: 8px; }
+  body.studio-smart-canvas .member-canvas-edit .member-canvas-more { margin-left: auto; }
+  body.studio-smart-canvas .member-canvas-edit .member-canvas-menu { bottom: calc(100% + 10px); }
+  body.studio-smart-canvas:has(.member-canvas-edit:not([hidden])) .smart-minimap { bottom: 252px; }
 }
 
 /* Collaboration dialogs and read-only previews belong to the same canvas surface. */
