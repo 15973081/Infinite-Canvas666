@@ -123,3 +123,24 @@ test('session pause disposes both text form surfaces without losing its persiste
  await page.evaluate(()=>{CanvasSession.paused=false;PixmaxTextGeneration.sync();});await editor(page).waitFor();
  assert.equal(await editor(page).innerText(),'暂停前的要求');assert.deepEqual(errors,[]);
 });
+
+test('readonly text with no configured model can stay expanded without repeated viewport updates',async t=>{
+ const {page,errors,writes}=await setup(t);
+ await page.evaluate(()=>{apiProviders=[];MemberCanvasEdit.setEditable(false);});
+ await page.waitForFunction(()=>document.querySelector('[aria-label="文本创作要求"]')?.getAttribute('aria-readonly')==='true');
+ const full=page.locator('[data-native-generation-surface][data-fullscreen="true"]');
+ for(let cycle=0;cycle<3;cycle++){
+  await page.locator('.pixmax-text-generation').getByRole('button',{name:'全屏',exact:true}).click();await full.waitFor();
+  await page.evaluate(()=>{for(let i=0;i<30;i++){PixmaxTextGeneration.sync();PixmaxTextGeneration.position();}});
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await page.waitForTimeout(350);
+  assert.equal(await full.isVisible(),true);assert.equal(await full.getByRole('textbox',{name:'文本创作要求'}).isEditable(),false);
+  assert.equal(await full.locator('[data-native-generation-submit]').isDisabled(),true);
+  await page.keyboard.press('Escape');await full.waitFor({state:'detached'});
+ }
+ await page.evaluate(()=>MemberCanvasEdit.setEditable(true));await editor(page).waitFor();await editor(page).fill('权限变化前的草稿');
+ await page.locator('.pixmax-text-generation').getByRole('button',{name:'全屏',exact:true}).click();await full.waitFor();
+ await page.evaluate(()=>MemberCanvasEdit.setEditable(false));await full.waitFor({state:'detached'});
+ assert.equal(await editor(page).innerText(),'权限变化前的草稿');assert.equal(await editor(page).isEditable(),false);
+ assert.equal(await page.evaluate(()=>nodes[0].text),'原有正文');assert.equal(writes.filter(row=>row.path.includes('canvas-llm')).length,0);assert.deepEqual(errors,[]);
+});

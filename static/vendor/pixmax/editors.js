@@ -4698,7 +4698,7 @@ export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params
       if(surface.dataset.fullscreen==='true'){event.preventDefault();event.stopPropagation();instance.setFullscreen(false);}
     };
     document.addEventListener('keydown',escape,true);
-    await tf();return {instance,setData(next){B(data,next,true);const manager=instance.getRichEditorManager();if(manager&&manager.serialize()!==next.value.prompt)manager.deserialize(next.value.prompt);},setDisabled(next){B(disabled,!!next);if(next)instance.setFullscreen(false);},setViewport(next){B(view,{...next},true);},destroy(){disposed=true;document.removeEventListener('keydown',escape,true);return Of(instance);}};
+    await tf();return {instance,setData(next){B(data,next,true);const manager=instance.getRichEditorManager();if(manager&&manager.serialize()!==next.value.prompt)manager.deserialize(next.value.prompt);},setDisabled(next){const changed=!!next!==G(disabled);B(disabled,!!next);if(next&&changed)instance.setFullscreen(false);},setViewport(next){const old=G(view);if(old.x!==next.x||old.y!==next.y||old.scale!==next.scale)B(view,{x:next.x,y:next.y,scale:next.scale},true);},destroy(){disposed=true;document.removeEventListener('keydown',escape,true);return Of(instance);}};
   },
   async mountReferences(target,props) {
     const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);

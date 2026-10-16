@@ -418,3 +418,18 @@ node --test --test-concurrency=2 tests/pixmax-generation-parameters.browser.cjs 
 ```
 
 人工验收：刷新智能画布，单击文本节点，下方出现原生面板；修改创作要求不改变节点正文，展开全屏再退出保持草稿；选择已配置的文本模型后生成，结果回到原节点；顶部标签和文本下载可独立使用。未推送、未部署。
+
+## 2026-10-16 修复文本面板放大后立即收回
+
+用户确认放大按钮表现为“闪一下又收回”。已在未配置文本模型且画布只读时复现：全屏根元素挂入后触发表单刷新，共享适配器每次收到 disabled=true 都强制退出全屏，即使权限根本没有发生变化。
+
+- 适配器改为仅在从可编辑变为禁用时关闭全屏；已处于只读的面板可正常放大查看，编辑和生成仍禁用。
+- 相同画布视口不再重复更新原生组件状态，清理文本面板保存的已卸载全屏根元素引用。同步更新运行时提取脚本，避免重新生成资源时覆盖修复。
+- 新测试在修复前捕获弹层延迟消失；修复后覆盖三次放大／退出、重复视口刷新、只读输入与提交保护、权限恢复再丢失及草稿保留。
+- 文本面板、原生图片／视频参数和提示词浏览器回归 **45/45 通过**；JavaScript 语法和 git diff --check 通过。日志：`.local/commercial-kickoff/text-fullscreen-repro.log`、`text-fullscreen-final.log`。
+
+```powershell
+node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/pixmax-generation-parameters.browser.cjs tests/pixmax-native-prompt.browser.cjs
+```
+
+未调用收费模型，未改积分规则，未推送、未部署。
