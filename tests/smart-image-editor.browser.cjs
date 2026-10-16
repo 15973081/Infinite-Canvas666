@@ -216,12 +216,12 @@ test('Smart cached page pauses listeners, preserves drawing on return and perman
 
 test('Smart detached log preview remains independent of node selection and cannot become an editable canvas target',async t=>{
     const {page,errors}=await editor(t,'preview');const selected=await page.evaluate(()=>smartSelection.image);
-    await page.evaluate(()=>smartLogPreviewNode('/test-image.svg'));await page.waitForFunction(()=>smartImageEditor.state.ready);
+    await page.evaluate(()=>smartLogPreviewNode('/test-image.svg'));await page.waitForFunction(()=>PixmaxImagePreview.opened);
     assert.deepEqual(await page.evaluate(()=>smartSelection.image),selected);assert.equal(await page.evaluate(()=>nodes.some(n=>n.id==='__smart_log_preview__')),false);
-    await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>smartImageEditor.state.open),false);assert.deepEqual(errors,[]);
+    await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>PixmaxImagePreview.opened||smartImageEditor.state.open),false);assert.deepEqual(errors,[]);
 });
 
-test('Smart removes mask and grid splitting from toolbars, editor controls and execution while preserving group join',async t=>{
+test('Smart retires mixed editor tabs, outpaint and grid toolbar entries while keeping internal legacy guards',async t=>{
     const {page,errors}=await editor(t,'preview');
     assert.equal(await page.locator('[data-smart-node-action="mask"],[data-smart-node-action="grid"],[data-image-edit-mode="mask"],#imageMaskTools,.grid-split-control,#gridSplitModeBtn').count(),0);
     assert.deepEqual(await page.evaluate(()=>[typeof applyGridPreset,typeof toggleGridCustomMode,typeof smartImageEditor.applyGridPreset]),['undefined','undefined','undefined']);
@@ -230,16 +230,12 @@ test('Smart removes mask and grid splitting from toolbars, editor controls and e
     assert.equal(await page.evaluate(()=>smartImageEditor.state.mode),'preview');
     assert.equal(await page.evaluate(()=>JSON.stringify(nodes)),before);assert.equal(await page.evaluate(()=>editUploads.length),0);
     await page.evaluate(()=>openImageEditor('b'));await page.waitForFunction(()=>smartImageEditor.state.ready);
-    assert.equal(await page.locator('[data-image-edit-mode="grid"]').isDisabled(),true);
-    assert.equal(await page.locator('[data-image-edit-mode="grid"]').isVisible(),false);
+    assert.equal(await page.locator('[data-image-edit-mode]').count(),0);
     assert.equal(await page.locator('[data-node-id="b"][data-smart-node-action="grid-join"]').count(),0);
     await page.evaluate(()=>setImageEditMode('grid',true));assert.equal(await page.evaluate(()=>smartImageEditor.state.mode),'preview');
     await page.evaluate(()=>{closeImageEditor();runSmartNodeToolbarAction('a','grid-join');});
-    await page.waitForFunction(()=>smartImageEditor.state.ready && smartImageEditor.state.mode==='grid');
-    assert.equal(await page.locator('#imageEditTitle').textContent(),'宫格拼接');
-    assert.equal(await page.locator('#imageEditApplyBtn').innerText(),'输出拼接');
-    await page.evaluate(()=>setGridOperationMode('split'));
-    assert.equal(await page.evaluate(()=>smartImageEditor.state.gridOperationMode),'join');
+    assert.equal(await page.evaluate(()=>smartImageEditor.state.open),false);
+    assert.equal(await page.locator('[data-smart-node-action="grid-join"],[data-smart-node-action="outpaint"]').count(),0);
     assert.deepEqual(errors,[]);
 });
 

@@ -28,6 +28,7 @@
     }
     function viewReference(state,item,parent){
         if(!alive(state)||!parent.isConnected||state.detail!==parent)return;release(state.reference);
+        if(item.kind==='image'){const view=PixmaxImagePreview.open({item,isActive:()=>alive(state)&&parent.isConnected});state.reference=view.element;return;}
         const root=pixmaxCreationModal('参考素材预览');root.classList.add('pixmax-history-detail','pixmax-history-reference');root.tabIndex=-1;root.focus({preventScroll:true});state.reference=root;
         root.querySelector('.pixmax-creation-content').innerHTML=`<div class="history-detail-preview">${mediaPreviewHtml(item)}</div><p>${escapeHtml(item.name)}</p><button type="button" data-history-reference-download>下载原素材</button>`;
         const valid=()=>alive(state)&&state.detail===parent&&parent.isConnected;
@@ -86,6 +87,11 @@
     async function view(state,item){
         if(!alive(state))return;const version=++state.viewVersion;release(state.reference);release(state.detail);
         if(state.node){state.lastViewed=item.id;for(const card of state.root.querySelectorAll('[data-history-asset]')){card.querySelector('[data-history-last-viewed]')?.remove();if(card.dataset.historyAsset===item.id){const label=document.createElement('span');label.dataset.historyLastViewed='';label.className='history-last-viewed';label.textContent='上次查看';card.appendChild(label);}}}
+        if(item.kind==='image'){
+            const preview=PixmaxImagePreview.open({item,history:state.node?state.items.filter(v=>v.kind==='image'):[],nextCursor:state.node?state.cursor:null,canvasId:state.current?state.origin.id:undefined,nodeId:state.node?.id,isActive:()=>alive(state),onMount:root=>state.detail=root,onSelect:asset=>{
+                if(!state.node)return;state.lastViewed=asset.id;for(const card of state.root.querySelectorAll('[data-history-asset]')){card.querySelector('[data-history-last-viewed]')?.remove();if(card.dataset.historyAsset===asset.id){const label=document.createElement('span');label.dataset.historyLastViewed='';label.className='history-last-viewed';label.textContent='上次查看';card.append(label);}}
+            }});state.detail=preview.element;return;
+        }
         const root=pixmaxCreationModal('生成素材预览');root.classList.add('pixmax-history-detail');root.tabIndex=-1;root.focus({preventScroll:true});state.detail=root;const body=root.querySelector('.pixmax-creation-content');root.querySelector('[role=status]').textContent='正在读取素材…';
         try{
             const params=new URLSearchParams({...state.current?{canvas_id:state.origin.id}:{},...state.node?{node_id:state.node.id}:{}}),response=await MemberCanvasEdit.send('/api/canvas-generation-history/'+encodeURIComponent(item.id)+'?'+params);

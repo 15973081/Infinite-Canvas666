@@ -42,9 +42,9 @@ test('Smart native double click clears multiselect for preview and Escape closes
  const {page:p,errors}=await selection(t);
  await p.evaluate(()=>{smartSelection.boxSelection(['a','g']);syncSelectionUi();});
  await p.locator('.image-node[data-id="g"] [data-image-index="1"]').first().dblclick();
- await p.waitForFunction(()=>smartImageEditor.state.open&&smartImageEditor.state.imageIndex===1);
+ await p.waitForFunction(()=>PixmaxImagePreview.opened&&document.querySelector('.pixmax-detail-thumbs button:nth-child(2)')?.getAttribute('aria-pressed')==='true');
  assert.equal(await p.evaluate(()=>smartSelection.nodeId),'g');assert.deepEqual(await p.evaluate(()=>smartSelection.ids),[]);
- await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>smartImageEditor.state.open),false);
+ await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>PixmaxImagePreview.opened),false);
  await p.waitForTimeout(280);assert.equal(await p.evaluate(()=>smartSelection.image.index),1);assert.deepEqual(errors,[]);
 });
 test('Smart actual box gesture and Delete/Undo retain batch selection and original save counts',async t=>{

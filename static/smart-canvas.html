@@ -32,6 +32,8 @@
     <link rel="stylesheet" href="/static/css/pixmax-video-parse.css">
     <link rel="stylesheet" href="/static/css/pixmax-canvas-frames.css">
     <link rel="stylesheet" href="/static/css/pixmax-generation-history.css">
+    <link rel="stylesheet" href="/static/css/pixmax-image-preview.css">
+    <link rel="stylesheet" href="/static/css/pixmax-image-tools.css">
     <link rel="stylesheet" href="/static/css/pixmax-navigator.css">
     <link rel="stylesheet" href="/static/css/pixmax-media-tools.css">
     <link rel="stylesheet" href="/static/css/pixmax-tags.css">
@@ -281,15 +283,8 @@
             <div class="image-edit-panel">
                 <div class="image-edit-head">
                     <div>
-                        <div id="imageEditTitle" class="image-edit-title">编辑图片</div>
-                        <div id="imageEditSub" class="image-edit-sub">选择裁剪、扩图或画笔模式</div>
-                    </div>
-                    <div class="image-edit-mode">
-                        <button type="button" data-image-edit-mode="preview" class="active"><i data-lucide="eye" class="w-3.5 h-3.5"></i><span>预览</span></button>
-                        <button type="button" data-image-edit-mode="crop"><i data-lucide="crop" class="w-3.5 h-3.5"></i><span>裁剪</span></button>
-                        <button type="button" data-image-edit-mode="outpaint"><i data-lucide="expand" class="w-3.5 h-3.5"></i><span>扩图</span></button>
-                        <button type="button" data-image-edit-mode="brush"><i data-lucide="paintbrush" class="w-3.5 h-3.5"></i><span>画笔</span></button>
-                        <button type="button" data-image-edit-mode="grid"><i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i><span>宫格拼接</span></button>
+                        <div id="imageEditTitle" class="image-edit-title">媒体预览</div>
+                        <div id="imageEditSub" class="image-edit-sub"></div>
                     </div>
                     <button class="preview-icon-btn" type="button" onclick="closeImageEditor()" title="关闭"><i data-lucide="x" class="w-4 h-4"></i></button>
                 </div>
@@ -486,6 +481,8 @@
     <script src="/static/js/pixmax-storyboard-media.js"></script>
     <script src="/static/js/pixmax-canvas-frames.js"></script>
     <script src="/static/js/pixmax-batch-execution.js"></script>
+    <script src="/static/js/pixmax-image-preview.js"></script>
+    <script src="/static/js/pixmax-image-tools.js"></script>
     <script src="/static/js/pixmax-generation-history.js"></script>
     <script data-canvas-module="document" src="/static/js/canvas/smart/smart-document.js"></script>
     <script data-canvas-module="session" src="/static/js/canvas/smart/smart-session.js"></script>
