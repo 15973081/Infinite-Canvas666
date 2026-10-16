@@ -598,11 +598,11 @@ button,input,textarea {
   height: 40px;
 }
 
-body.studio-smart-canvas .smart-nav.pixmax-logo-bar {
-  box-sizing:border-box; height:44px; gap:10px; padding:4px 12px;
-  border:1px solid #ffffff12; border-radius:12px;
-  background:rgba(20,20,22,.88); box-shadow:0 4px 16px #0002;
-  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+html body.studio-smart-canvas #shell .smart-nav.pixmax-logo-bar {
+  box-sizing:border-box; height:40px; gap:10px; padding:0;
+  border:0; border-radius:0;
+  background:transparent; box-shadow:none;
+  backdrop-filter:none; -webkit-backdrop-filter:none;
 }
 body.studio-smart-canvas .pixmax-logo-bar .smart-nav-meta { flex:1; min-width:0; }
 body.studio-smart-canvas .pixmax-logo-bar .smart-title { max-width:200px; }
@@ -1937,7 +1937,7 @@ body.smart-node-drag .node-port {
   }
 
   html.standalone-canvas body.studio-smart-canvas #shell .canvas-navigation-group .pixmax-logo-bar {
-    max-width:calc(100vw - 176px); gap:8px; padding-inline:8px;
+    max-width:calc(100vw - 176px); gap:8px; padding-inline:0;
   }
 
   .create-menu {

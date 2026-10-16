@@ -507,3 +507,9 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 - 既有 Logo 菜单浏览器回归 **3/3 通过**，git diff --check 通过；未新增纯样式单元测试。
 - 加载真实成员样式，在 1440、390、320px 视口检查闭合状态和工具栏边界；截图 `.local/commercial-kickoff/logo-surface-1440.png`、`logo-surface-390.png`、`logo-surface-320.png`。
 - 未推送、未部署。
+
+### 用户确认调整为 Pixmax 透明底
+
+用户明确要求透明底，撤去上一轮圆角底板、边框、阴影和背景模糊，恢复紧凑的无底板 Logo／标题组合。提高该区域样式优先级，覆盖成员模式中包含 ID 选择器的 `:is(...)` 胶囊背景规则，避免成员样式后加载时重新出现底色。
+
+既有菜单交互回归 **3/3 通过**。加载成员样式后，在 1440、390、320px 验证实际计算样式为完全透明、无阴影及无模糊，并检查右侧工具栏不重叠。截图 `.local/commercial-kickoff/logo-transparent-1440.png`、`logo-transparent-390.png`、`logo-transparent-320.png`。git diff --check 通过，未推送、未部署。
