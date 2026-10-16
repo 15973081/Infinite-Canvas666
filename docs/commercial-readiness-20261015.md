@@ -486,3 +486,16 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 - 截图：`.local/commercial-kickoff/version-banner-1440.png`、`version-banner-390.png`、`version-banner-320.png`、`version-banner-error-320.png`。
 
 未改变版本检测周期及更新流程；未推送、未部署。
+
+## 2026-10-16 左上角 Logo 菜单与动效
+
+对照本地 Pixmax `index-Bcq66HVs.js` 的 `p4` 顶部项目菜单：Logo 悬停缩小、三横线菜单图标放大，箭头在展开和收起时旋转，点击在图标下方展示 220px 深色圆角菜单。本轮保留现有品牌图标，加入 180ms 图标过渡和 200ms 菜单淡入位移动效；系统减少动态效果偏好下关闭动画。
+
+- 点击 Logo 改为开合菜单；返回画布管理移动到菜单首项，继续使用原有保存和本地未完成任务检查。菜单接入画布目录、重命名及移入回收站，复用既有权限、编辑租约与输入名称确认。版本历史和团队归属没有对应能力，本轮未增加空入口。
+- 支持 Enter／空格开启、方向键选项、Esc 收起并回焦、Tab 离开、点击外部关闭；隔离 Logo 上的空格事件，避免被画布平移快捷键拦截。
+- 关闭目录后仍可能保留回收站浏览状态，顶部菜单删除当前画布因此显式检查当前文档租约，防止套用回收站列表操作语义。弹出确认后租约变化会撤销确认。
+- 窄屏验收发现旧 `smart-top-tools` 定位覆盖新纵向工具栏，将其错误挪到 Logo 上方；排除 `.pixmax-rail` 后恢复居中，Logo 可正常点击。
+- 新增 3 项浏览器回归，并更新既有返回路径用例。菜单、导航、目录及回收站共 **33/33 通过**；JavaScript 语法和 git diff --check 通过。核对 1440、390、320px 截图，无菜单横向溢出。
+- 证据：`.local/commercial-kickoff/project-menu-1440.png`、`project-menu-390.png`、`project-menu-320.png`；日志 `project-menu-final.log` 与 `project-menu-trash.log`。
+
+未改后端、积分或支付规则；未推送、未部署。

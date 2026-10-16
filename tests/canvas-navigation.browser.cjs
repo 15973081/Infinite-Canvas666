@@ -1,6 +1,10 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {fixture,origin}=require('./helpers/canvas-browser.cjs');
+async function returnHome(page,kind='smart'){
+    await page.locator(kind==='smart'?'.smart-nav-back':'#backToManagerBtn').click();
+    if(kind==='smart')await page.getByRole('menuitem',{name:'返回画布管理',exact:true}).click();
+}
 
 test('legacy classic directory link redirects to standalone home and preserves create intent',async t=>{
     const {page,errors}=await fixture(t,'classic',true,{home:true,startPath:'/static/canvas.html?create=classic'});
@@ -30,7 +34,7 @@ for(const kind of ['classic','smart']){
         await page.reload();
         await page.waitForFunction(()=>typeof canvas!=='undefined'&&canvas?.id==='canvas-test');
         assert.equal(await page.evaluate(()=>canvas.kind),kind);
-        await page.locator(kind==='smart'?'.smart-nav-back':'#backToManagerBtn').click();
+        await returnHome(page,kind);
         await page.waitForURL('**/workspaces/workspace-1');
         await home.locator('.canvas-open').first().waitFor();
         assert.equal(await home.locator('#gateSearchInput').inputValue(),'Module');
@@ -47,10 +51,9 @@ for(const kind of ['classic','smart']){
         },kind);
         let fail=true;
         await page.route('**/api/canvases/canvas-test',route=>route.request().method()==='PUT'&&fail?route.fulfill({status:503,json:{detail:'save unavailable'}}):route.fallback());
-        const back=page.locator(kind==='smart'?'.smart-nav-back':'#backToManagerBtn');
-        await back.click();await page.waitForFunction(()=>leaveCalls===1);
+        await returnHome(page,kind);await page.waitForFunction(()=>leaveCalls===1);
         assert.equal(new URL(page.url()).pathname,'/workspaces/workspace-1/canvases/canvas-test');
-        fail=false;await back.click();
+        fail=false;await returnHome(page,kind);
         await page.waitForURL('**/workspaces/workspace-1');
         assert.equal(record.title,'Saved before leaving');
         assert.deepEqual(errors,[]);
@@ -64,11 +67,11 @@ test('local depth leave cancellation keeps document and lease; explicit exit per
         MemberCanvasEdit.leave=async()=>{window.leaveCalled=true;return true;};
     });
     page.once('dialog',dialog=>dialog.dismiss());
-    await page.locator('.smart-nav-back').click();
+    await returnHome(page);
     assert.equal(await page.evaluate(()=>Boolean(window.leaveCalled)),false);
     assert.equal(new URL(page.url()).pathname,'/workspaces/workspace-1/canvases/canvas-test');
     page.once('dialog',dialog=>dialog.accept());
-    await page.locator('.smart-nav-back').click();
+    await returnHome(page);
     await page.waitForURL('**/workspaces/workspace-1');
 });
 

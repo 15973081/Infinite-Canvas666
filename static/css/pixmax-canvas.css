@@ -613,6 +613,34 @@ button,input,textarea {
   object-fit: contain;
 }
 
+.pixmax-logo-bar .pixmax-project-toggle {
+  display:flex; align-items:center; gap:8px; width:auto; min-width:54px; height:40px;
+  color:#fafafa; cursor:pointer; border-radius:8px;
+}
+.pixmax-project-mark { position:relative; display:block; width:30px; height:30px; flex-shrink:0; }
+.pixmax-project-mark img,.pixmax-project-mark .pixmax-project-menu-icon {
+  position:absolute; inset:0; width:30px; height:30px; transition:transform 180ms ease,opacity 180ms ease;
+}
+.pixmax-project-menu-icon { transform:scale(0); opacity:0; }
+.pixmax-project-toggle:is(:hover,:focus-visible,[aria-expanded=true]) .pixmax-project-mark img { transform:scale(0); opacity:0; }
+.pixmax-project-toggle:is(:hover,:focus-visible,[aria-expanded=true]) .pixmax-project-menu-icon { transform:scale(1); opacity:1; }
+.pixmax-project-toggle .pixmax-project-chevron { width:16px; height:16px; flex-shrink:0; transform:rotate(90deg); transition:transform 180ms ease; }
+.pixmax-project-toggle[aria-expanded=true] .pixmax-project-chevron { transform:rotate(270deg); }
+.pixmax-project-toggle:focus-visible { outline:1px solid #aeb0bd; outline-offset:4px; }
+.pixmax-project-toggle:active .pixmax-project-mark { transform:scale(.94); }
+.pixmax-navigator-menu.pixmax-project-menu {
+  width:220px; padding:8px; border-radius:12px; font-size:14px; color:#aeb0bd;
+  box-shadow:0 12px 32px #0005; transform-origin:top left; animation:pixmax-project-menu-in 200ms ease-out;
+}
+.pixmax-navigator-menu.pixmax-project-menu button { min-height:40px; border-radius:8px; transition:background-color 150ms ease,color 150ms ease; }
+.pixmax-project-menu-heading { border-top:1px solid #313136; margin:4px 0 0; padding:10px 12px 4px; font-size:12px; color:#70707d; }
+.pixmax-project-menu .pixmax-project-menu-danger:not(:disabled) { color:#f07178; }
+@keyframes pixmax-project-menu-in { from { opacity:0; transform:translateY(-6px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+@media(prefers-reduced-motion:reduce) {
+  .pixmax-project-mark img,.pixmax-project-mark .pixmax-project-menu-icon,.pixmax-project-toggle .pixmax-project-chevron,.pixmax-project-menu button { transition:none; }
+  .pixmax-navigator-menu.pixmax-project-menu { animation:none; }
+}
+
 .pixmax-logo-bar .smart-title {
   font-size: 14px;
   font-weight: 600;

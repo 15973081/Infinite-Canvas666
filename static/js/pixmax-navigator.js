@@ -1,7 +1,7 @@
 /* Pixmax's canvas/node sidebar uses the existing directory and document owners. */
 (() => {
     'use strict';
-    let panel,toggleButton,list,menu,frame=null,requestVersion=0,scope='',tab='canvas',query='',type='',folder='',opened=true;
+    let panel,toggleButton,list,menu,menuAnchor,frame=null,requestVersion=0,scope='',tab='canvas',query='',type='',folder='',opened=true;
     let records=[],folders=[],ordering={},collapsed=new Set(),signature='',loading=false,disposed=false,trashMode=false,dragging=null;
     const removedIds=new Set(),pendingIds=new Set();
     const labels={text:'文本生成节点',image:'图像节点',video:'视频节点',audio:'音频生成节点',model:'3D模型生成节点',storyboard:'分镜脚本',director:'导演台',editor:'剪辑台',frame:'分组'};
@@ -142,25 +142,54 @@
         viewport.x=px-(box.x+box.width/2)*viewport.scale;viewport.y=py-(box.y+box.height/2)*viewport.scale;
         smartSelection.createdNode(node.id);applyViewport();render();scheduleSave();
     }
-    function closeMenu(){menu?.remove();menu=null;}
-    function openMenu(anchor,actions){
+    function closeMenu(){
+        if(menuAnchor?.matches('.pixmax-project-toggle'))menuAnchor.setAttribute('aria-expanded','false');
+        menu?.remove();menu=null;menuAnchor=null;
+    }
+    function openMenu(anchor,actions,{project=false}={}){
         const expected=currentScope();
-        closeMenu();menu=document.createElement('div');menu.className='pixmax-navigator-menu';menu.setAttribute('role','menu');
+        closeMenu();menuAnchor=anchor;menu=document.createElement('div');menu.className='pixmax-navigator-menu';menu.setAttribute('role','menu');
+        if(project){menu.id='pixmaxProjectMenu';menu.classList.add('pixmax-project-menu');menu.setAttribute('aria-label','画布菜单');anchor.setAttribute('aria-expanded','true');}
         actions.forEach(action=>{
+            if(action.heading){const heading=document.createElement('p');heading.className='pixmax-project-menu-heading';heading.setAttribute('role','presentation');heading.textContent=action.heading;menu.appendChild(heading);return;}
             const button=document.createElement('button');button.type='button';button.textContent=action.label;button.disabled=action.disabled;button.setAttribute('role','menuitem');
-            button.onclick=async()=>{closeMenu();try{ensureScope(expected);await action.run();}catch(error){status(error.message);}};menu.appendChild(button);
+            if(action.danger)button.className='pixmax-project-menu-danger';
+            button.onclick=async()=>{closeMenu();if(project)anchor.focus({preventScroll:true});try{ensureScope(expected);await action.run();}catch(error){status(error.message);if(project)toast(error.message);}};menu.appendChild(button);
         });
         document.body.appendChild(menu);const rect=anchor.getBoundingClientRect(),size=menu.getBoundingClientRect();
-        menu.style.left=Math.max(8,Math.min(rect.right+4,innerWidth-size.width-8))+'px';menu.style.top=Math.max(8,Math.min(rect.top,innerHeight-size.height-8))+'px';
+        menu.style.left=Math.max(8,Math.min(project?rect.left:rect.right+4,innerWidth-size.width-8))+'px';menu.style.top=Math.max(8,Math.min(project?rect.bottom+8:rect.top,innerHeight-size.height-8))+'px';
+        menu.addEventListener('pointerdown',event=>event.stopPropagation());
         menu.addEventListener('keydown',event=>{
             event.stopPropagation();
-            if(event.key==='Escape'){closeMenu();anchor.focus();}
+            if(project&&event.key==='Tab'){closeMenu();anchor.focus();return;}
+            if(event.key==='Escape'){event.preventDefault();closeMenu();anchor.focus();}
             if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){
                 event.preventDefault();const buttons=[...menu.querySelectorAll('button:not(:disabled)')],index=buttons.indexOf(document.activeElement);
                 const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;
                 buttons[next]?.focus();
             }
         });menu.querySelector('button:not(:disabled)')?.focus();
+    }
+    function openProjectMenu(anchor){
+        const item=canvas,available=Boolean(item?.id)&&documentInScope()&&!item.deleted_at;
+        const editable=available&&can('canvas.edit')&&!isSmartCanvasLocked();
+        openMenu(anchor,[
+            {label:'返回画布管理',run:()=>backToCanvasList()},
+            {heading:'当前画布'},
+            {label:'画布目录',run:()=>setOpened(true)},
+            {label:'重命名',disabled:!editable,run:()=>{if(canvas===item&&documentInScope())renameCanvas(item);}},
+            {label:'移入回收站',danger:true,disabled:!available||!can('canvas.delete')||isSmartCanvasLocked()||pendingIds.has(item?.id),run:()=>{if(canvas===item&&documentInScope())removeCanvas(item,false,{current:true});}}
+        ],{project:true});
+    }
+    function bindProjectMenu(){
+        const anchor=document.querySelector('.pixmax-project-toggle');if(!anchor)return;
+        anchor.onclick=()=>menuAnchor===anchor?closeMenu():openProjectMenu(anchor);
+        anchor.addEventListener('keydown',event=>{
+            event.stopPropagation();
+            if(!['ArrowDown','ArrowUp'].includes(event.key))return;
+            event.preventDefault();openProjectMenu(anchor);
+            if(event.key==='ArrowUp')[...menu.querySelectorAll('button:not(:disabled)')].at(-1)?.focus();
+        });
     }
     function createCanvas(){
         if(!can('canvas.create'))return;
@@ -220,9 +249,9 @@
             await refresh();
         }});
     }
-    function removeCanvas(item,permanent=false){
+    function removeCanvas(item,permanent=false,{current=false}={}){
         if(!can('canvas.delete')||pendingIds.has(item.id))return;
-        const expected=currentScope(),origin=canvas,active=!trashMode&&item.id===canvas.id,needsTrash=permanent&&!trashMode,epoch=window.MemberCanvasEdit?.active?.lease?.epoch;
+        const expected=currentScope(),origin=canvas,active=(current||!trashMode)&&item.id===canvas.id,needsTrash=permanent&&!trashMode,epoch=window.MemberCanvasEdit?.active?.lease?.epoch;
         const valid=()=>!active||(canvas===origin&&documentInScope()&&!isSmartCanvasLocked()&&window.MemberCanvasEdit?.active?.lease?.epoch===epoch);
         if(!valid())return;
         const name=String(item.title||'未命名画布').trim();
@@ -323,6 +352,7 @@
     }
     function bind(){
         if(panel||disposed)return;
+        bindProjectMenu();
         readPreferences();scope=currentScope();
         panel=document.createElement('aside');panel.id='pixmaxNavigator';panel.className='pixmax-navigator';panel.setAttribute('aria-label','画布和节点目录');
         panel.innerHTML=`<header><a href="${escapeAttr(window.CanvasNavigation.homeUrl())}" data-directory-home aria-label="返回画布管理"><img src="/static/images/shadox-mark.svg" alt=""></a><strong data-directory-title></strong><button type="button" data-directory-close aria-label="关闭画布目录">×</button></header><div role="tablist" aria-label="目录类型"><button type="button" role="tab" data-directory-tab="canvas" aria-controls="pixmaxDirectoryList">画布</button><button type="button" role="tab" data-directory-tab="nodes" aria-controls="pixmaxDirectoryList">节点</button><button type="button" data-directory-refresh aria-label="刷新目录" title="刷新目录"><i data-lucide="refresh-cw"></i></button></div><label class="pixmax-directory-search"><i data-lucide="search"></i><input type="search" data-directory-search aria-label="搜索画布或节点" placeholder="搜索画布或文件夹"></label><div data-directory-creations class="pixmax-directory-creations"><button type="button" data-directory-create-canvas>新建画布</button><button type="button" data-directory-create-folder>新建文件夹</button></div><select data-directory-type aria-label="节点类型"><option value="">全部节点</option>${Object.entries(labels).map(([key,label])=>`<option value="${key}">${label}</option>`).join('')}</select><div class="pixmax-directory-list" id="pixmaxDirectoryList" role="tabpanel" data-folder-drop=""></div><p role="status"></p>`;
@@ -367,7 +397,8 @@
         panel.addEventListener('dragleave',event=>{if(!panel.contains(event.relatedTarget))clearDrop();});
         setOpened(opened);draw();void refresh();
     }
-    document.addEventListener('pointerdown',event=>{if(menu&&!menu.contains(event.target)&&!event.target.closest('[data-canvas-menu],[data-node-menu],[data-folder-menu]'))closeMenu();});
+    document.addEventListener('pointerdown',event=>{if(menu&&!menu.contains(event.target)&&!event.target.closest('[data-canvas-menu],[data-node-menu],[data-folder-menu],.pixmax-project-toggle'))closeMenu();});
+    document.addEventListener('focusin',event=>{if(menu?.id==='pixmaxProjectMenu'&&!menu.contains(event.target)&&!menuAnchor?.contains(event.target))closeMenu();});
     window.addEventListener('resize',closeMenu);
     window.addEventListener('canvas-folder-deletion-change',documentChanged);
     window.addEventListener('pagehide',event=>{requestVersion++;if(frame!==null)cancelAnimationFrame(frame);frame=null;closeMenu();if(!event.persisted)disposed=true;});
