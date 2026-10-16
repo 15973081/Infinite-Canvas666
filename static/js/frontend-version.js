@@ -21,16 +21,16 @@
         banner.setAttribute('role', 'status');
         banner.setAttribute('aria-live', 'polite');
         banner.style.cssText = [
-            'position:fixed', 'left:50%', 'bottom:112px', 'z-index:2147483647',
-            'transform:translateX(-50%)', 'display:flex', 'align-items:center', 'gap:12px',
-            'width:max-content', 'max-width:min(560px,calc(100vw - 32px))', 'box-sizing:border-box', 'padding:14px 16px',
-            'border:1px solid var(--st-line,#d9dcd2)', 'border-radius:14px',
-            'background:var(--st-panel,#faf9f5)', 'box-shadow:0 8px 28px rgba(0,0,0,.12)',
-            'color:var(--st-text,#242724)', 'font:400 13px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
+            'position:fixed', 'left:50%', 'top:max(16px,env(safe-area-inset-top,0px))', 'z-index:2147483647',
+            'transform:translateX(-50%)', 'display:flex', 'align-items:center', 'gap:16px',
+            'width:480px', 'max-width:calc(100vw - 32px)', 'min-height:60px', 'box-sizing:border-box', 'padding:12px 24px',
+            'border:1px solid #303035', 'border-radius:12px',
+            'background:#141416', 'box-shadow:0 25px 50px -12px rgba(0,0,0,.25)',
+            'color:#fafafa', 'font:400 12px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
         ].join(';');
-        banner.innerHTML = '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;color:var(--st-muted,#70756d)"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg>'
-            + '<div style="flex:1;min-width:0"><strong style="display:block;font-size:13px;font-weight:600;margin-bottom:3px">有新版本可用</strong><span style="display:block;color:var(--st-muted,#70756d);font-size:12px">保存当前内容后，刷新体验最新界面。</span></div>'
-            + '<button type="button" style="flex:0 0 auto;border:1px solid var(--st-accent,#d2e5b5);border-radius:8px;padding:9px 14px;background:var(--st-accent,#d2e5b5);color:var(--st-ink,#152017);font:600 12px/1.5 system-ui;cursor:pointer">保存并刷新</button>';
+        banner.innerHTML = '<style>#frontendUpdateBanner button:hover:not(:disabled){background:#252529!important}#frontendUpdateBanner button:focus-visible{outline:2px solid #aeb0bd;outline-offset:3px}#frontendUpdateBanner button:disabled{opacity:.5;cursor:wait!important}</style>'
+            + '<div style="flex:1;min-width:0;overflow-wrap:anywhere"><strong style="display:block;font-size:12px;line-height:1.25;font-weight:500;margin-bottom:2px">发现新版本</strong><span style="display:block;color:#aeb0bd;font-size:12px;line-height:1.375">点击刷新页面以体验最新功能</span></div>'
+            + '<button type="button" style="flex:0 0 auto;box-sizing:border-box;min-width:70px;min-height:34px;border:1px solid #303035;border-radius:8px;padding:6px 16px;background:transparent;color:#fafafa;font:400 14px/1.5 system-ui;cursor:pointer">更新</button>';
         banner.querySelector('button').addEventListener('click', refreshToLatestBuild);
         document.body.appendChild(banner);
         updateBanner = banner;
@@ -141,7 +141,7 @@
         } finally {
             if(button){
                 button.disabled = false;
-                button.textContent = '保存并刷新';
+                button.textContent = '更新';
             }
         }
     }

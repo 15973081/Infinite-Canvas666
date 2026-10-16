@@ -476,3 +476,13 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 ```
 
 未改后端、计费或编辑权规则；未推送、未部署。
+
+## 2026-10-16 新版本提示对齐 Pixmax 顶部样式
+
+对照本地 Pixmax `index-Bcq66HVs.js` 中系统更新提示模板，将版本通知从底部移到顶部居中，顶部间距 16px（兼容安全区），宽 480px、窄屏两侧至少 16px，使用深色背景、细描边、12px 圆角及右侧描边按钮。标题和说明改为“发现新版本”“点击刷新页面以体验最新功能”，按钮改为“更新”。错误说明允许撑高卡片，避免窄屏截断。
+
+- 保留更新前等待所有页面保存的检查、超时与失败阻止刷新、失败后重试逻辑。既有 `tests/frontend-reload-guards.cjs` **5/5 通过**；JavaScript 语法及 git diff --check 通过。
+- 浏览器核对 1440、390、320px 顶部位置、居中和卡片宽度；实际触发保存失败，确认页面不跳转、按钮恢复且说明完整显示。
+- 截图：`.local/commercial-kickoff/version-banner-1440.png`、`version-banner-390.png`、`version-banner-320.png`、`version-banner-error-320.png`。
+
+未改变版本检测周期及更新流程；未推送、未部署。
