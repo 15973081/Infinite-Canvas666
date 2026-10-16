@@ -30,10 +30,13 @@ function pixmaxNodeCaption(node,kind,label){
     return `<div class="generation-node-caption">${pixmaxSvg(kind)}<input class="pixmax-node-name" aria-label="节点名称" value="${escapeAttr(title)}" style="width:${pixmaxNameWidth(title)}px" ${isSmartCanvasLocked()?'readonly':''}>${window.PixmaxTags?.markup(node)||''}</div>`;
 }
 function pixmaxUniqueNodeLabel(base){
+    base=window.CanvasPreferences?.defaultName(base)||base;
     const labels=new Set(nodes.map(node=>node.label||(node.type==='smart-prompt'?'文本生成节点':node.generationKind==='video'?'视频生成节点':node.generationKind==='image'?'图像生成节点':'')));
     if(!labels.has(base))return base;
     let suffix=1;while(labels.has(base+'-'+suffix))suffix++;return base+'-'+suffix;
 }
+window.CanvasPreferenceModels=()=> (apiProviders||[]).filter(p=>p.enabled!==false).flatMap(p=>
+    [...new Set([...(p.image_models||[]),...(p.video_models||[])])].map(model=>({provider:p.id,providerName:p.name||p.id,model})));
 function pixmaxNodePorts(){return `<div class="node-port port-in" data-port="in" title="输入连接" role="button" aria-label="输入连接">${pixmaxSvg('connect')}</div><div class="node-port port-out" data-port="out" title="输出连接" role="button" aria-label="输出连接">${pixmaxSvg('connect')}</div>`;}
 function pixmaxNativeNodeType(node){
     if(node?.pixmaxSourceType==='BASE_3D')return 'Base3D';

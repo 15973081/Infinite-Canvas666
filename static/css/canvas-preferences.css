@@ -1,0 +1,4 @@
+html[data-canvas-dots="false"] body.studio-smart-canvas #shell{background-image:none!important}
+html[style*="--canvas-prompt-font"] body.studio-smart-canvas #promptInput,
+html[style*="--canvas-prompt-font"] body.studio-smart-canvas .prompt-node-text,
+html[style*="--canvas-prompt-font"] body.studio-smart-canvas .pixmax-text-view{font-size:var(--canvas-prompt-font)!important}

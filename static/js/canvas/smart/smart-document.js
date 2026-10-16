@@ -658,6 +658,7 @@ function createNode(x, y, images=[], options={}){
         }));
     }
     node.scale = nodeImages.length > 1 ? MEDIA_GROUP_DEFAULT_SCALE : mediaNodeDefaultScale(node);
+    if(options.generationKind && !options.id)window.CanvasPreferences?.applyNode(node);
     inheritNodeMetaFromImage(node);
     nodes.push(node);
     if(options.select !== false) smartSelection.createdNode(node.id);

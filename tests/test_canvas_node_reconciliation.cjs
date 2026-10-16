@@ -11,7 +11,7 @@ test('2000-node smart render retains unchanged DOM, bindings and media; only cha
     const elements=new Map(),scopes=[];let built=0,bound=0;
     const element=id=>({dataset:{id},querySelector:()=>null,remove(){elements.delete(id);},replaceWith(fresh){elements.set(id,fresh);}});
     const noop=()=>{};
-    const ctx=vm.createContext({nodes:Array.from({length:2000},(_,i)=>({id:String(i),x:i})),smartAudioPreview:{dataChanged:noop},
+    const ctx=vm.createContext({window:{},nodes:Array.from({length:2000},(_,i)=>({id:String(i),x:i})),smartAudioPreview:{dataChanged:noop},
         cancelSmartGeometryRefresh:noop,smartWorkflowTransferModal:null,selectedNodeIds:()=>[],portDragState:null,smartChangedConnectionNodes:()=>[],
         world:{classList:{toggle:noop},querySelectorAll:()=>[...elements.values()],querySelector:s=>s.startsWith('svg')?{}:null,
             appendChild:el=>elements.set(el.dataset.id,el)},withSmartComputation:fn=>fn(),isSmartNodeInViewport:()=>true,

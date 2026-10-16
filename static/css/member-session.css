@@ -159,3 +159,5 @@ html:is(.dark,.theme-dark,.studio-theme-dark,[data-theme=dark]) .member-profile-
 
 .member-session-brand{font-family:var(--shadox-brand-font);font-size:19px;letter-spacing:-.055em}
 .member-space-onboarding::before{font-family:var(--shadox-brand-font);font-size:24px;letter-spacing:-.045em}
+
+.member-session-account-menu .member-account-balance{background:#20262b;color:#39d8eb;border:1px solid #2d4148;border-radius:10px;padding:12px;margin:10px 0;white-space:normal}.member-session-avatar[data-color=blue]{background:#263e69}.member-session-avatar[data-color=green]{background:#21493b}.member-session-avatar[data-color=purple]{background:#45325e}.member-session-avatar[data-color=orange]{background:#613f2a}.member-session-avatar[data-color=pink]{background:#603648}

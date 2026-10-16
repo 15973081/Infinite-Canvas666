@@ -52,10 +52,10 @@ test('smart canvas keeps its full height and places workspace settings inside it
 test('profile updates recreate one compact account control and preserve existing account actions',async t=>{
     const {page,errors}=await setup(t);
     await page.locator('.member-session-account > summary').click();
-    for(const name of ['我的费用','个人数据','成员资料','退出登录'])assert.equal(await page.getByRole('button',{name,exact:true}).isVisible(),true);
-    await page.getByRole('button',{name:'成员资料',exact:true}).click();
-    const dialog=page.getByRole('dialog',{name:'成员资料',exact:true});await dialog.getByLabel('昵称',{exact:true}).fill('新昵称');
-    await dialog.getByRole('button',{name:'保存资料',exact:true}).click();await dialog.waitFor({state:'detached'});
+    for(const name of ['账户管理','偏好管理','个人数据','退出登录'])assert.equal(await page.getByRole('button',{name,exact:true}).isVisible(),true);
+    await page.getByRole('button',{name:'账户管理',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'账户管理',exact:true});await dialog.getByLabel('昵称',{exact:true}).fill('新昵称');
+    await dialog.getByRole('button',{name:'保存资料',exact:true}).click();await dialog.getByText('资料已保存',{exact:true}).waitFor();await dialog.getByLabel('关闭账户管理',{exact:true}).click();await dialog.waitFor({state:'detached'});
     assert.equal(await page.locator('.member-session-canvas-controls').count(),1);
     await page.getByLabel('账号：新昵称',{exact:true}).click();await page.getByLabel('切换工作空间',{exact:true}).click();
     assert.notEqual(await page.locator('.member-session-account').getAttribute('open'),null);
@@ -73,5 +73,20 @@ test('expired account request shows one recovery banner and protects unsaved edi
     await page.getByRole('button',{name:'重新打开',exact:true}).click();
     await page.getByText('当前更改尚未保存，请先在自动草稿中保留或另存副本，再重新打开。',{exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>CanvasSession.paused),true);
+    assert.deepEqual(errors,[]);
+});
+
+test('account management uses the reference layout inside the real smart canvas',async t=>{
+    const {page,errors}=await setup(t);
+    await page.route('**/api/account/credits**',route=>route.fulfill({json:{wallet:{total_balance:'142',recharge_balance:'100',gift_balance:'42'},entries:[],records:0,page:1,pages:1}}));
+    await page.locator('.member-session-account > summary').click();await page.getByRole('button',{name:'账户管理',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'账户管理',exact:true});
+    for(const width of [1600,390]){
+      await page.setViewportSize({width,height:1050});await dialog.getByRole('button',{name:'积分充值',exact:true}).click();
+      const r=await dialog.evaluate(n=>{const b=n.getBoundingClientRect();return {x:b.x,y:b.y,right:b.right,bottom:b.bottom,scroll:n.scrollWidth,client:n.clientWidth};});
+      assert.ok(r.x>=0&&r.y>=0&&r.right<=width&&r.bottom<=1050&&r.scroll<=r.client,JSON.stringify(r));
+      await page.screenshot({path:'.local/commercial-kickoff/account-canvas-'+width+'.png',fullPage:true});
+      await dialog.getByRole('button',{name:'积分明细',exact:true}).click();await dialog.getByText('暂无积分流水',{exact:true}).waitFor();
+    }
     assert.deepEqual(errors,[]);
 });

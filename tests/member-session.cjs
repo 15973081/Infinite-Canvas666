@@ -270,6 +270,7 @@ test('logout forgets the space only after saving succeeds; refresh still restore
 for(const [path,status,code] of [
     ['/api/account/billing',401,'authentication_required'],
     ['/api/account/credits',409,'member_identity_changed'],
+    ['/api/account/tasks',409,'member_identity_changed'],
     ['/api/account/data',409,'member_identity_changed'],
     ['/api/auth/profile',401,'authentication_required']
 ]) test(`account endpoint ${path} pauses expired sessions without adding workspace headers`,async()=>{

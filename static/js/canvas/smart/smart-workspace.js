@@ -3899,13 +3899,13 @@ function bindSmartWorkspaceGestures(){
             }
         }
         if(!e.ctrlKey && !e.metaKey && !e.altKey && !isEditableTarget(e.target)){
-            if(key === 'z'){
+            if(key === (window.CanvasPreferences?.shortcut('zoom')||'z')){
                 if(e.repeat) return;
                 e.preventDefault();
                 toggleZoomPreview();
                 return;
             }
-            if(key === 'a'){
+            if(key === (window.CanvasPreferences?.shortcut('asset')||'a')){
                 if(e.repeat) return;
                 e.preventDefault();
                 toggleAssetLibrary();
@@ -4637,7 +4637,7 @@ function createSmartWorkspaceView(){
             const color = isCascade ? '#16a34a' : isHistory ? 'rgba(100,116,139,0.46)' : kind === 'input' ? 'rgba(100,116,139,0.62)' : 'rgba(148,163,184,0.62)';
             const opacity = isPendingLine ? '.82' : '1';
             const width = kind === 'input' ? '1.9' : '1.6';
-            return `<g class="smart-connection" data-conn-key="${conn.index}"><path class="${cls}" d="${curve}" stroke="${color}" stroke-width="${width}" fill="none" opacity="${opacity}"></path><path class="conn-hit" data-conn-index="${conn.index}" d="${curve}" stroke="transparent" stroke-width="14" fill="none"></path><circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}" opacity=".66"></circle><g class="conn-cut" data-conn-index="${conn.index}" transform="translate(${mx} ${my})"><circle r="8" fill="var(--card)" stroke="${color}" stroke-width="1.4"></circle><path d="M-3 -3 L3 3 M3 -3 L-3 3" stroke="${color}" stroke-width="1.5" stroke-linecap="round"></path></g></g>`;
+            return `<g class="smart-connection" data-from="${escapeHtml(conn.from)}" data-to="${escapeHtml(conn.to)}" data-conn-key="${conn.index}"><path class="${cls}" d="${curve}" stroke="${color}" stroke-width="${width}" fill="none" opacity="${opacity}"></path><path class="conn-hit" data-conn-index="${conn.index}" d="${curve}" stroke="transparent" stroke-width="14" fill="none"></path><circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}" opacity=".66"></circle><g class="conn-cut" data-conn-index="${conn.index}" transform="translate(${mx} ${my})"><circle r="8" fill="var(--card)" stroke="${color}" stroke-width="1.4"></circle><path d="M-3 -3 L3 3 M3 -3 L-3 3" stroke="${color}" stroke-width="1.5" stroke-linecap="round"></path></g></g>`;
         }).join('');
         return `<svg class="connection-layer" data-topology="${escapeHtml(topology)}" width="6000" height="4000" viewBox="0 0 6000 4000" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
     }

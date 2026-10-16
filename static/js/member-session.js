@@ -13,6 +13,7 @@
     accountPaths.add('/api/account/data'); accountPaths.add('/api/account/data/export');
     accountPaths.add('/api/account/data/close');
     accountPaths.add('/api/account/credits');
+    accountPaths.add('/api/account/tasks');
     const element = (tag, text, className) => {
         const node = document.createElement(tag);
         if (text !== undefined) node.textContent = text;
@@ -167,54 +168,6 @@
                 catch (error) { message.textContent = error.message; }
             }));
         });
-    }
-    async function profile() {
-        await domReady;
-        if (document.querySelector('.member-profile-dialog')) return;
-        const dialog = element('dialog', undefined, 'member-profile-dialog');
-        dialog.setAttribute('aria-label', '成员资料');
-        const head = element('header'), close = button('×', () => dialog.close());
-        close.className = 'member-profile-close'; close.setAttribute('aria-label', '关闭成员资料');
-        head.append(element('h2', '成员资料'), close);
-        const form = element('form'), nameLabel = element('label', '昵称'), name = element('input');
-        name.value = context.member.display_name; name.required = true; name.maxLength = 80; name.autofocus = true;
-        nameLabel.append(name);
-        const avatarLabel = element('label', '头像颜色'), avatar = element('select');
-        for (const [value, text] of [['','默认'],['blue','蓝色'],['green','绿色'],['purple','紫色'],['orange','橙色'],['pink','粉色']]) {
-            const option = element('option', text); option.value = value; avatar.append(option);
-        }
-        avatar.value = context.member.avatar; avatarLabel.append(avatar);
-        const message = element('p', '', 'member-profile-error'); message.setAttribute('role', 'alert');
-        const submit = element('button', '保存资料'); submit.type = 'submit'; submit.className = 'member-profile-save';
-        const cancel = button('取消', () => dialog.close()), actions = element('div', undefined, 'member-profile-actions');
-        actions.append(cancel, submit);
-        form.append(nameLabel, avatarLabel, message, actions);
-        dialog.append(head, element('p', '昵称与头像用于画布协作，账号标识保持不变。', 'member-profile-description'), form);
-        let saving = false;
-        dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
-        dialog.addEventListener('close', () => {
-            dialog.remove();
-            bar?.querySelector('.member-session-account > summary')?.focus();
-        }, {once:true});
-        form.addEventListener('submit', async event => {
-            event.preventDefault();
-            if (saving) return;
-            if (!name.value.trim()) { name.setCustomValidity('请输入昵称'); name.reportValidity(); return; }
-            saving = true; message.textContent = ''; submit.textContent = '保存中…';
-            form.setAttribute('aria-busy', 'true');
-            for (const control of [name, avatar, submit, cancel, close]) control.disabled = true;
-            try {
-                const data = await json('/api/auth/profile', {method:'PATCH', headers:{'Content-Type':'application/json','X-Member-ID':context.member.id}, body:JSON.stringify({display_name:name.value,avatar:avatar.value})});
-                context = Object.freeze({...context, member:Object.freeze(data.member)});
-                renderBar(); dialog.close(); window.dispatchEvent(new CustomEvent('member-session:profile', {detail:context.member}));
-            } catch (error) {
-                message.textContent = error.message; submit.textContent = '保存资料'; saving = false;
-                form.setAttribute('aria-busy', 'false');
-                for (const control of [name, avatar, submit, cancel, close]) control.disabled = false;
-            }
-        });
-        name.addEventListener('input', () => name.setCustomValidity(''));
-        document.body.append(dialog); dialog.showModal();
     }
     window.addEventListener('pageshow',()=>{
         document.querySelectorAll('.member-space-transition').forEach(node=>node.remove());
@@ -374,18 +327,29 @@
         const summary=element('summary'); summary.setAttribute('aria-label','账号：'+context.member.display_name);
         summary.title=context.member.display_name+' · '+context.workspace.name;
         const avatar=element('span',Array.from(context.member.display_name || '成员')[0],'member-session-avatar');
+        avatar.setAttribute('data-color',context.member.avatar||'');
         summary.append(avatar,element('span',context.member.display_name));
         const menu=element('div',undefined,'member-session-account-menu');
         menu.append(element('small','当前账号'),element('strong',context.member.display_name));
         if(canvasTopbar)menu.append(space);
-        menu.append(
-            button('我的积分',async () => {account.open=false;try {await import('/static/js/credit-wallet.js');await window.CanvasCreditWallet.show();}catch(error){window.alert(error.message);}}),
-            button('我的费用',async () => {account.open=false;try {await import('/static/js/billing-view.js');await window.CanvasBillingUI.showPersonal();}catch(error){window.alert(error.message);}}),
-            button('个人数据',async () => {account.open=false;try {await import('/static/js/account-data.js');await window.CanvasAccountData.show();}catch(error){window.alert(error.message);}}),
-            button('成员资料',() => {account.open=false;return profile();}),button('退出登录',async () => {
-                account.open=false;
-                try { await logout(); } catch (error) { window.alert(error.message); }
-            }));
+        const openAccount = async tab => {
+            account.open=false;
+            try {await import('/static/js/account-panel.js');await window.CanvasAccountPanel.show(tab);}
+            catch(error){window.alert(error.message);}
+        };
+        const balance = button('积分余额 · 查看明细',()=>openAccount('credits'));
+        balance.className='member-account-balance';
+        menu.append(balance,button('账户管理',()=>openAccount('profile')),
+            button('偏好管理',async()=>{account.open=false;try{await import('/static/js/canvas-preferences.js');window.CanvasPreferences.show();}catch(error){window.alert(error.message);}}),
+            button('个人数据',async()=>{account.open=false;try{await import('/static/js/account-data.js');await window.CanvasAccountData.show();}catch(error){window.alert(error.message);}}),
+            button('退出登录',async()=>{account.open=false;try{await logout();}catch(error){window.alert(error.message);}}));
+        account.addEventListener('toggle',async()=>{
+            if(!account.open)return;
+            const bound=context.member.id;
+            try{const data=await json('/api/account/credits?page_size=1');
+                if(!blocked&&context.member.id===bound&&balance.isConnected)balance.textContent='积分余额 '+BigInt(data.wallet.total_balance).toLocaleString('zh-CN')+' · 查看明细';
+            }catch(_){if(balance.isConnected)balance.textContent='积分暂不可用 · 查看明细';}
+        });
         account.append(summary,menu);
         if(canvasTopbar){
             bar.append(account);canvasTopbar.append(bar);
@@ -464,6 +428,14 @@
             const planned = state.mode === 'scheduled' && state.planned_at ? ' · ' + new Date(state.planned_at).toLocaleString() : '';
             maintenanceBanner.append(element('strong', (descriptions[state.mode] || '维护状态已改变') + planned), element('span', state.message || '请保留未保存内容，等待管理员完成维护。'));
             document.body.append(maintenanceBanner);
+        },
+        async updateProfile(value) {
+            const bound = context?.member.id;
+            if (!bound || blocked) throw new Error('请重新登录后修改资料。');
+            const data = await json('/api/auth/profile', {method:'PATCH', headers:{'Content-Type':'application/json','X-Member-ID':bound},body:JSON.stringify(value)});
+            if (blocked || context?.member.id !== bound) throw new Error('登录状态已变化，请重新打开账户管理。');
+            context = Object.freeze({...context,member:Object.freeze(data.member)});
+            renderBar();window.dispatchEvent(new CustomEvent('member-session:profile',{detail:context.member}));return data.member;
         },
         flushPages, pause, errorText};
     window.CanvasSession = session;

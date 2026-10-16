@@ -137,7 +137,7 @@
             <hr>
             <button type="button" onclick="document.getElementById('pixmaxSettingsMenu').classList.toggle('open')" aria-label="更多工具" title="更多工具"><i data-lucide="command"></i></button>
         </div>
-        <div id="pixmaxSettingsMenu" class="smart-top-tools pixmax-settings-menu">        <button class="smart-shortcut-toggle" type="button" onclick="LocalDepthVideo.openSettings()" title="控制中心" aria-label="控制中心"><i data-lucide="settings-2"></i><span>控制中心</span></button>
+        <div id="pixmaxSettingsMenu" class="smart-top-tools pixmax-settings-menu"><button type="button" class="smart-shortcut-toggle" onclick="CanvasPreferences.show()" aria-label="偏好管理" title="偏好管理"><i data-lucide="sliders-horizontal"></i><span>偏好管理</span></button>        <button class="smart-shortcut-toggle" type="button" onclick="LocalDepthVideo.openSettings()" title="控制中心" aria-label="控制中心"><i data-lucide="settings-2"></i><span>控制中心</span></button>
         <button id="smartCoverToggle" class="smart-backup-toggle" type="button" onclick="editCanvasCover()" title="画布封面" aria-label="画布封面"><i data-lucide="photo"></i><span>封面</span></button>
         <button id="retiredWorkflowToggle" class="smart-workflow-toggle" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open"></i><span>工作流</span></button>
         <button id="smartShortcutToggle" class="smart-shortcut-toggle" type="button" onclick="openSmartCanvasShortcuts()" title="快捷键" aria-label="快捷键"><i data-lucide="keyboard"></i><span>快捷键</span></button>
@@ -268,8 +268,8 @@
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>Z</kbd></span><span>撤销上一步操作</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>C</kbd></span><span>复制选中的节点</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>V</kbd></span><span>粘贴节点或剪贴板图片</span></div>
-                    <div class="shortcut-item"><span class="shortcut-keys"><kbd>A</kbd></span><span>打开/关闭资源库</span></div>
-                    <div class="shortcut-item"><span class="shortcut-keys"><kbd>Z</kbd></span><span>缩小画布视图</span></div>
+                    <div class="shortcut-item"><span class="shortcut-keys"><kbd data-preference-shortcut="asset">A</kbd></span><span>打开/关闭资源库</span></div>
+                    <div class="shortcut-item"><span class="shortcut-keys"><kbd data-preference-shortcut="zoom">Z</kbd></span><span>缩小画布视图</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>双击</kbd></span><span>在画布空白处新建节点</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>空白处</kbd></span><span>拖动画布</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>滚轮</kbd></span><span>缩放画布或预览图片</span></div>
@@ -470,6 +470,8 @@
     <script src="/static/js/canvas-cover.js"></script>
     <link rel="stylesheet" href="/static/css/local-depth-video.css">
     <script src="/static/js/local-depth-video.js"></script>
+    <link rel="stylesheet" href="/static/css/canvas-preferences.css">
+    <script src="/static/js/canvas-preferences.js"></script>
     <script src="/static/js/smart-pixmax.js?v=2026.10.13.1"></script>
     <script src="/static/js/pixmax-creation.js"></script>
     <script src="/static/js/canvas-audio-tasks.js"></script>
