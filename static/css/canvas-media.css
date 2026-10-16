@@ -11,11 +11,11 @@
     outline:2px solid var(--studio-focus);outline-offset:3px;
 }
 .output-video-badge,.asset-video-badge{border:1px solid var(--studio-border);font-weight:600}
-.output-trim-panel,.video-trim-panel{color:var(--studio-text)}
-.output-trim-panel :is(input,button),.video-trim-panel :is(input,button){transition:border-color var(--studio-motion),background var(--studio-motion)}
-.output-trim-panel button:hover:not(:disabled),.video-trim-current-btn:hover:not(:disabled){border-color:var(--studio-border-strong)}
-.output-trim-range input:focus-visible,.video-trim-range-input:focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px;border-radius:6px}
-body.studio-skin :is(.output-trim-panel,.video-trim-panel) :is(button,input):disabled{
+.output-trim-panel{color:var(--studio-text)}
+.output-trim-panel :is(input,button){transition:border-color var(--studio-motion),background var(--studio-motion)}
+.output-trim-panel button:hover:not(:disabled){border-color:var(--studio-border-strong)}
+.output-trim-range input:focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px;border-radius:6px}
+body.studio-skin :is(.output-trim-panel) :is(button,input):disabled{
     background:var(--studio-surface-muted);color:var(--studio-text-muted);border-color:var(--studio-border);opacity:1;box-shadow:none;
 }
-@media(prefers-reduced-motion:reduce){.canvas-video-play,.smart-video-play,.output-trim-panel :is(input,button),.video-trim-panel :is(input,button){transition:none}}
+@media(prefers-reduced-motion:reduce){.canvas-video-play,.smart-video-play,.output-trim-panel :is(input,button){transition:none}}

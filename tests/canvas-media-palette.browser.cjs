@@ -20,7 +20,7 @@ async function themedSurface(page,selector){
  const rgb=css.background.match(/[\d.]+/g).map(Number);assert.ok(rgb[2]<=rgb[1],'no legacy blue surface: '+selector+' '+css.background);
  assert.ok(css.contrast>=4.5,selector+' text contrast '+JSON.stringify(css));
 }
-async function mountWorkspaceControls(page,kind){
+async function mountWorkspaceControls(page){
  // Exercise the production member toolbar, not the legacy standalone lock UI.
  let editing=false;
  await page.route('**/api/canvases/canvas-test/edit-lease**',async route=>{
@@ -40,29 +40,29 @@ async function mountWorkspaceControls(page,kind){
  await memberStyles.evaluate(node=>document.head.insertBefore(node,document.head.querySelector('link[rel="stylesheet"]')));
  await page.addScriptTag({url:'/static/js/canvas-edit-lease.js'});
  await page.addScriptTag({url:'/static/js/member-canvas-edit.js'});
- await page.evaluate(kind=>kind==='classic'?openCanvas('canvas-test'):loadCanvas('canvas-test'),kind);
+ await page.evaluate(()=>openCanvas('canvas-test'));
  await page.getByRole('button',{name:'开始编辑',exact:true}).click();
  await page.waitForFunction(()=>MemberCanvasEdit.canEdit);
  await page.locator('.member-canvas-edit').waitFor({state:'visible'});
 
  assert.equal(await page.locator('#canvasLockBadge,#smartLockBadge,#canvasLockOverlay,#smartLockOverlay').count(),0,'legacy lock UI is removed from both canvases');
 }
-for(const kind of ['classic','smart'])test(`${kind} media cards, trim and preview controls use the dark palette`,async t=>{
+test('classic media cards, trim and preview controls use the dark palette',async t=>{
+ const kind='classic';
  const {page,errors,writes,record}=await fixture(t,kind,true);
  record.title='媒体组件配色验收';record.updated_at=Date.UTC(2026,9,7);
- await mountWorkspaceControls(page,kind);
+ await mountWorkspaceControls(page);
  let videoRequests=0;
  await page.route('**/assets/palette-video.webm',async route=>{videoRequests++;await serveVideo(route);});
  await page.route('**/api/media-preview?*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#556a41"/><path d="M0 140L90 60 180 140 250 40 320 140" fill="#8aa563"/></svg>'}));
  await page.evaluate(kind=>{
   const media={url:'/assets/palette-video.webm',name:'视频配色验收',kind:'video',thumbnail:'/test-image.svg',preview_url:'/test-image.svg',natural_w:320,natural_h:180};
-  nodes=kind==='classic'?[{id:'palette-output',type:'output',x:100,y:130,images:[media]}, {id:'palette-video',type:'image',x:540,y:130,url:media.url,name:media.name,mediaKind:'video',thumbnail:media.thumbnail}]
-   :[{id:'palette-video',type:'smart-image',x:150,y:130,images:[media]}];
+  nodes=[{id:'palette-output',type:'output',x:100,y:130,images:[media]}, {id:'palette-video',type:'image',x:540,y:130,url:media.url,name:media.name,mediaKind:'video',thumbnail:media.thumbnail}];
   viewport={x:0,y:0,scale:1};render();
  },kind);
  fs.mkdirSync(screenshots,{recursive:true});
  const prefix=process.env.PALETTE_BASELINE?'before':'after';
- const card=kind==='classic'?'.output-img-wrap > img':'.media-video-card',play=kind==='classic'?'.output-video-play':'.smart-video-play';
+ const card='.output-img-wrap > img',play='.output-video-play';
  await page.waitForFunction(()=>document.querySelector('img[data-preview-kind="video"]')?.naturalWidth>0);
  assert.equal(videoRequests,0,'canvas thumbnails do not download videos');
  for(const theme of ['dark']){
@@ -77,24 +77,23 @@ for(const kind of ['classic','smart'])test(`${kind} media cards, trim and previe
   await themedSurface(page,play);
   await page.screenshot({path:path.join(screenshots,`${prefix}-${kind}-cards-${theme}.png`)});
   await page.locator(play).first().click();
-  if(kind==='classic')await page.waitForFunction(()=>document.getElementById('outputLightboxVideo').readyState>=2);
-  else await page.waitForFunction(()=>smartPreviewGestures.videoState().readyState>=2);
+  await page.waitForFunction(()=>document.getElementById('outputLightboxVideo').readyState>=2);
   await page.evaluate(async()=>{const video=document.querySelector('.output-preview video,.preview-stage video');await video.play();await new Promise(resolve=>video.requestVideoFrameCallback(resolve));video.pause();});
-  await page.locator(kind==='classic'?'#outputTrimToggle':'#videoTrimToggleBtn').click();
-  const panel=kind==='classic'?'#outputTrimPanel':'#videoTrimPanel';
+  await page.locator('#outputTrimToggle').click();
+  const panel='#outputTrimPanel';
   await page.locator(panel).waitFor({state:'visible'});
-  await page.evaluate(kind=>{if(kind==='classic'){setOutputTrimValue('end',1.4,false);setOutputTrimValue('start',.4,false);}else{setVideoTrimValue('end',1.4,false);setVideoTrimValue('start',.4,false);}},kind);
-  for(const selector of kind==='classic'?[panel,'#outputTrimStart','#outputTrimApply','.output-resolution','.preview-icon-btn']: [panel,'#videoTrimStartInput','#videoTrimApplyBtn','.video-frame-tools','#videoTrimToggleBtn','#previewDownloadBtn'])await themedSurface(page,selector);
+  await page.evaluate(()=>{setOutputTrimValue('end',1.4,false);setOutputTrimValue('start',.4,false);});
+  for(const selector of [panel,'#outputTrimStart','#outputTrimApply','.output-resolution','.preview-icon-btn'])await themedSurface(page,selector);
   await page.waitForFunction(()=>{const v=document.querySelector('.output-preview video,.preview-stage video');return v&&!v.seeking&&v.readyState>=2;});
   await page.evaluate(()=>document.querySelector('.output-preview video,.preview-stage video').pause());
   await page.screenshot({path:path.join(screenshots,`${prefix}-${kind}-trim-${theme}.png`)});
-  const input=page.locator(kind==='classic'?'#outputTrimStart':'#videoTrimStartInput');await input.focus();
+  const input=page.locator('#outputTrimStart');await input.focus();
   if(!process.env.PALETTE_BASELINE)assert.ok(await input.evaluate(el=>getComputedStyle(el).outlineStyle!=='none'||getComputedStyle(el).boxShadow!=='none'),'time input has a visible focus');
-  await page.evaluate(kind=>{if(kind==='classic'){setOutputTrimValue('start',0,false);setOutputTrimValue('end',document.getElementById('outputLightboxVideo').duration,false);}else{setVideoTrimValue('start',0,false);setVideoTrimValue('end',smartPreviewGestures.videoState().duration,false);}},kind);
-  const apply=page.locator(kind==='classic'?'#outputTrimApply':'#videoTrimApplyBtn');
+  await page.evaluate(()=>{setOutputTrimValue('start',0,false);setOutputTrimValue('end',document.getElementById('outputLightboxVideo').duration,false);});
+  const apply=page.locator('#outputTrimApply');
   assert.ok(await apply.isDisabled(),'full range disables redundant export');
-  await themedSurface(page,kind==='classic'?'#outputTrimApply':'#videoTrimApplyBtn');
-  await page.evaluate(kind=>kind==='classic'?closeOutputLightbox():closeImageEditor(),kind);
+  await themedSurface(page,'#outputTrimApply');
+  await page.evaluate(()=>closeOutputLightbox());
  }
  await page.emulateMedia({reducedMotion:'reduce'});
  assert.equal(await page.locator(play).first().evaluate(el=>getComputedStyle(el).transitionDuration),'0s','reduced motion suppresses decorative transitions');

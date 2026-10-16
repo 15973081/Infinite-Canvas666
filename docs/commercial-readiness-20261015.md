@@ -347,3 +347,28 @@ node --test tests/smart-selection.browser.cjs tests/pixmax-connection-refresh.br
 $env:NODE_PATH='C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
 node --test --test-concurrency=2 tests/pixmax-image-detail.browser.cjs tests/pixmax-generation-history.browser.cjs tests/smart-image-editor.browser.cjs tests/smart-panorama.browser.cjs tests/pixmax-video-toolbar.browser.cjs tests/smart-video-trim.browser.cjs tests/smart-selection.browser.cjs tests/pixmax-card-surface.browser.cjs
 ```
+
+
+## 第九轮：2026-10-16 移除画布视频灯箱旧剪辑
+
+用户确认已有独立剪辑台，不再保留画布视频灯箱的旧截取功能。本轮覆盖截图中的智能画布入口，替代上一轮暂时保留片段截取的安排。
+
+- 删除视频节点浮动工具栏的“剪辑”按钮及其执行分支。
+- 删除视频预览内“截取片段”按钮、起止时间和滑杆、片段预览及“截取并添加到画布”面板。
+- 删除对应截取状态、事件绑定、请求提交、生命周期钩子和专用样式，并移除仅服务已删除功能的旧测试。
+- 保留视频播放、下载、导出首帧／当前帧／尾帧；保留既有片段素材 URL 的兼容处理。剪辑台仍可打开、导入画布素材、保存工程和导出 MP4。经典画布及其他调用方共用的视频接口未删除。
+
+### 验证
+
+相关浏览器检查去重 **74 项通过**：完整组合首次执行 73/74 通过；剩余项是新增预览测试误将下载替身挂在节点下载函数，而灯箱使用成员下载适配器。修正测试适配器后，视频工具栏与经典媒体配色专项 6/6 通过，包含先前失败项。
+
+覆盖视频选择／拖动／播放、只读工具栏、三种真实 PNG 帧导出、原视频保留、关闭释放播放器、全景渲染、既有编辑器生命周期，以及独立剪辑台素材导入、文档保存、真实 MP4 编码回传。另用带旧 clip_start/clip_end/preview_url 的片段记录检查预览仍使用片段文件，并检查移除截取面板后的截图。JavaScript 语法和 git diff --check 通过。
+
+日志：`.local/commercial-kickoff/retire-video-trim.log`（首次组合运行，保留首次测试适配器错误）；专项复验结果见本轮终端记录。截图：`.local/commercial-kickoff/video-preview-without-trim.png`。
+
+```powershell
+$env:NODE_PATH='C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
+node --test --test-concurrency=2 tests/pixmax-video-toolbar.browser.cjs tests/smart-pixmax.browser.cjs tests/smart-image-editor.browser.cjs tests/smart-panorama.browser.cjs tests/canvas-media-palette.browser.cjs
+```
+
+人工验收：选择视频节点，工具栏不再显示“剪辑”；双击视频，底部仅保留三种导出帧操作，没有截取区域；从创建菜单进入“剪辑台”，仍可导入画布视频并保存。未推送、未部署，未修改支付、订阅或积分规则。

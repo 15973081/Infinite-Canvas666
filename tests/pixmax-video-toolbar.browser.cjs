@@ -16,7 +16,7 @@ test('video toolbar is selected-only, uses native actions, remains readable on z
  assert.equal(await toolbar.isVisible(),false);
  await page.locator('.image-node .node-body').click();
  await toolbar.waitFor({state:'visible'});
- assert.equal(await toolbar.getByRole('button',{name:'剪辑',exact:true}).isEnabled(),true);
+ assert.equal(await toolbar.getByRole('button',{name:'剪辑',exact:true}).count(),0);
  assert.equal(await toolbar.getByRole('button',{name:'裁剪',exact:true}).count(),0);
  assert.equal(await toolbar.getByRole('button',{name:'音频分离',exact:true}).isEnabled(),true);
  assert.equal(await toolbar.getByRole('button',{name:'标签',exact:true}).isEnabled(),true);
@@ -34,22 +34,32 @@ test('video toolbar is selected-only, uses native actions, remains readable on z
  const last=await toolbar.boundingBox();assert.ok(last.x>=0&&last.x+last.width<=1280);
  assert.deepEqual(errors,[]);
 });
-test('one click on video scissors opens the existing trim pipeline for the selected source',async t=>{
- const {page,errors}=await setup(t);
+test('video preview keeps playback, download and frame exports after retiring lightbox trimming',async t=>{
+ const {page,errors,writes}=await setup(t);
  await page.locator('.image-node .node-body').click();
- await page.getByRole('toolbar',{name:'视频节点工具'}).getByRole('button',{name:'剪辑',exact:true}).click();
- await page.waitForFunction(()=>smartVideoTrimPanel.state.active);
+ await page.getByRole('toolbar',{name:'视频节点工具'}).getByRole('button',{name:'放大预览',exact:true}).click();
+ await page.waitForFunction(()=>document.getElementById('previewCurrentVideo')?.readyState>=2);
  assert.equal(await page.evaluate(()=>smartImageEditor.state.nodeId),await page.evaluate(()=>toolbarSourceId));
- assert.equal(await page.evaluate(()=>smartVideoTrimPanel.state.duration),2);
- await page.waitForFunction(()=>document.getElementById('previewCurrentVideo')?.readyState>=1);
- await page.locator('#videoTrimStartInput').fill('0.4');await page.locator('#videoTrimStartInput').press('Tab');
- await page.locator('#videoTrimEndInput').fill('1.4');await page.locator('#videoTrimEndInput').press('Tab');
- await page.route('**/api/smart-canvas/video-trim',route=>{
-  assert.deepEqual(route.request().postDataJSON(),{url:'/assets/toolbar.webm',name:'实拍视频.webm',start_seconds:.4,end_seconds:1.4});
-  return route.fulfill({json:{url:'/assets/toolbar-result.webm',name:'片段.webm'}});
+ assert.equal(await page.locator('#videoTrimPanel,#videoTrimToggleBtn,[data-video-trim-point]').count(),0);
+ assert.equal(await page.evaluate(()=>typeof applyVideoTrim),'undefined');
+ await page.evaluate(async()=>{const video=document.getElementById('previewCurrentVideo');await video.play();});
+ await page.waitForFunction(()=>document.getElementById('previewCurrentVideo').currentTime>0);
+ await page.evaluate(()=>{
+  document.getElementById('previewCurrentVideo').pause();window.exportedFrames=[];window.downloaded=[];
+  window.MemberMediaDownload=(url,name)=>{downloaded.push({url,name});return true;};
+  uploadFiles=async files=>{const file=files[0],bitmap=await createImageBitmap(file);exportedFrames.push({name:file.name,type:file.type,width:bitmap.width,height:bitmap.height});bitmap.close();return [{url:'/test-image.svg',name:file.name}];};
  });
- await page.locator('#videoTrimApplyBtn').click();await page.waitForFunction(()=>nodes.length===2);
- assert.equal(await page.evaluate(()=>nodes[1].images[0].clip_source_url),'/assets/toolbar.webm');assert.deepEqual(errors,[]);
+ await page.locator('#previewDownloadBtn').click();assert.equal(await page.evaluate(()=>downloaded[0].url),'/assets/toolbar.webm');
+ for(const [index,name] of ['导出首帧','导出当前帧','导出尾帧'].entries()){
+  await page.getByRole('button',{name,exact:true}).click();await page.waitForFunction(count=>nodes.length===count,index+2);
+ }
+ const frames=await page.evaluate(()=>exportedFrames);assert.equal(frames.length,3);
+ for(const frame of frames){assert.equal(frame.type,'image/png');assert.equal(frame.width,160);assert.equal(frame.height,90);}
+ assert.deepEqual(frames.map(frame=>frame.name),['实拍视频-first-frame.png','实拍视频-current-frame.png','实拍视频-last-frame.png']);
+ assert.equal(await page.evaluate(()=>nodes[0].images[0].url),'/assets/toolbar.webm');
+ await page.locator('#imageEditCancelBtn').click();assert.equal(await page.locator('#imageEditModal').isVisible(),false);
+ assert.equal(await page.evaluate(()=>document.getElementById('previewCurrentVideo').paused),true);
+ assert.equal(writes.filter(row=>row.path.includes('video-trim')).length,0);assert.deepEqual(errors,[]);
 });
 
 test('native video picture selects and drags the card while playback controls keep their own gestures',async t=>{
@@ -91,7 +101,8 @@ test('viewer can preview and download but cannot trim, authenticate, save assets
  await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
  await page.locator('.image-node .node-body').click();
  const toolbar=page.getByRole('toolbar',{name:'视频节点工具'});
- for(const name of ['剪辑','深度视频','素材认证','保存到资产库','标记'])assert.equal(await toolbar.getByRole('button',{name,exact:true}).isDisabled(),true);
+ assert.equal(await toolbar.getByRole('button',{name:'剪辑',exact:true}).count(),0);
+ for(const name of ['深度视频','素材认证','保存到资产库','标记'])assert.equal(await toolbar.getByRole('button',{name,exact:true}).isDisabled(),true);
  await page.evaluate(()=>{window.downloaded=0;window.authenticated=0;downloadPreviewFile=()=>downloaded++;quickFaceAuthSmartImage=()=>authenticated++;});
  await toolbar.getByRole('button',{name:'下载',exact:true}).click();assert.equal(await page.evaluate(()=>downloaded),1);
  await toolbar.getByRole('button',{name:'放大预览',exact:true}).click();await page.locator('#imageEditModal').waitFor({state:'visible'});
