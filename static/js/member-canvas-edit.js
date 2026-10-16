@@ -24,6 +24,7 @@
         });
     }
     const element = (tag,text) => { const node=document.createElement(tag); if(text !== undefined) node.textContent=text; return node; };
+    const draftEntryLabel=entry=>entry.options.snapshot().kind==='smart'&&window.MemberCanvasHistory?'历史版本':'自动草稿';
     function button(text, action) {
         const node=element('button',text); node.type='button';
         node.onclick=async () => { node.disabled=true; try { await action(); } catch(error) { if(active) { active.feedback=error.message; render(); } } finally { node.disabled=false; render(); } };
@@ -95,38 +96,46 @@
     async function showDrafts() {
         const entry=active;
         assertDraftScope(entry);
+        if(entry.historyPanel){entry.historyPanel.focus();return;}
+        const history=entry.options.snapshot().kind==='smart'&&window.MemberCanvasHistory?.create({
+            valid:()=>validEntry(entry),onClose:()=>{entry.historyPanel=null;}
+        });
+        if(history)entry.historyPanel=history;
+        try {
         // Include the latest typing even when the 150 ms draft timer has not fired.
         if(entry.options.dirty()) await persist(entry);
         const prefix=JSON.stringify([entry.memberId,entry.workspaceId,entry.id]).slice(0,-1)+',';
         const rows=await storage('readonly',store => store.getAll(IDBKeyRange.bound(prefix,prefix+'\uffff')));
         assertDraftScope(entry);
-        const dialog=element('dialog'); dialog.className='member-canvas-drafts';
-        dialog.append(element('h2','自动草稿'),element('p','这里只显示当前成员、空间和画布的草稿。先开始编辑，才能恢复同版本草稿。版本不同可另存副本。草稿保存在当前浏览器，未同步到云端。恢复不会立即提交到服务器；副本会创建新画布，均不会重启生成任务。'));
+        if(history?.closed)return;
+        const dialog=history?.dialog||element('dialog');
+        const closeDrafts=()=>{if(history)history.close();else{dialog.close();dialog.remove();}};
+        if(!history){dialog.className='member-canvas-drafts';dialog.append(element('h2','自动草稿'),element('p','这里只显示当前成员、空间和画布的草稿。先开始编辑，才能恢复同版本草稿。版本不同可另存副本。草稿保存在当前浏览器，未同步到云端。恢复不会立即提交到服务器；副本会创建新画布，均不会重启生成任务。'));}
         const own=rows.filter(row => ownsDraft(entry,row));
-        if(!own.length) dialog.append(element('p','暂无自动草稿。'));
+        if(!own.length&&!history) dialog.append(element('p','暂无自动草稿。'));
         for(const row of own.sort((a,b) => b.saved_at.localeCompare(a.saved_at))) {
             const origin=row.copy_request_id ? '副本请求' : row.page===page ? '本页' : row.page.includes('/restored/') ? '恢复前留存' : '其他页面';
-            const line=element('p',`${new Date(row.saved_at).toLocaleString()} · 基于版本 ${row.base_revision ?? '未知'} · ${origin} `);
+            const line=history?history.addRow(row,origin):element('p',`${new Date(row.saved_at).toLocaleString()} · 基于版本 ${row.base_revision ?? '未知'} · ${origin} `);
             const error=element('span'); error.setAttribute('role','status');
             const action=fn => async () => {try {assertDraftScope(entry,row);await fn();} catch(e) {error.textContent=e.message;}};
             let copyResult=row.copy_result;
             const openCopy=button('打开副本',action(async () => {
                 if(!copyResult || !entry.options.openCopy) return;
                 if(!await api.leave()) return;
-                dialog.close();dialog.remove();await entry.options.openCopy(copyResult);
+                closeDrafts();await entry.options.openCopy(copyResult);
             }));
             openCopy.hidden=!copyResult;
             if(copyResult) error.textContent='已创建副本：'+copyResult.title;
             const copyButton=button(row.copy_request_id ? '重试 / 确认副本' : '另存副本',action(async () => {
-                if(!await confirmAction('另存草稿副本','将在当前空间创建新画布，保留节点、连线和素材，不复制费用日志或重启任务。原画布和草稿会保留。重复确认同一请求会返回同一个副本。','确认另存副本')) return;
+                if(!await confirmAction(history?'另存历史副本':'另存草稿副本','将在当前空间创建新画布，保留节点、连线和素材，不复制费用日志或重启任务。原画布和草稿会保留。重复确认同一请求会返回同一个副本。','确认另存副本')) return;
                 copyResult=await copyDraft(entry,row);openCopy.hidden=false;
                 error.textContent='已创建副本：'+copyResult.title;
             }));
             copyButton.disabled=!['canvas.create','canvas.read','asset.read'].every(p => window.CanvasSession.context.workspace.permissions?.includes(p));
             line.append(button('恢复到本页',action(async () => {
-                if(!entry.lease.canEdit) throw new Error('请先关闭此窗口并开始编辑，再打开草稿恢复。');
+                if(!entry.lease.canEdit) throw new Error(history?'请先在底部开始编辑，再恢复此历史记录。':'请先关闭此窗口并开始编辑，再打开草稿恢复。');
                 if(!entry.options.restore || entry.options.busy?.()) throw new Error('请等待当前保存或生成结束后再恢复。');
-                if(!await confirmAction('恢复自动草稿','恢复将替换本页内容；当前未保存内容会先自动留存。服务器版本必须与草稿一致，恢复后请检查并保存。','确认恢复到本页')) return;
+                if(!await confirmAction(history?'恢复历史版本':'恢复自动草稿','恢复将替换本页内容；当前未保存内容会先自动留存。服务器版本必须与草稿一致，恢复后请检查并保存。','确认恢复到本页')) return;
                 assertDraftScope(entry,row);
                 if(!row.document || row.document.id!==entry.id || (row.document.kind || 'classic')!==(entry.options.snapshot().kind || 'classic')) throw new Error('草稿画布类型或身份不匹配，不能恢复。');
                 if(row.page===page) {
@@ -141,14 +150,19 @@
                     entry.options.restore(JSON.parse(JSON.stringify(row.document)));
                 });
                 await persist(entry);entry.feedback='草稿已恢复到本页，请检查后保存。原草稿仍保留在列表中。';
-                dialog.close();dialog.remove();
-            })),button('删除草稿',action(async () => {
+                closeDrafts();
+            })),button(history?'删除记录':'删除草稿',action(async () => {
                 if(row.page===page && entry.options.dirty()) throw new Error('本页还有未保存内容，请先保存或保留草稿并离开，再清理这份草稿。');
-                if(!await confirmAction('删除自动草稿','这只删除此条自动草稿，无法撤销。需要保留时请取消，或先另存副本。','确认删除草稿')) return;
-                await deleteDraft(entry,row);line.remove();
-            })),copyButton,openCopy,error); dialog.append(line);
+                if(!await confirmAction(history?'删除历史记录':'删除自动草稿','这只删除此条本机草稿，无法撤销。需要保留时请取消，或先另存副本。',history?'确认删除记录':'确认删除草稿')) return;
+                await deleteDraft(entry,row);if(history)history.removeRow(line);else line.remove();
+            })),copyButton,openCopy,error); if(!history)dialog.append(line);
         }
-        dialog.append(button('关闭',() => {dialog.close();dialog.remove();})); document.body.append(dialog); dialog.showModal();
+        if(history)history.complete();
+        else {dialog.append(button('关闭',closeDrafts));document.body.append(dialog);dialog.showModal();}
+        } catch(error) {
+            if(!history)throw error;
+            if(!validEntry(entry))history.close();else history.failed(error);
+        }
     }
     async function showTaskResults() {
         const entry=active;
@@ -329,6 +343,7 @@
     }
     function render() {
         if(!active) return;
+        active.historyPanel?.sync();
         const {lease,options,bar,label,begin,end,save,notice}=active;
         const previousWidth=bar.getBoundingClientRect?.().width;
         const previousLayoutWidth=active.layout?.getBoundingClientRect?.().width;
@@ -387,7 +402,7 @@
         entry.feedback='';
         if(entry.options.dirty()) {
             await persist(entry);
-            if(!await confirmAction('保留草稿并开始编辑','本页有未保存的修改。继续将自动留存草稿，再载入服务器版本。可在“自动草稿”中恢复或另存副本。','保留草稿并开始编辑')) return;
+            if(!await confirmAction('保留草稿并开始编辑',`本页有未保存的修改。继续将自动留存草稿，再载入服务器版本。可在“${draftEntryLabel(entry)}”中恢复或另存副本。`,'保留草稿并开始编辑')) return;
             assertDraftScope(entry);
             await preserveDraft(entry);
         }
@@ -402,7 +417,7 @@
         const entry=active;
         if(entry.options.dirty()) {
             await persist(entry);
-            if(!await confirmAction('申请接手','本页有未保存的修改。继续将自动留存草稿，再载入服务器版本。可在“自动草稿”中恢复或另存副本。','保留草稿并申请')) return;
+            if(!await confirmAction('申请接手',`本页有未保存的修改。继续将自动留存草稿，再载入服务器版本。可在“${draftEntryLabel(entry)}”中恢复或另存副本。`,'保留草稿并申请')) return;
             await preserveDraft(entry);
             if(!await entry.options.reload()) throw new Error('重载失败，请重试。');
         }
@@ -482,6 +497,7 @@
         if(validEntry(entry)) timer=setTimeout(() => tick(entry),delay);
     }
     const api={
+        openHistory:showDrafts,
         openTaskResults:showTaskResults,
         taskState:task=>active?.taskRecovery?.get(task) || {status:'checking',label:'正在核对后台任务'},
         refreshTasks:()=>active?.taskRecovery?.refresh(),
@@ -517,8 +533,8 @@
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
             const more=element('details'), moreSummary=element('summary','更多'), moreItems=element('div');
             more.className='member-canvas-more'; moreItems.className='member-canvas-menu';
-            moreItems.append(button('自动草稿',() => {more.open=false;return showDrafts();}),
-                button('刷新占用状态',async () => {
+            if(options.snapshot().kind!=='smart'||!window.MemberCanvasHistory)moreItems.append(button('自动草稿',() => {more.open=false;return showDrafts();}));
+            moreItems.append(button('刷新占用状态',async () => {
                     if(!validEntry(entry))throw new Error('当前会话已暂停，请先确认登录状态。');
                     await refreshState(entry);
                     entry.feedback='';render();
@@ -612,10 +628,11 @@
             if(entry.lease.canSave) { if(!await entry.lease.finish(entry.options.flush)) return false; }
             else if(entry.options.dirty()) {
                 await persist(entry);
-                if(!await confirmAction('保留草稿并离开','当前内容尚未保存到服务器。继续将自动留存本页草稿，再离开画布。稍后可在当前浏览器的“自动草稿”中恢复或另存副本。','保留草稿并离开')) return false;
+                if(!await confirmAction('保留草稿并离开',`当前内容尚未保存到服务器。继续将自动留存本页草稿，再离开画布。稍后可在当前浏览器的“${draftEntryLabel(entry)}”中恢复或另存副本。`,'保留草稿并离开')) return false;
                 await preserveDraft(entry);
             }
             reportPage(entry,true);
+            entry.historyPanel?.close();
             entry.taskRecovery?.stop();
             if(entry.refreshTasks){
                 window.removeEventListener('online',entry.refreshTasks);
@@ -649,7 +666,7 @@
     window.MemberCanvasEdit=api;
     // Block keyboard/paste/drop paths too; pointer-events alone does not prevent typing.
     for(const type of ['beforeinput','paste','cut','drop','keydown']) window.addEventListener(type,event => {
-        if(!active || active.lease.canEdit || event.target.closest?.('.member-canvas-edit,.member-canvas-drafts,.member-session-panel')) return;
+        if(!active || active.lease.canEdit || event.target.closest?.('.member-canvas-edit,.member-canvas-drafts,.member-canvas-history,.member-session-panel')) return;
         const target=event.target.closest?.('#nodes,.image-node,.composer,.create-menu');
         const key=String(event.key || '').toLowerCase();
         const command=type==='keydown' && ((event.ctrlKey || event.metaKey) && ['v','x','z','y','g'].includes(key) || ['delete','backspace'].includes(key));
@@ -659,7 +676,7 @@
     window.addEventListener('member-session:maintenance',event => active?.lease.setMaintenance(event.detail.mode));
     window.addEventListener('pagehide',event => {
         persist();
-        if(active){active.mediaPreview?.close();active.subscription?.stop();active.reportSuspended=true;clearTimeout(active.reportTimer);}
+        if(active){active.historyPanel?.close();active.mediaPreview?.close();active.subscription?.stop();active.reportSuspended=true;clearTimeout(active.reportTimer);}
         reportPage(active,!event.persisted);
         if(event.persisted) active?.lease.pause('页面已暂停，请保留草稿并重新确认编辑资格。');
         else active?.lease.dispose();

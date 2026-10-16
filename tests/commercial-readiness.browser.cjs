@@ -30,22 +30,23 @@ test('occupancy can recover without reloading, acquiring or writing the canvas',
     assert.ok(state.requests.every(request=>request.startsWith('GET ')));
     assert.deepEqual(errors,[]);
 });
-test('smart canvas drafts use the Pixmax palette and remain reachable in narrow viewports',async t=>{
+test('smart canvas history uses the Pixmax palette and remains reachable in narrow viewports',async t=>{
     const {page,errors}=await setup(t);
-    await page.locator('.member-canvas-more > summary').click();
-    await page.getByRole('button',{name:'自动草稿',exact:true}).click();
-    const dialog=page.locator('dialog.member-canvas-drafts');await dialog.waitFor();
+    await page.getByRole('button',{name:'画布菜单',exact:true}).click();
+    await page.getByRole('menuitem',{name:'查看历史版本',exact:true}).click();
+    const dialog=page.locator('dialog.member-canvas-history');await dialog.waitFor();
+    await dialog.evaluate(async el=>Promise.all(el.getAnimations().map(a=>a.finished)));
     assert.equal(await dialog.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(20, 20, 22)');
-    assert.equal(await dialog.getByRole('button',{name:'关闭',exact:true}).evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(37, 37, 41)');
+    assert.equal(await dialog.getByRole('button',{name:'关闭历史版本',exact:true}).isVisible(),true);
     fs.mkdirSync('.local/commercial-kickoff',{recursive:true});
     for(const width of [320,390,720,1280]){
         await page.setViewportSize({width,height:720});
         const bounds=await dialog.evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,overflow:el.scrollWidth>el.clientWidth};});
         assert.ok(bounds.left>=0&&bounds.right<=width&&bounds.top>=0&&bounds.bottom<=720,JSON.stringify(bounds));
-        assert.ok(Math.abs((bounds.left+bounds.right)/2-width/2)<1,'dialog is horizontally centered');
-        assert.ok(Math.abs((bounds.top+bounds.bottom)/2-360)<1,'dialog is vertically centered');
+        assert.equal(bounds.right,width,'history is docked to the right');
+        assert.equal(bounds.top,0);assert.equal(bounds.bottom,720);
         assert.equal(bounds.overflow,false);
-        await page.screenshot({path:path.resolve('.local/commercial-kickoff/dialog-'+width+'.png')});
+        await page.screenshot({path:path.resolve('.local/commercial-kickoff/history-empty-'+width+'.png')});
     }
     await page.keyboard.press('Escape');assert.equal(await dialog.isVisible(),false);
     assert.deepEqual(errors,[]);

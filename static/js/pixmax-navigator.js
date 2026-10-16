@@ -176,6 +176,7 @@
         openMenu(anchor,[
             {label:'返回画布管理',run:()=>backToCanvasList()},
             {heading:'当前画布'},
+            {label:'查看历史版本',disabled:!available||!window.MemberCanvasEdit?.openHistory,run:()=>window.MemberCanvasEdit.openHistory()},
             {label:'画布目录',run:()=>setOpened(true)},
             {label:'重命名',disabled:!editable,run:()=>{if(canvas===item&&documentInScope())renameCanvas(item);}},
             {label:'移入回收站',danger:true,disabled:!available||!can('canvas.delete')||isSmartCanvasLocked()||pendingIds.has(item?.id),run:()=>{if(canvas===item&&documentInScope())removeCanvas(item,false,{current:true});}}
