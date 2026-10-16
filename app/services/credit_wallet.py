@@ -1,6 +1,7 @@
-"""Account credits, separate from provider costs. No public write/payment API.
+"""Account credits, separate from provider costs. No payment integration.
 
-record_grant is an internal transaction primitive for verified future callers.
+record_grant is an internal transaction primitive; credit_gifts adds management
+authorization, explicit confirmation, private provenance and atomic audit.
 It requires an explicit source, business reference and permanent validity;
 it never infers payment success, reward eligibility or converts currency.
 """

@@ -2,7 +2,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
-  const names = {imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
+  const names = {creditGifts:'积分赠送与来源',imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   let memberSearch = '', memberStatus = '';
   let identityPaused = false;
   let permissionPaused = false, accessCheck = null;
@@ -33,6 +33,12 @@
     $('#close-navigation').focus();
   }
   const errors = {
+    invalid_credit_gift:'请填写有效账号、正整数积分、赠送原因和来源依据。',
+    credit_gift_target_unavailable:'收款账号不存在、未激活或已停用。',
+    credit_gift_preview_changed:'收款账号或赠送内容已变化，请重新预览。',
+    credit_gift_request_conflict:'此请求编号已用于另一笔赠送，请按请求编号核对来源记录。',
+    credit_balance_overflow:'本次赠送超出钱包可存储的整数范围，尚未入账。',
+    credit_member_unavailable:'收款账号当前不可用。',
     invalid_model_policy:'请检查模型开关、开放规格和视频秒数范围（正整数，最短不大于最长）。',
     invalid_model_discount:'折扣支付比例须为 0–100%，结束时间须晚于开始时间，同一规格的时段不能重叠；交叉规格必须有明确包含关系，具体规格覆盖通用规则。',
     invalid_provider_prices:'价格配置无效，请检查金额、规格和计费单位。',
@@ -198,6 +204,7 @@
     loading.setAttribute('role', 'status'); content.setAttribute('aria-busy', 'true'); content.replaceChildren(loading);
     try {
     const result = await ({
+      creditGifts: creditGiftsView,
       imageTools: imageToolsView,
       modelBilling: modelBillingView,
       billing: billingView,
@@ -222,6 +229,12 @@
       failed.append(el('h2', names[view] + '加载失败'), el('p', error.message), button('重新加载', render));
       content.replaceChildren(failed);
     } finally { if (requestSerial === serial) content.setAttribute('aria-busy', 'false'); }
+  }
+  async function creditGiftsView(){
+    if(workspace)return [el('p','积分属于账号，请切换到全平台范围核对赠送及来源。','muted')];
+    const canGift = me.permissions.includes('credits.gift.platform');
+    if(!canGift && !me.permissions.includes('audit.platform'))return denied();
+    return [await window.ManagementCreditGifts.create({api,canGift,memberId:me.member.id})];
   }
   async function imageToolsView(){
     if(!me.permissions.includes('provider.configure'))return denied();

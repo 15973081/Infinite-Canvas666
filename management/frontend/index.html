@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shadox · 管理平台</title><link rel="stylesheet" href="/static/management.css"><script src="/static/provider-prices.js" defer></script><script src="/static/provider-editor.js" defer></script><link id="billing-view-style" rel="stylesheet" href="/static/billing-view.css"><script src="/static/billing-view.js" defer></script><script src="/static/model-billing.js" defer></script><script src="/static/image-tools.js" defer></script><script src="/static/management.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shadox · 管理平台</title><link rel="stylesheet" href="/static/management.css"><script src="/static/provider-prices.js" defer></script><script src="/static/provider-editor.js" defer></script><link id="billing-view-style" rel="stylesheet" href="/static/billing-view.css"><script src="/static/billing-view.js" defer></script><script src="/static/model-billing.js" defer></script><script src="/static/image-tools.js" defer></script><script src="/static/credit-gifts.js" defer></script><script src="/static/management.js" defer></script></head>
 <body>
 <section id="login" class="login" hidden><form id="login-form" class="card">
 <p class="eyebrow">SHADOX / ADMIN</p><h1>管理平台</h1><p class="muted">使用获授权的成员账号登录。</p>
@@ -14,7 +14,7 @@
 <button data-view="overview">概览</button>
 <details class="nav-group" open><summary>组织与协作</summary><button data-view="members">成员与分配</button><button data-view="spaces">空间</button><button data-view="roles">角色与权限</button></details>
 <details class="nav-group" open><summary>模型与资源</summary><button data-view="providers">供应商与分配</button><button data-view="imageTools">图片工具</button><button data-view="modelBilling">模型与计费</button></details>
-<details class="nav-group" open><summary>运营与费用</summary><button data-view="billing">账号费用</button><button data-view="occupancy">画布占用</button><button data-view="tasks">任务处置</button></details>
+<details class="nav-group" open><summary>运营与费用</summary><button data-view="billing">账号费用</button><button data-view="creditGifts">积分赠送与来源</button><button data-view="occupancy">画布占用</button><button data-view="tasks">任务处置</button></details>
 <details class="nav-group" open><summary>系统与维护</summary><button data-view="backups">备份记录</button><button data-view="databases">数据库连接</button><button data-view="maintenance">维护中心</button><button data-view="audit">操作审计</button></details>
 </nav><div class="aside-bottom"><span id="identity"></span><button id="logout">退出登录</button></div></aside>
 <button id="navigation-backdrop" class="navigation-backdrop" aria-label="关闭导航" hidden tabindex="-1"></button>

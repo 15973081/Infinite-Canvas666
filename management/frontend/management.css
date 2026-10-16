@@ -268,3 +268,5 @@ th { background:var(--admin-surface-soft); color:var(--admin-text-muted); }
   .provider-section-tabs { padding:10px; }
   .provider-save-footer { position:static; }
 }
+
+.credit-gifts{display:grid;gap:20px}.credit-gifts fieldset{border:0;padding:0;margin:0;min-width:0}.credit-gifts legend{font-size:18px;font-weight:600;margin-bottom:16px}.credit-gifts textarea{min-height:80px;resize:vertical}.credit-gift-facts{overflow-wrap:anywhere;white-space:pre-wrap}.credit-gifts details{padding:16px 0;border-bottom:1px solid var(--border,#ddd)}.credit-gifts summary{cursor:pointer;overflow-wrap:anywhere}

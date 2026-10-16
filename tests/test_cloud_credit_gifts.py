@@ -212,3 +212,40 @@ def test_credit_gift_proof_requires_platform_permission_and_is_private_from_wall
     entry = wallet['entries'][0]
     assert wallet['wallet']['gift_balance'] == '125' and entry['grant_id'] == receipt['grant_id']
     assert 'evidence_ref' not in entry and 'reason' not in entry and 'actor' not in entry
+
+
+def test_credit_gift_upgrade_only_grants_the_new_permission_to_builtin_superadmin(platform):
+    from pathlib import Path
+    from psycopg import Rollback
+    from app.storage.database import connection
+    migration = Path('app/storage/migrations/039_admin_credit_gifts.sql').read_text(encoding='utf-8')
+    permissions = 'INSERT INTO canvas_cloud.permissions' + migration.split('INSERT INTO canvas_cloud.permissions', 1)[1]
+    with connection() as conn:
+        with conn.transaction():
+            # Exercise the populated-database upgrade branch; then restore this fixture.
+            conn.execute("DELETE FROM role_permissions WHERE permission_id='credits.gift.platform'")
+            conn.execute("DELETE FROM permissions WHERE id='credits.gift.platform'")
+            conn.execute(permissions.replace('canvas_cloud.', ''))
+            rows = conn.execute("""SELECT r.builtin_key FROM roles r JOIN role_permissions p ON p.role_id=r.id
+                                    WHERE p.permission_id='credits.gift.platform'""").fetchall()
+            assert rows and all(r['builtin_key']=='superadmin' for r in rows)
+            raise Rollback()
+
+
+def test_credit_gift_delegated_operator_needs_no_member_management_permission(platform):
+    from app.services import credit_gifts, members
+    target = person(platform); delegated = person(platform); c = platform['client']; actor = platform['operator']
+    data = body(target)
+    receipt = credit_gifts.gift(actor, **data, preview_token=credit_gifts.gift(actor, **data)['preview_token'])
+    role = members.create_role(actor, 'gift-only-'+uuid.uuid4().hex, [credit_gifts.PERMISSION])
+    members.assign_roles(actor, delegated['id'], [role])
+    assert c.post('/api/auth/login', json={'username':delegated['username'], 'password':PASSWORD}).status_code == 200
+    assert c.get('/api/me').json()['permissions'] == [credit_gifts.PERMISSION]
+    # A second operator cannot reuse or learn another operator's request receipt.
+    assert c.post('/api/credits/gifts/preview', json=data).json()['detail']['code'] == 'credit_gift_request_conflict'
+    ready = preview(c, body(target))
+    applied = c.post('/api/credits/gifts/apply', json=ready)
+    assert applied.status_code == 200 and applied.json()['actor']['id'] == delegated['id']
+    assert len(c.get('/api/credits/gifts', params={'username':target['username']}).json()['entries']) == 2
+    assert c.get('/api/members').status_code == 403
+    assert c.get('/api/audit').status_code == 403
