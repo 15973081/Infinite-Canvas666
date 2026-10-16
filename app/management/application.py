@@ -96,6 +96,19 @@ class Input(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
+class CreditGift(Input):
+    request_id: UUID
+    username: str = Field(min_length=1, max_length=64)
+    # Decimal strings preserve bigint precision in browsers.
+    amount: str = Field(pattern=r'^[1-9][0-9]{0,18}$')
+    reason: str = Field(min_length=1, max_length=1000)
+    evidence_ref: str = Field(min_length=1, max_length=500)
+
+
+class CreditGiftApply(CreditGift):
+    preview_token: str = Field(min_length=64, max_length=64)
+
+
 class BillingAssignment(Input):
     canvas_id: str = Field(min_length=1,max_length=200)
     member_id: str = Field(min_length=1,max_length=80)
@@ -389,6 +402,16 @@ def create_app(static_dir=None):
     def retire(request: Request, role_id: str, data: Retirement, workspace: str | None = None):
         members.retire_role(actor(request), role_id, data.confirmation, workspace=workspace, replacement=data.replacement, revoke=data.revoke)
         return {'ok': True}
+
+    @app.post('/api/credits/gifts/preview')
+    def credit_gift_preview(request: Request, data: CreditGift):
+        from app.services.credit_gifts import gift
+        return gift(actor(request), **data.model_dump())
+
+    @app.post('/api/credits/gifts/apply')
+    def credit_gift_apply(request: Request, data: CreditGiftApply):
+        from app.services.credit_gifts import gift
+        return gift(actor(request), **data.model_dump())
 
     @app.get('/api/billing/assignment/choices')
     def billing_choices(request: Request, workspace: str = Query(min_length=1,max_length=80), query: str = Query('',max_length=100)):
