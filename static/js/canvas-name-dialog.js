@@ -20,6 +20,20 @@
             input.value = options.value || '';
             input.placeholder = options.placeholder || '输入名称';
             confirm.textContent = options.confirm || '保存';
+            // Optional choice belongs to the same submission as the name. Native
+            // radios retain keyboard support and share the existing busy guard.
+            if(options.choices?.length){
+                const group=document.createElement('fieldset');group.className='name-dialog-choices';
+                const legend=document.createElement('legend');legend.textContent=options.choiceLabel || '创作方式';group.append(legend);
+                options.choices.forEach((choice,index)=>{
+                    const label=document.createElement('label'),radio=document.createElement('input'),copy=document.createElement('span');
+                    radio.type='radio';radio.name='name-dialog-choice';radio.value=choice.value;radio.checked=choice.value===options.choiceValue || (!options.choiceValue&&index===0);
+                    const title=document.createElement('strong');title.textContent=choice.label;copy.append(title);
+                    if(choice.description){const description=document.createElement('small');description.textContent=choice.description;copy.append(description);}
+                    label.append(radio,copy);group.append(label);
+                });
+                find('.name-dialog-actions').before(group);
+            }
             const matches=()=>options.requiredName===undefined||input.value.trim()===options.requiredName;
             if(options.requiredName!==undefined){find('.name-dialog-hint').textContent='请输入“'+options.requiredName+'”以确认';input.oninput=()=>{confirm.disabled=!matches();};confirm.disabled=!matches();}
             let busy = false;
@@ -49,7 +63,7 @@
                 busy = true; dialog.setAttribute('aria-busy', 'true');
                 dialog.querySelectorAll('button, input').forEach(el => { el.disabled = true; });
                 confirm.textContent = options.busyText || '保存中…';
-                try { await options.onSubmit(value); busy = false; dialog.close(); }
+                try { await options.onSubmit(value,dialog.querySelector('input[name="name-dialog-choice"]:checked')?.value); busy = false; dialog.close(); }
                 catch (e) {
                     busy = false; dialog.removeAttribute('aria-busy');
                     dialog.querySelectorAll('button, input').forEach(el => { el.disabled = false; });

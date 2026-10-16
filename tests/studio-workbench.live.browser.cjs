@@ -19,7 +19,8 @@ test('live workbench creates, saves and opens both canvas types through producti
  await page.waitForFunction(()=>document.getElementById('frame-canvas')?.contentWindow.CanvasHome);
  let frame=canvasFrame();
  const title='浏览器回归 '+Date.now();
- await page.locator('#studioNewCanvas').click();
+ await frame.locator('#gateCreateBtn').click();
+ await frame.getByRole('radio',{name:/经典画布/}).check();
  await frame.locator('#canvasNameField').fill(title+' 经典');
  await frame.getByRole('button',{name:'创建画布',exact:true}).click();
  await page.waitForURL('**/canvases/*');frame=page.mainFrame();
@@ -59,7 +60,8 @@ test('live workbench creates, saves and opens both canvas types through producti
  await frame.locator('#backToManagerBtn').click();
  await page.waitForURL(home);await page.frameLocator('#frame-canvas').locator('.canvas-open').first().waitFor();frame=canvasFrame();
  await frame.locator('#gateSearchInput').fill('');
- await frame.locator('#gateCreateSmartBtn').click();
+ await frame.locator('#gateCreateBtn').click();
+ await frame.getByRole('radio',{name:/智能画布/}).check();
  await frame.locator('#canvasNameField').fill(title+' 智能');
  await frame.getByRole('button',{name:'创建画布',exact:true}).click();
  await page.waitForURL('**/canvases/*');frame=page.mainFrame();await frame.waitForLoadState();
@@ -85,12 +87,10 @@ test('live workbench creates, saves and opens both canvas types through producti
  await frame.locator('#gateSearchInput').fill('');
  for(const theme of ['dark']){
 
-  await frame.waitForFunction(()=>{
-   const background=getComputedStyle(document.getElementById('canvasGate')).backgroundColor;
-   return [...document.querySelectorAll('.studio-start-card,.studio-recent-item')].every(el=>getComputedStyle(el).backgroundColor===background);
-  });
+  await frame.locator('.project-new-card').waitFor();
+  assert.equal(await frame.locator('.studio-start-card,.studio-recent-item').count(),0);
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.nav-item.active')).backgroundColor===
-   (document.documentElement.classList.contains('theme-dark')?'rgb(38, 52, 24)':'rgb(229, 241, 195)'));
+   'rgb(39, 40, 46)');
   await page.screenshot({path:path.join(out,'after-'+theme+'-desktop.png')});
   if(theme==='dark'){
    await frame.locator('#studioFolderTrigger').click();
@@ -109,13 +109,13 @@ test('live workbench creates, saves and opens both canvas types through producti
   assert.ok(contrast.muted>=4.5);assert.ok(contrast.button>=4.5);
  }
  await page.setViewportSize({width:390,height:844});
- await page.locator('#studioMobileMenu').click();
- await page.screenshot({path:path.join(out,'after-light-mobile-nav.png')});
- await page.locator('#studioNewCanvas').press('Escape');
- await page.waitForFunction(()=>document.querySelector('#studioSidebar').getBoundingClientRect().right<=0);
+ await page.getByRole('heading',{name:'请使用桌面端访问'}).waitFor();
+ assert.equal(await page.locator('.app-shell').isVisible(),false);
+ await page.screenshot({path:path.join(out,'desktop-required.png')});
+ await page.setViewportSize({width:1440,height:1000});
  await frame.locator('#gateSearchInput').fill('不存在的画布名称');
  assert.match(await frame.locator('.gate-list-empty').innerText(),/没有找到/);
- await page.screenshot({path:path.join(out,'after-light-mobile-search.png')});
+ await page.screenshot({path:path.join(out,'project-search-empty.png')});
  assert.deepEqual(errors,[]);
 });
 

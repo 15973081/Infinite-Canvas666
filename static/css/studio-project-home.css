@@ -1,0 +1,105 @@
+/* Project-first homepage. Palette and overrides stay out of editor documents. */
+html:has(body.studio-home),html:has(body.studio-canvas-home),body.studio-home,body.studio-canvas-home{
+ --studio-page:#08090b;--studio-nav:#08090b;--studio-panel:#131417;--studio-surface-muted:#25262c;
+ --studio-text:#f1f1f4;--studio-text-muted:#9b9da9;--studio-border:#2b2c33;--studio-border-strong:#4b4e58;
+ --studio-accent:#f4f4f7;--studio-accent-text:#17181c;--studio-accent-label:#4ce2f3;
+ --studio-focus:#4ce2f3;--studio-selected:#27282e;--studio-glow:transparent;
+ --studio-grid:transparent;--studio-radius-control:8px;--studio-radius-card:16px;--studio-radius-dialog:16px;
+}
+
+/* Center the catalog at the reference's 1200 / 1600 widths, with 4 / 5 columns. */
+#canvasGate{padding:38px 40px 64px;background-image:none}
+#canvasGate .gate-panel{max-width:1200px}
+#canvasGate .gate-head{margin:0 0 28px}
+#canvasGate .gate-title-row{align-items:center;gap:14px}
+#canvasGate .gate-title{position:relative;font-size:24px;font-weight:600;line-height:1.5;padding-bottom:10px;margin:0}
+#canvasGate .gate-title:before{display:none}
+#canvasGate .gate-title:after{content:'';position:absolute;bottom:0;left:0;width:100%;height:3px;background:var(--studio-accent-label)}
+#canvasGate .gate-count-pill{font:12px/1.5 var(--studio-font);padding-bottom:10px}
+#canvasGate .studio-library-tools{position:relative;top:auto;padding:0;margin-bottom:24px;gap:10px;z-index:12}
+#canvasGate .gate-search{flex:1 1 180px;max-width:280px;height:40px;background:#0d0e10}
+#canvasGate .gate-icon-btn,#canvasGate .studio-pick-trigger{min-height:40px;font-size:13px}
+#canvasGate .project-tools-spacer{flex:1}
+#canvasGate .project-create-button,#canvasGate .project-create-folder{width:auto;flex-shrink:0;white-space:nowrap}
+#canvasGate .project-create-button{background:var(--studio-accent);border-color:var(--studio-accent);color:var(--studio-accent-text);font-weight:600}
+#canvasGate .project-create-button:hover{background:#fff;border-color:#fff;color:#17181c}
+#canvasGate .studio-pick-menu,#canvasGate .studio-card-menu-items,#canvasGate .canvas-folder-menu{border-color:var(--studio-border);border-radius:12px;box-shadow:0 12px 36px #0008}
+#canvasGate .studio-pick-menu{left:auto;right:0}
+#canvasGate .gate-folder-node,#canvasGate .gate-folder-main,#canvasGate .gate-sort-btn{border-radius:7px}
+#canvasGate .gate-folder-node.active,#canvasGate .gate-sort-btn.active{box-shadow:none}
+#canvasGate .gate-folder-head{font:12px var(--studio-font);letter-spacing:0}
+#canvasGate .gate-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;align-items:stretch}
+#canvasGate .canvas-item{background:var(--studio-page);border-color:var(--studio-border);border-radius:16px;transition:border-color .16s}
+#canvasGate .canvas-item:hover{box-shadow:none;border-color:#575b65}
+#canvasGate .canvas-open{border-radius:15px;overflow:hidden}
+#canvasGate .studio-canvas-cover{aspect-ratio:16/10;border:0;background:#15161a;background-image:none;display:grid;place-items:center}
+#canvasGate .canvas-cover-media{position:absolute;inset:0}
+#canvasGate .canvas-cover-copy{display:none}
+#canvasGate .custom-cover-caption .canvas-cover-copy{display:block;z-index:1}
+#canvasGate .custom-cover-caption .studio-cover-label{display:none}
+#canvasGate .custom-cover-caption .studio-cover-title{font-size:17px}
+#canvasGate .studio-canvas-cover:not(.has-media):before{content:'';width:42px;height:46px;background:var(--studio-text-muted);opacity:.4;mask:url('/static/images/project-placeholder.svg') center/contain no-repeat}
+#canvasGate .canvas-cover-unavailable{left:0;right:0;bottom:14px;text-align:center;color:var(--studio-text-muted)}
+#canvasGate .canvas-cover-kind{right:10px;bottom:10px;font:10px/1.5 var(--studio-font);letter-spacing:.5px;background:#08090bcc;border:1px solid #ffffff30}
+#canvasGate .studio-card-type{font-size:11px;margin:11px 42px 0 14px;color:var(--studio-text-muted)}
+#canvasGate .canvas-card-title{display:block;margin:4px 42px 0 14px;font-size:14px;line-height:1.5;font-weight:500;letter-spacing:0}
+#canvasGate .canvas-card-meta{margin:4px 42px 14px 14px}
+#canvasGate .canvas-card-time{font:11px/1.5 var(--studio-font);letter-spacing:0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#canvasGate .studio-card-menu{bottom:19px}
+#canvasGate .studio-card-menu summary{width:32px;height:32px}
+#canvasGate .project-new-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:220px;align-self:stretch;border:1px solid var(--studio-border);border-radius:16px;background:var(--studio-panel);color:var(--studio-text-muted);font-size:14px;transition:background .16s,border-color .16s}
+#canvasGate .project-new-card svg{width:26px;height:26px;stroke-width:1.5}
+#canvasGate .project-new-card small{font-size:12px;color:var(--studio-text-muted)}
+#canvasGate .project-new-card:hover{background:#182025;border-color:#467780;color:var(--studio-text)}
+#canvasGate .gate-list-empty{background:transparent;min-height:160px;font-size:14px;line-height:1.8}
+#canvasGate .project-new-card+.gate-list-empty{grid-column:2/-1}
+#canvasGate.trash-mode :is(.project-create-button,.project-create-folder,.project-tools-spacer){display:none}
+#canvasGate .trash-note{color:var(--studio-text-muted)}
+#studioHomeFeedback:not([hidden]){border-radius:12px;line-height:1.6;flex-wrap:wrap}
+.studio-canvas-home .name-dialog-choices{border:0;padding:0;margin:20px 0;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.studio-canvas-home .name-dialog-choices legend{font-size:12px;color:var(--studio-text-muted);margin-bottom:10px}
+.studio-canvas-home .name-dialog-choices label{display:flex;align-items:flex-start;gap:9px;margin:0;padding:15px 12px;border:1px solid var(--studio-border);border-radius:10px;cursor:pointer;background:var(--studio-panel);color:var(--studio-text)}
+.studio-canvas-home .name-dialog-choices label:has(:checked){border-color:var(--studio-accent-label);background:#172529}
+.studio-canvas-home .name-dialog-choices input{width:16px;height:16px;min-height:0;margin:3px 0 0;padding:0;accent-color:var(--studio-accent-label);flex-shrink:0}
+.studio-canvas-home .name-dialog-choices input:focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
+.studio-canvas-home .name-dialog-choices strong{display:block;font-size:14px;font-weight:500}
+.studio-canvas-home .name-dialog-choices small{display:block;color:var(--studio-text-muted);font-size:12px;line-height:1.6;margin-top:6px}
+
+/* The existing session bar remains responsible for identity and workspace scope. */
+.studio-desktop-brand{position:absolute;top:24px;left:24px;z-index:24;display:flex;align-items:center;gap:9px;font-size:25px;line-height:40px;text-decoration:none;color:var(--studio-text)}
+.studio-desktop-brand img{width:30px;height:30px}
+body.studio-home .member-home-wallet{margin-left:auto;flex-shrink:0;padding:9px 13px;border:1px solid var(--studio-border);border-radius:10px;background:var(--studio-panel);color:var(--studio-text);font:13px var(--studio-font);cursor:pointer}
+body.studio-home .member-home-wallet:hover{background:var(--studio-surface-muted)}
+body.studio-home .member-session-account{margin-left:0}
+body.studio-home .member-session-account>summary{border:1px solid var(--studio-border);border-radius:10px;background:var(--studio-panel);min-height:38px}
+body.studio-home .member-session-avatar{background:var(--studio-surface-muted);color:var(--studio-text)}
+body.studio-home .member-session-spaces::before,body.studio-home .studio-context-location{display:none}
+body.studio-home #frame-canvas{filter:none;transform:none;transition:opacity .15s}
+@media(min-width:761px){
+ body.studio-home .sidebar{width:88px;min-width:88px;padding:96px 18px 34px;border:0;background:transparent;gap:12px;position:relative}
+ body.studio-home .sidebar.is-pinned{width:220px;min-width:220px;padding-inline:18px}
+ body.studio-home .sidebar nav{flex:0 1 auto;margin-top:auto;gap:6px;padding:6px;border:1px solid var(--studio-border);border-radius:14px;background:var(--studio-panel);overflow:visible}
+ body.studio-home .nav-item{min-height:42px;border-radius:9px}
+ body.studio-home .nav-item.active{box-shadow:none;border-color:transparent;background:var(--studio-selected)}
+ body.studio-home .nav-item.active svg{color:var(--studio-text)}
+ body.studio-home .studio-new-canvas{display:none}
+ body.studio-home .side-actions{margin-bottom:auto;padding-top:0;border:0}
+ body.studio-home .sidebar .studio-sidebar-brand{position:absolute;bottom:20px;left:28px}
+ body.studio-home .sidebar .studio-sidebar-brand .shadox-wordmark{display:none}
+ body.studio-home .stage,html.member-workspace-shell body.studio-home .stage{padding-top:84px}
+ body.studio-home .stage iframe,html.member-workspace-shell body.studio-home .stage iframe{top:84px;height:calc(100% - 84px)}
+ body.studio-home .member-session-bar{left:190px;right:24px;top:24px;width:auto;height:40px;padding:0;background:transparent;border:0;box-shadow:none;gap:12px}
+}
+@media(min-width:1536px){#canvasGate .gate-panel{max-width:1600px}#canvasGate .gate-list{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:1180px){#canvasGate{padding:30px 28px 56px}#canvasGate .gate-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}#canvasGate .gate-search{max-width:none}#canvasGate .project-tools-spacer{display:none}}
+.studio-desktop-required{display:none}
+@media(max-width:900px){
+ body:is(.studio-home,.studio-canvas-home)>:not(.studio-desktop-required){display:none!important}
+ body:is(.studio-home,.studio-canvas-home)>.studio-desktop-required{display:grid;place-items:center;position:fixed;inset:0;padding:24px;background:#000;color:#f5f5f7;z-index:2147483647;overflow:auto}
+ .studio-desktop-required>div{box-sizing:border-box;width:min(680px,100%);padding:44px 32px;border:1px solid #303036;border-radius:24px;background:#141416;text-align:center}
+ .studio-desktop-required h2{margin:0 0 22px;font:600 clamp(20px,3.4vw,28px)/1.4 var(--studio-font)}
+ .studio-desktop-required p{margin:0;color:#afb5c4;font:400 clamp(14px,2.4vw,20px)/1.8 var(--studio-font);overflow-wrap:anywhere}
+ html:has(body.studio-home).member-session-pending::after,html:has(body.studio-canvas-home).member-session-pending::after{display:none}
+}
+@media(pointer:coarse){#canvasGate .gate-icon-btn,#canvasGate .studio-pick-trigger,#canvasGate .studio-card-menu summary{min-height:44px;min-width:44px}}
+@media(prefers-reduced-motion:reduce){#canvasGate .project-new-card{transition:none}}

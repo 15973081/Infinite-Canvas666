@@ -11,6 +11,7 @@ test('legacy classic directory link redirects to standalone home and preserves c
     await page.waitForURL('**/workspaces/workspace-1');
     const home=page.frameLocator('#frame-canvas');
     await home.locator('#canvasNameField').waitFor();
+    assert.equal(await home.getByRole('radio',{name:/经典画布/}).isChecked(),true);
     assert.equal(await home.locator('#canvas').count(),0);
     await home.getByRole('button',{name:'取消',exact:true}).click();
     assert.deepEqual(errors,[]);

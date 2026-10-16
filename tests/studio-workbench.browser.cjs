@@ -6,7 +6,8 @@ test('directory menus retain filtering, counts and keyboard focus without busine
  const {page,writes,errors}=await fixture(t,'classic',false,{directory:true,record:{title:'Alpha'},
   extraRecords:[{id:'b',title:'Beta',kind:'smart',folder_id:'brand',updated_at:2},{id:'c',title:'Gamma',updated_at:3},{id:'d',title:'Delta',updated_at:4}],folders:[{id:'brand',name:'品牌项目'}]});
  const before=writes.length;
- assert.equal(await page.locator('#studioRecentList a').count(),3);
+ assert.equal(await page.locator('#studioRecent').count(),0);
+ assert.equal(await page.locator('.project-new-card').count(),1);
  await page.locator('#studioFolderTrigger').press('ArrowDown');
  assert.equal(await page.locator('.gate-folder-node.active .gate-folder-main').evaluate(el=>el===document.activeElement),true);
  await page.locator('.gate-folder-node.active .gate-folder-main').press('End');
@@ -25,9 +26,9 @@ test('directory menus retain filtering, counts and keyboard focus without busine
  assert.equal(writes.length,before);assert.deepEqual(errors,[]);
 });
 
-test('directory fits small screens and exposes failed-load recovery and reduced motion',async t=>{
+test('directory fits desktop screens and exposes failed-load recovery and reduced motion',async t=>{
  const {page,errors}=await fixture(t,'classic',false,{directory:true});
- for(const theme of ['dark'])for(const width of [320,390,768,1440]){
+ for(const theme of ['dark'])for(const width of [1024,1280,1440]){
   await page.setViewportSize({width,height:900});
 
   assert.equal(await page.locator('#canvasGate').evaluate(el=>el.scrollWidth<=el.clientWidth),true,`${theme} ${width}`);
@@ -40,7 +41,7 @@ test('directory fits small screens and exposes failed-load recovery and reduced 
  await page.getByRole('button',{name:'重新加载',exact:true}).click();
  assert.equal(await page.locator('#studioHomeFeedback').isVisible(),false);
  await page.emulateMedia({reducedMotion:'reduce'});
- assert.equal(await page.locator('.studio-start-card').first().evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
+ assert.equal(await page.locator('.project-new-card').evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
  assert.deepEqual(errors,[]);
 });
 
@@ -62,22 +63,19 @@ async function shellFixture(t,stored){
  await page.goto(origin+'/static/index.html');await page.waitForFunction(()=>document.querySelector('#frame-canvas').contentWindow?.CanvasHome);
  return {page,errors};
 }
-test('shell defaults expanded, persists collapse and traps/restores mobile navigation focus',async t=>{
+test('shell defaults to the icon rail, remembers expansion and preserves its frame behind the narrow-screen notice',async t=>{
  const {page,errors}=await shellFixture(t,null);
- assert.equal(await page.locator('#sidebarLogoToggle').getAttribute('aria-expanded'),'true');
- await page.locator('#sidebarLogoToggle').click();await page.reload();
  assert.equal(await page.locator('#sidebarLogoToggle').getAttribute('aria-expanded'),'false');
+ await page.locator('#sidebarLogoToggle').click();await page.reload();
+ assert.equal(await page.locator('#sidebarLogoToggle').getAttribute('aria-expanded'),'true');
+ await page.evaluate(()=>{window.homeFrameBefore=document.querySelector('#frame-canvas').contentWindow;});
  await page.setViewportSize({width:390,height:844});
- await page.locator('#studioMobileMenu').click();
- assert.equal(await page.locator('.stage').evaluate(el=>el.inert),true);
- assert.equal(await page.locator('#studioNewCanvas').evaluate(el=>el===document.activeElement),true);
- await page.locator('#studioNewCanvas').press('Shift+Tab');
- assert.equal(await page.locator('#settings-fold-toggle').evaluate(el=>el===document.activeElement),true);
- await page.locator('#settings-fold-toggle').press('Escape');
- assert.equal(await page.locator('.stage').evaluate(el=>el.inert),false);
- assert.equal(await page.locator('#studioMobileMenu').evaluate(el=>el===document.activeElement),true);
- await page.locator('#studioMobileMenu').click();await page.getByRole('button',{name:'画布首页',exact:true}).click();
- assert.equal(await page.locator('#studioMobileMenu').getAttribute('aria-expanded'),'false');
+ await page.getByRole('heading',{name:'请使用桌面端访问'}).waitFor();
+ assert.equal(await page.locator('.app-shell').isVisible(),false);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.setViewportSize({width:1440,height:900});
+ assert.equal(await page.locator('.studio-desktop-required').isVisible(),false);
+ assert.equal(await page.locator('#sidebarLogoToggle').getAttribute('aria-expanded'),'true');
+ assert.equal(await page.evaluate(()=>homeFrameBefore===document.querySelector('#frame-canvas').contentWindow),true);
  assert.deepEqual(errors,[]);
 });

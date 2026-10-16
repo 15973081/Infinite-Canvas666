@@ -502,11 +502,14 @@
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
     <link rel="stylesheet" href="/static/css/utilities.css">
     <link rel="stylesheet" href="/static/css/studio-shell.css">
+    <link rel="stylesheet" href="/static/css/studio-project-home.css">
 </head>
 
 <body class="studio-skin studio-home">
+    <section class="studio-desktop-required" aria-labelledby="desktopRequiredTitle"><div><h2 id="desktopRequiredTitle">请使用桌面端访问</h2><p>编辑与创作功能需在较宽屏幕下使用。请将浏览器窗口拉大，或改用电脑访问以获得完整体验。</p></div></section>
 
     <div class="app-shell">
+        <a class="studio-desktop-brand shadox-wordmark" href="/" aria-label="shadox 工作台"><img src="/static/images/shadox-mark.svg" alt="">shadox</a>
         <header class="studio-mobile-header"><button id="studioMobileMenu" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="studioSidebar"><svg data-tabler="menu-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span class="shadox-wordmark">shadox</span><span>创作工作台</span></header>
         <button class="studio-sidebar-backdrop" id="studioSidebarBackdrop" type="button" aria-label="关闭导航" hidden></button>
         <aside class="sidebar" id="studioSidebar">
@@ -646,7 +649,7 @@
         }
 
         function restoreSidebarPinned() {
-            setSidebarPinned(localStorage.getItem(SIDEBAR_PINNED_KEY) !== '0', { skipRemember:true });
+            setSidebarPinned(localStorage.getItem(SIDEBAR_PINNED_KEY) === '1', { skipRemember:true });
         }
 
         function setLocalNavCollapsed(collapsed, options = {}) {

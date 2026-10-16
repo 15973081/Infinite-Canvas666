@@ -4,7 +4,6 @@
 const canvasGate = document.getElementById('canvasGate');
 const gateStatus = document.getElementById('gateStatus');
 const gateCreateBtn = document.getElementById('gateCreateBtn');
-const gateCreateSmartBtn = document.getElementById('gateCreateSmartBtn');
 const gateRefreshBtn = document.getElementById('gateRefreshBtn');
 const gateBackBtn = document.getElementById('gateBackBtn');
 const gateTrashBtn = document.getElementById('gateTrashBtn');
@@ -310,11 +309,13 @@ function refreshGateViewControls(model=canvasGateModel()){
     window.CanvasHome?.syncControls();
 }
 
-function setCreateMode(active, kind='classic'){
+function setCreateMode(active, kind='smart'){
     creatingCanvas = active;
     createCanvasKind = active && kind === 'smart' ? 'smart' : 'classic';
     refreshGateViewControls();
-    if(active) window.CanvasNameDialog.open({title:kind === 'smart' ? '新建智能画布' : '新建画布', label:'画布名称', placeholder:'例如：秋季视觉探索', confirm:'创建画布', allowEmpty:true, onSubmit:name => createCanvas(name)});
+    if(active) window.CanvasNameDialog.open({title:'新建画布', label:'画布名称', placeholder:'例如：秋季视觉探索', confirm:'创建画布', allowEmpty:true,
+        choiceValue:kind, choices:[{value:'smart',label:'智能画布',description:'描述想法，与 AI 一起创作'},{value:'classic',label:'经典画布',description:'自由连接节点，编排流程'}],
+        onSubmit:(name,choice)=>{createCanvasKind=choice==='classic'?'classic':'smart';return createCanvas(name);}});
 }
 
 // Reads belong to one directory view and one mutation epoch. Late reads must
@@ -377,7 +378,6 @@ function renderCanvasList(model=canvasGateModel()){
     const before = visible ? panel.getBoundingClientRect().height : 0;
     panel?._gateResize?.cancel();
     renderCanvasListInto(gateCanvasList, model);
-    window.CanvasHome?.renderRecent({items:canvases, trashMode, folderId:activeFolderId, query:canvasSearchQuery, formatTime:formatCanvasTime});
     if(!visible || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const after = panel.getBoundingClientRect().height;
     if(Math.abs(after - before) > 1){
@@ -456,6 +456,11 @@ function renderCanvasListInto(list, model=canvasGateModel()){
     refreshGateViewControls(model);
     const items = model.items;
     list.innerHTML = '';
+    if(!trashMode&&!String(canvasSearchQuery).trim()){
+        const create=document.createElement('button');create.type='button';create.className='project-new-card';
+        create.innerHTML='<i data-lucide="plus" aria-hidden="true"></i><span>新建画布</span><small>从一个想法开始</small>';
+        create.onclick=()=>window.CanvasHome.beginCreate();list.append(create);
+    }
     if(!items.length){
         const empty = document.createElement('div');
         empty.className = 'gate-list-empty';
@@ -463,7 +468,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
             ? `<div class="gate-list-empty-icon"><i data-lucide="search-x" class="w-6 h-6"></i></div>没有找到匹配的画布`
             : (model.emptyKind === 'trash'
                 ? `<div class="gate-list-empty-icon"><i data-lucide="trash-2" class="w-6 h-6"></i></div>回收站为空`
-                : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>暂无画布<br>选择上方经典画布或智能画布，开始第一份创作`);
+                : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>暂无画布<br>新建一个画布，开始第一份创作`);
         list.appendChild(empty);
         refreshIcons();
         return;
@@ -471,7 +476,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
     model.rows.forEach(view => {
         const {item, isSmartCanvas, color, owner, pinned} = view;
         const row = document.createElement('div');
-        row.className = `canvas-item ${isSmartCanvas ? 'smart-canvas' : ''} ${view.active ? 'active' : ''} ${pinned ? 'pinned' : ''} ${color ? 'has-color' : ''}`;
+        row.className = `canvas-item ${isSmartCanvas ? 'smart-canvas' : ''} ${view.active ? 'active' : ''} ${pinned ? 'pinned' : ''} ${color ? 'has-color' : ''} ${item.cover?.text ? 'custom-cover-caption' : ''}`;
         row.dataset.canvasId = item.id;
         row.dataset.coverStyle = view.coverStyle;
         const ownerChip = owner
@@ -488,7 +493,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
 
                 <div class="canvas-card-meta">
                     <span class="canvas-card-meta-dot"></span>
-                    <div class="canvas-card-time">${trashMode ? `删除于 ${formatCanvasTime(item.deleted_at)}` : formatCanvasTime(item.updated_at || item.created_at)}</div>
+                    <div class="canvas-card-time">${trashMode ? `删除于 ${formatCanvasTime(item.deleted_at)}` : `更新于 ${formatCanvasTime(item.updated_at || item.created_at)}`}</div>
                 </div>
             </a>
             ${trashMode ? (pendingPurgeCanvasId === item.id ? `
@@ -738,10 +743,6 @@ async function createCanvas(customTitle = ''){
     await window.CanvasNavigation.go(window.CanvasNavigation.canvasUrl(data.canvas.id));
 }
 
-async function createSmartCanvas(){
-    setCreateMode(true, 'smart');
-}
-
 function toggleEmojiPicker(id, event){
     event?.preventDefault();
     event?.stopPropagation();
@@ -892,7 +893,8 @@ async function openCanvasCoverStyle(item){
 (() => {
  'use strict';
  const byId=id=>document.getElementById(id);let retry;
- let requestedCreate=new URLSearchParams(window.location.search).get('create')==='classic';
+ let requestedCreate=new URLSearchParams(window.location.search).get('create');
+ if(!['classic','smart'].includes(requestedCreate))requestedCreate='';
  const closePick=(pick,restore=false)=>{const trigger=pick.querySelector('.studio-pick-trigger');pick.querySelector('.studio-pick-menu').hidden=true;trigger.setAttribute('aria-expanded','false');if(restore)trigger.focus();};
  const choices=pick=>Array.from(pick.querySelectorAll('.gate-folder-main,[data-sort]')).filter(el=>!el.disabled);
  document.querySelectorAll('.studio-pick').forEach(pick=>{
@@ -933,36 +935,27 @@ async function openCanvasCoverStyle(item){
    }catch(_){}
   },
   syncControls(){const folder=byId('gateFolderTree')?.querySelector('.active .gate-folder-name');if(byId('studioFolderLabel'))byId('studioFolderLabel').textContent=folder?.textContent==='全部画布'?'全部文件夹':folder?.textContent||'全部文件夹';if(byId('studioSortLabel'))byId('studioSortLabel').textContent=byId('gateSortSwitch')?.querySelector('.active')?.textContent||'最近编辑';},
-  renderRecent({items,trashMode,folderId,query,open,formatTime}){
-   const section=byId('studioRecent'),list=byId('studioRecentList');
-   section.hidden=trashMode||folderId!=='all'||Boolean(String(query||'').trim())||items.length<4;
-   if(section.hidden){list.replaceChildren();return;}
-   const stamp=value=>typeof value==='number'?value:Date.parse(value)||0;
-   const recent=[...items].sort((a,b)=>stamp(b.updated_at||b.created_at)-stamp(a.updated_at||a.created_at)).slice(0,3),fragment=document.createDocumentFragment();
-   for(const item of recent){const button=document.createElement('a');button.className='studio-recent-item';button.title=item.title||'未命名画布';const type=document.createElement('span');type.className='studio-recent-type';type.textContent=item.kind==='smart'?'智能':'经典';const info=document.createElement('span');info.className='studio-recent-info';const title=document.createElement('strong');title.textContent=item.title||'未命名画布';const time=document.createElement('small');time.textContent=formatTime(item.updated_at||item.created_at);info.append(title,time);button.append(type,info);window.CanvasNavigation.bindLink(button,item.id);fragment.append(button);}
-   list.replaceChildren(fragment);
-  },
   coverMarkup(item){return window.CanvasCoverPreview.markup(item);},
   setLoadState(state,onRetry){
    retry=onRetry||retry;const feedback=byId('studioHomeFeedback');feedback.replaceChildren();feedback.hidden=state==='ready';byId('canvasGate').setAttribute('aria-busy',String(state==='loading'));
    if(state==='ready'){
-    if(requestedCreate){requestedCreate=false;const url=new URL(window.location.href);url.searchParams.delete('create');history.replaceState(history.state,'',url);queueMicrotask(()=>window.CanvasHome.beginCreate());}
+    if(requestedCreate){const kind=requestedCreate;requestedCreate='';const url=new URL(window.location.href);url.searchParams.delete('create');history.replaceState(history.state,'',url);queueMicrotask(()=>window.CanvasHome.beginCreate(kind));}
     return;
    }
    const message=document.createElement('span');message.textContent=state==='loading'?'正在加载画布…':'画布列表加载失败，请重试。';feedback.append(message);
    if(state==='error'){const button=document.createElement('button');button.type='button';button.textContent='重新加载';button.onclick=()=>retry?.();feedback.append(button);}
   },
-  async beginCreate(){
+  async beginCreate(kind='smart'){
    await ready;
    if(trashMode)await setTrashMode(false);
-   setCreateMode(true);return true;
+   setCreateMode(true,kind);return true;
   }
  };
  window.addEventListener('pagehide',()=>window.CanvasHome.remember());
 })();
 
-gateCreateBtn.addEventListener('click', () => setCreateMode(true));
-gateCreateSmartBtn?.addEventListener('click', createSmartCanvas);
+gateCreateBtn.addEventListener('click', () => window.CanvasHome.beginCreate());
+document.getElementById('gateCreateFolderBtn')?.addEventListener('click', () => createCanvasFolder(folderTargetForCreate()));
 gateNewFolderBtn?.addEventListener('click', () => createCanvasFolder(''));
 gateBackBtn.addEventListener('click', () => setTrashMode(false));
 gateTrashBtn.addEventListener('click', () => setTrashMode(true));

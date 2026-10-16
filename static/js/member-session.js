@@ -361,7 +361,12 @@
             document.addEventListener('pointerdown',outside,true);
             releaseBar=()=>{close();document.removeEventListener('pointerdown',outside,true);};
         } else {
-            bar.append(brand,space,account);document.body.append(bar);releaseBar=()=>{};
+            bar.append(brand,space);
+            if(document.body.classList.contains('studio-home')){
+                const wallet=button('积分钱包',()=>openAccount('credits'));wallet.className='member-home-wallet';
+                bar.append(wallet);
+            }
+            bar.append(account);document.body.append(bar);releaseBar=()=>{};
         }
     }
     async function initialize() {
