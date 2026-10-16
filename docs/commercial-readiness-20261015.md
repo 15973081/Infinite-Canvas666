@@ -526,3 +526,9 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 - 日志：`.local/commercial-kickoff/history-final.log`、`history-long-list.log`；截图 `history-sidebar-1440.png`、`history-sidebar-320.png`、`history-empty-320.png`。
 
 未改后端、计费或云端历史接口，未推送、未部署。
+
+### 历史时间线图标微调
+
+按用户圈出的分组箭头和末条节点，移除依赖字体基线的字符图标，改为固定尺寸的 CSS 箭头与 SVG 圆环。统一 26px 节点直径、圆心和连接线位置；连线终止于末条记录圆心，不再延伸到记录下方。分组标题悬停保持透明，仅提亮箭头圆钮，保留旋转和减少动态效果支持。
+
+历史侧栏既有浏览器回归 **3/3 通过**，另核对完整首尾时间线、悬停与折叠效果；截图 `.local/commercial-kickoff/history-timeline-polished.png`，日志 `history-timeline-polish.log`。git diff --check 通过。未改数据及恢复逻辑，未推送、未部署。
