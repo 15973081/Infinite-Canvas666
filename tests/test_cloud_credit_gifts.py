@@ -155,3 +155,60 @@ def test_credit_gift_bigint_precision_and_overflow(platform):
     assert error.value.detail['code'] == 'credit_balance_overflow'
     with connection() as conn:
         assert not conn.execute('SELECT 1 FROM admin_credit_gifts WHERE request_id=%s', (other['request_id'],)).fetchone()
+
+
+def test_credit_gift_provenance_paging_filter_and_historical_identity(platform):
+    from app.services.credit_gifts import gift
+    from app.storage.database import connection
+    actor = platform['operator']; target = person(platform); c = platform['client']
+    receipts = []
+    for _ in range(3):
+        data = body(target)
+        receipts.append(gift(actor, **data, preview_token=gift(actor, **data)['preview_token']))
+    with connection() as conn:
+        conn.execute("UPDATE members SET display_name='改名之后' WHERE id=%s", (target['id'],))
+    first = c.get('/api/credits/gifts', params={'username':target['username'].upper(), 'limit':2}).json()
+    assert [e['grant_id'] for e in first['entries']] == [r['grant_id'] for r in reversed(receipts[1:])]
+    second = c.get('/api/credits/gifts', params={'username':target['username'], 'limit':2, 'before':first['next']}).json()
+    assert [e['grant_id'] for e in second['entries']] == [receipts[0]['grant_id']]
+    assert second['next'] is None
+    row = second['entries'][0]
+    assert row['target']['display_name'] == target['display_name']
+    assert row['evidence_ref'] == 'APPROVAL-20261016-1' and row['evidence_type'] == 'ADMIN_ATTESTATION'
+    found = c.get('/api/credits/gifts', params={'request_id':receipts[0]['request_id']})
+    assert found.headers['cache-control'] == 'no-store'
+    assert len(found.json()['entries']) == 1
+    assert c.get('/api/credits/gifts', params={'request_id':'invalid'}).status_code == 422
+    assert not c.get('/api/credits/gifts', params={'username':'no-such-account'}).json()['entries']
+    audit = c.get('/api/audit').json()['events']
+    assert any(e['action']=='credits.gift' and e['details']['grant_id']==row['grant_id'] for e in audit)
+
+
+def test_credit_gift_proof_requires_platform_permission_and_is_private_from_wallet(platform):
+    from app.services import credit_gifts, credit_wallet, members
+    target = person(platform); auditor = person(platform); actor = platform['operator']
+    data = body(target)
+    receipt = credit_gifts.gift(actor, **data, preview_token=credit_gifts.gift(actor, **data)['preview_token'])
+    role = members.create_role(actor, 'auditor-'+uuid.uuid4().hex, ['audit.platform'])
+    members.assign_roles(actor, auditor['id'], [role])
+    def principal(user, audience):
+        token = members.login(user['username'], PASSWORD, audience=audience, source=uuid.uuid4().hex)['token']
+        return members.resolve_session(token, audience)
+    auditor_actor = principal(auditor, 'management')
+    assert credit_gifts.history(auditor_actor, request_id=receipt['request_id'])['entries'][0]['grant_id'] == receipt['grant_id']
+    with pytest.raises(HTTPException) as error:
+        credit_gifts.gift(auditor_actor, **body(target))
+    assert error.value.status_code == 403
+    workspace = members.create_workspace(actor, 'proof-scope-'+uuid.uuid4().hex, actor.member_id)
+    space_role = members.create_role(actor, 'space-audit', ['audit.read'], workspace['id'])
+    members.assign_roles(actor, target['id'], [space_role], workspace['id'])
+    with pytest.raises(HTTPException) as error:
+        credit_gifts.history(principal(target, 'management'), request_id=receipt['request_id'])
+    assert error.value.status_code == 403
+    owner = principal(target, 'workbench')
+    with pytest.raises(HTTPException):
+        credit_gifts.history(owner)
+    wallet = credit_wallet.report(owner)
+    entry = wallet['entries'][0]
+    assert wallet['wallet']['gift_balance'] == '125' and entry['grant_id'] == receipt['grant_id']
+    assert 'evidence_ref' not in entry and 'reason' not in entry and 'actor' not in entry

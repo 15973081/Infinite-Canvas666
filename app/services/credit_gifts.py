@@ -90,3 +90,28 @@ def gift(actor, *, request_id, username, amount, reason, evidence_ref, preview_t
         az.audit(conn, actor, 'credits.gift', target['id'], details={
             **receipt, 'evidence_type': 'ADMIN_ATTESTATION'})
         return receipt
+
+
+def history(actor, *, username='', request_id=None, before=None, limit=50):
+    """Only platform gift operators or platform auditors can inspect evidence."""
+    if not 1 <= limit <= 100 or (before is not None and not 0 < before <= MAX_CREDITS):
+        az.fail('invalid_credit_gift_query', 400)
+    with az.policy_transaction() as conn:
+        az.active_member(conn, actor)
+        if actor.audience != 'management':
+            az.fail('management_entry_required')
+        permission = PERMISSION if PERMISSION in az.effective_permissions(conn, actor.member_id) else 'audit.platform'
+        az.require(conn, actor, permission)
+        rows = conn.execute('''SELECT p.request_id::text,p.grant_id,p.actor_snapshot AS actor,
+            p.target_snapshot AS target,p.input->>'reason' AS reason,p.input->>'evidence_ref' AS evidence_ref,
+            'ADMIN_ATTESTATION' AS evidence_type,p.created_at,
+            t.id::text AS transaction_id,t.amount::text,t.balance_after::text,
+            g.source,g.category,g.validity
+            FROM admin_credit_gifts p JOIN credit_transactions t ON t.grant_id=p.grant_id
+            JOIN credit_grants g ON g.id=p.grant_id
+            WHERE (%s='' OR lower(p.target_snapshot->>'username')=%s)
+              AND (%s::uuid IS NULL OR p.request_id=%s::uuid)
+              AND (%s::bigint IS NULL OR t.id<%s)
+            ORDER BY t.id DESC LIMIT %s''',
+            (username.strip().lower(), username.strip().lower(), request_id, request_id, before, before, limit+1)).fetchall()
+        return {'entries': rows[:limit], 'next': rows[limit-1]['transaction_id'] if len(rows)>limit else None}

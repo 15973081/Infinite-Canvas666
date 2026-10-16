@@ -403,6 +403,14 @@ def create_app(static_dir=None):
         members.retire_role(actor(request), role_id, data.confirmation, workspace=workspace, replacement=data.replacement, revoke=data.revoke)
         return {'ok': True}
 
+    @app.get('/api/credits/gifts')
+    def credit_gift_history(request: Request, username: str = Query('', max_length=64),
+                            request_id: UUID | None = None,
+                            before: int | None = Query(None, ge=1, le=9223372036854775807),
+                            limit: int = Query(50, ge=1, le=100)):
+        from app.services.credit_gifts import history
+        return history(actor(request), username=username, request_id=request_id, before=before, limit=limit)
+
     @app.post('/api/credits/gifts/preview')
     def credit_gift_preview(request: Request, data: CreditGift):
         from app.services.credit_gifts import gift
