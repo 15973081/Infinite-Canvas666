@@ -271,3 +271,43 @@ node --test tests/management-credit-gifts.browser.cjs tests/credit-wallet.browse
 - 仅支持用户明确要求的人工管理员赠送，固定 `PLATFORM_GIFT` / `gift` / `PERMANENT`，沿用上一轮永久积分账本。个人钱包显示“管理员赠送积分”，管理端内部依据不下发个人端。
 - 不推测赠送活动资格、金额业务上限或自动发放策略；整数范围校验只是存储边界。未实现充值付款确认、订阅、扣分、预占、过期、退款或余额处置规则。
 - 待确认请求保存在当前浏览器标签的会话存储中，支持本页刷新和切页恢复。若关闭标签或清除该存储，应先按账号/请求编号核对来源记录，再决定是否新建；不同请求编号代表不同的人工赠送，系统不会凭相同说明擅自合并。
+
+## 第七轮：2026-10-16 用户菜单、账户管理与偏好面板
+
+按用户截图及 `C:\project\skill-clone\output\pixmax-canvas-1f1b1a95` 的本地页面、中文文案和前端资源对照实现。积分数值沿用 `docs/pixmax-credit-system-20261016.md` 的已核实方案。参考文件仅作为界面和规则证据，没有复制第三方账号、Cookie、支付二维码或私有数据。
+
+| 独立验收项 | 实现与参考对应 | 提交 |
+| --- | --- | --- |
+| 用户入口与个人资料 | 头像菜单展示本人积分余额，进入统一账户管理或独立偏好管理；保留空间切换、个人数据和退出登录。个人资料可保存昵称、头像颜色，保存后同步顶部头像。 | `6143d455` |
+| 账户管理布局与积分 | 深色大弹窗、六项侧栏、身份及余额区；充值采用四档卡片、青色选中状态、右侧积分汇总；积分明细嵌入真实钱包、充值/赠送分类及分页流水。窄屏侧栏横向滚动，卡片两列，汇总下移。 | `6143d455` |
+| 本人任务明细 | 新增 `GET /api/account/tasks`，只能读取有效工作台会话本人发起的任务；支持状态筛选、分页、刷新。返回最小任务信息，不返回提示词、结果地址或上游凭据；已有使用费用仍可查询。 | `cad71db8`、`6143d455` |
+| 可保存的偏好管理 | 对照字体大小、连接线显示、快捷键、节点默认名称、模型默认文本、点阵背景及右侧预览。按账号保存在当前浏览器；设置作用于实际画布，已有节点名称和文本保持原内容。 | `6143d455` |
+
+### 可直接验收的操作
+
+1. **菜单和资料：**画布右上角头像 → 账户管理 → 个人资料，修改昵称和头像颜色并保存，顶栏和面板同步更新。未保存切换栏目或关闭时有离开确认；保存中避免重复提交。个人数据入口仍可导出数据或进入既有注销流程。
+2. **充值与流水：**进入积分充值，依次选择 69 / 399 / 2499 / 4999 元，预计到账为 1,190 / 7,780 / 56,227 / 127,474。首充资格未接入，不叠加 500；改变金额不创建订单、不入账。积分明细 → 充值明细可查真实钱包，包括管理员赠送；超大整数不损失精度，备注作为文本显示。消耗明细和创作助手明确提示结算未接入。
+3. **任务和隔离：**任务明细只列当前成员发起的任务，可以筛选状态和翻页；无原始发起人归属的历史任务不推测归属。另一账号、伪造筛选参数或成员身份头无法取得前一账号任务。跨标签会话暂停会清除账户面板的私人数据，迟到响应不能恢复旧数据。
+4. **偏好：**从头像或画布更多工具打开偏好管理，修改字体、点阵、连接线并保存后，实际画布立即生效。关闭全量连接线后，选中节点显示关联连线；设置默认名称后新建节点使用新名称。为图像/视频模型设置默认文本后，仅匹配的新空白生成节点填充；文本经过 HTML 转义。两项自定义快捷键冲突时拒绝保存，输入框内按键不会触发画布操作。刷新恢复设置，换账号使用独立配置，浏览器拒绝存储时明确报错。
+
+### 验证结果
+
+- 后端真实 PostgreSQL / HTTP 回归 **66 项通过，624 项未选中**，覆盖新增任务读取、积分、成员、网关、原费用和个人数据；1 条现有 Starlette 依赖弃用警告。数据库使用测试 schema，未迁移业务库。
+- 前端与浏览器相关回归 **86 项通过**，另有画布选择、连线更新、生成节点和编辑器会话回归 **23 项通过**，合计 **109 项**。补充覆盖视频默认文本使用 `videoProvider/videoModel`、快捷键冲突与真实键盘分发、账户弹窗关闭后立即重开。
+- 桌面 1600 / 1440px 和手机 390px 截图已检查；弹窗不超出视口，长表格在内部滚动。JavaScript 语法检查和 `git diff --check` 通过。
+- 验证日志：`.local/commercial-kickoff/account-upgrade-backend-regression.log`、`account-upgrade-regression.log`、`account-upgrade-canvas-regression.log`。界面截图：同目录 `account-canvas-1600.png`、`account-canvas-390.png`、`canvas-preferences-1440.png`、`canvas-preferences-390.png`。截图使用测试账号及夹具数据，不是生产入账凭证。
+
+```powershell
+$env:ACCOUNT_BILLING_INTEGRATION='1'
+.\.venv\Scripts\python.exe tools/cloud_test.py tests/test_account_billing.py -k 'account_tasks or credit_wallet or test_cloud_members or test_cloud_member_gateway or test_account_billing or test_cloud_account_data' -ra
+$env:NODE_PATH='C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
+node --test tests/account-panel.browser.cjs tests/canvas-preferences.browser.cjs tests/member-canvas-header.browser.cjs tests/credit-wallet.browser.cjs tests/member-session.cjs tests/member-session-frames.browser.cjs tests/account-billing-ui.cjs tests/account-billing-pagination.browser.cjs tests/test_canvas_node_reconciliation.cjs tests/test_canvas_prompt_dependencies.cjs tests/test_smart_canvas_performance.cjs
+node --test tests/smart-selection.browser.cjs tests/pixmax-connection-refresh.browser.cjs tests/smart-generation-nodes.browser.cjs tests/smart-composer-session.browser.cjs
+```
+
+### 与参考的业务差异及上线前提
+
+- 新增迁移 **040**，为本人任务历史建立索引；部署前按既有迁移流程应用。本轮提交代码和验收记录，未推送、未部署，未改变已有数据库服务的启停状态。
+- 充值只是方案预览，整数输入范围是预览限制，不代表生产充值的最低金额或购买上限。真实支付、订单、优惠码、首充资格、订阅、发票及企业认证均未接入；未展示可付款二维码，也未收集认证材料。
+- 消费、退款、过期和任务积分结算规则继续待确认。任务列表显示“未接入积分结算”，既有人民币费用不换算成积分或伪装成支付账单。
+- 偏好使用浏览器本地存储，按账号隔离，同源其他标签的保存可同步，不提供跨设备云同步。模型默认文本目前接入图像、视频生成节点；快捷键自定义范围为资源库和缩小预览，可选 A / Z / F6–F9，其他组合键保持既有行为。头像沿用已有颜色字段，未新增头像上传或账号绑定服务。
