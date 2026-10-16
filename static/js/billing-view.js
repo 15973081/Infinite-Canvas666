@@ -2,7 +2,7 @@
 (() => {
   const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const money=(value,currency='CNY')=>{const n=BigInt(value||0),sign=n<0n?'-':'',v=n<0n?-n:n;const fraction=(v%1000000n).toString().padStart(6,'0').replace(/0+$/,'').padEnd(2,'0');return (currency==='CNY'?'¥':currency+' ')+sign+(v/1000000n)+'.'+fraction;};
-  function style(){if(document.getElementById('billing-view-style'))return;const s=el('link');s.id='billing-view-style';s.rel='stylesheet';s.href='/static/css/billing-view.css?v=2026.09.16.1';document.head.append(s);}
+  function style(){if(document.getElementById('billing-view-style'))return;const s=el('link');s.id='billing-view-style';s.rel='stylesheet';s.href='/static/css/billing-view.css?v=2026.10.16.1';document.head.append(s);}
   async function create({fetchReport,personal=false,assignmentApi=null}){
     style();const root=el('section',undefined,'billing-view'),toolbar=el('form',undefined,'billing-toolbar'),body=el('div',undefined,'billing-results'),overview=el('div',undefined,'billing-overview'),message=el('p','','billing-note billing-message');message.setAttribute('role','status');
     root.classList.toggle('billing-personal',personal); toolbar.setAttribute('aria-label','费用筛选');

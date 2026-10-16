@@ -1,4 +1,5 @@
 /* Shared billing surfaces; theme values stay scoped to the expense UI. */
+.credit-wallet table{color:inherit}
 .billing-view,.billing-dialog{--bill-bg:#fff;--bill-surface:#f7f8fa;--bill-text:#202735;--bill-muted:#707987;--bill-border:#e5e8ee;--bill-hover:#f0f2f6;--bill-accent:#252d3a;--bill-on-accent:#fff;--bill-green:#26764f;--bill-green-bg:#eaf5ef;--bill-amber:#946314;--bill-amber-bg:#fbf1dc;--bill-red:#b64550;--bill-red-bg:#fbeef0;color:var(--bill-text);color-scheme:light}
 :is(.dark,.theme-dark,html[data-theme="dark"]) :is(.billing-view,.billing-dialog){--bill-bg:#151b25;--bill-surface:#1b2330;--bill-text:#e5eaf2;--bill-muted:#98a4b5;--bill-border:#2b3544;--bill-hover:#222d3c;--bill-accent:#e5eaf2;--bill-on-accent:#17202d;--bill-green:#93d6b1;--bill-green-bg:#213b31;--bill-amber:#dfbe7e;--bill-amber-bg:#383222;--bill-red:#f0a2aa;--bill-red-bg:#3d2930;color-scheme:dark}
 .billing-view{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
