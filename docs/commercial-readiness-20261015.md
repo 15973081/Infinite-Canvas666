@@ -499,3 +499,11 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 - 证据：`.local/commercial-kickoff/project-menu-1440.png`、`project-menu-390.png`、`project-menu-320.png`；日志 `project-menu-final.log` 与 `project-menu-trash.log`。
 
 未改后端、积分或支付规则；未推送、未部署。
+
+## 2026-10-16 左上角黑底外观调整
+
+将 Logo 和标题的方形黑底改为 44px 高、12px 圆角的半透明深色浮层，补齐内边距、细描边、轻阴影及背景模糊。显式覆盖成员模式背景样式，使灰色／3D 背景上也保持统一的中性深色。窄屏限制标题容器宽度，避免与右侧工具按钮重叠。保留现有品牌、菜单操作和动效。
+
+- 既有 Logo 菜单浏览器回归 **3/3 通过**，git diff --check 通过；未新增纯样式单元测试。
+- 加载真实成员样式，在 1440、390、320px 视口检查闭合状态和工具栏边界；截图 `.local/commercial-kickoff/logo-surface-1440.png`、`logo-surface-390.png`、`logo-surface-320.png`。
+- 未推送、未部署。
