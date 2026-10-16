@@ -25,6 +25,7 @@ PUBLIC = {'/static/js/infinity-hero.js', '/static/vendor/js/three-0.160.0.module
 ACCOUNT = {'/api/account/billing', '/api/management-entry', '/api/auth/logout', '/api/auth/workspaces', '/api/auth/profile'}
 ACCOUNT.update({'/api/account/data','/api/account/data/export'})
 ACCOUNT.add('/api/account/data/close')
+ACCOUNT.add('/api/account/credits')
 PIXMAX_STAGE_ASSET = re.compile(r'^/static/vendor/pixmax/previs/(?:characters/x-bot\.fbx|animations/catalog\.runtime\.v1\.json|animations/clips/[0-9a-f-]{36}\.anim)$')
 PIXMAX_PARAMETER_SCHEMAS = {'/static/vendor/pixmax/generation-schema.json', '/static/vendor/pixmax/reshoot-schema.json'}
 MANAGEMENT_PREFIXES = ('/api/shared-folders', '/api/comfyui/', '/api/workflows',

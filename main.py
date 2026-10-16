@@ -133,6 +133,8 @@ app.include_router(collaboration_router)
 app.include_router(canvas_ledger.router)
 from app.routers.account_billing import router as account_billing_router
 app.include_router(account_billing_router)
+from app.routers.credit_wallet import router as credit_wallet_router
+app.include_router(credit_wallet_router)
 from app.routers.account_data import router as account_data_router
 app.include_router(account_data_router)
 app.include_router(chat.router)
