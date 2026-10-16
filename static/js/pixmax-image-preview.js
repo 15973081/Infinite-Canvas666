@@ -58,8 +58,19 @@
         for(const type of ['pointerdown','mousedown','wheel','dblclick','paste'])root.addEventListener(type,e=>e.stopPropagation());root.onclick=e=>{if(e.target===root)close();};
         root.append(main,aside);document.body.append(root);root.showModal();current={element:root,close};options.onMount?.(root);observer.observe(document.body,{childList:true,subtree:true});window.addEventListener('member-session:paused',paused);window.addEventListener('pagehide',paused);select(item);if(options.nodeId&&window.CanvasSession?.enabled&&!options.history)moreHistory();return current;
     }
-    function openNode(node,index=0){const source=node.images?.[index];if(!source?.url)return;const url=source.url,images=node.images.filter(i=>i.url&&mediaKindForItem(i)==='image'),item=source;
-        return open({item,images,label:node.label,canvasId:canvas.id,nodeId:node.generationKind==='image'?node.id:undefined,isActive:()=>nodes.includes(node)&&node.images.includes(source)&&source.url===url,onPanorama:selected=>{const position=node.images.indexOf(selected);if(position>=0)openImageEditor(node.id,position);else smartImageEditor.openDetached({id:'__panorama_detail__',type:'smart-image',images:[selected]},0);smartPanoramaPreview.toggle();}});
+    function openNode(node,index=0){
+        const source=node.images?.[index];if(!source?.url)return;
+        // Autosave normalizes media objects. Bind to the slot and resource identity,
+        // not object references that change during an otherwise unchanged save.
+        const resources=node.images.map(item=>({item,url:item.url,id:idOf(item)})),origin=resources[index];
+        const matches=(item,resource)=>item?.url===resource.url&&idOf(item)===resource.id&&mediaKindForItem(item)==='image';
+        const images=resources.map(resource=>resource.item).filter(item=>item.url&&mediaKindForItem(item)==='image');
+        return open({item:source,images,label:node.label,canvasId:canvas.id,nodeId:node.generationKind==='image'?node.id:undefined,
+            isActive:()=>nodes.includes(node)&&matches(node.images?.[index],origin),
+            onPanorama:selected=>{const position=resources.findIndex(resource=>resource.item===selected);
+                if(position>=0&&matches(node.images?.[position],resources[position]))openImageEditor(node.id,position);
+                else smartImageEditor.openDetached({id:'__panorama_detail__',type:'smart-image',images:[selected]},0);
+                smartPanoramaPreview.toggle();}});
     }
     window.PixmaxImagePreview=Object.freeze({open,openNode,close:()=>current?.close(),get opened(){return Boolean(current);}});
 })();

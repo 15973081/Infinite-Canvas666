@@ -372,3 +372,21 @@ node --test --test-concurrency=2 tests/pixmax-video-toolbar.browser.cjs tests/sm
 ```
 
 人工验收：选择视频节点，工具栏不再显示“剪辑”；双击视频，底部仅保留三种导出帧操作，没有截取区域；从创建菜单进入“剪辑台”，仍可导入画布视频并保存。未推送、未部署，未修改支付、订阅或积分规则。
+
+
+## 2026-10-16 修复双击图片预览后自动关闭
+
+用户反馈双击图片后预览闪退。已复现：成员画布开启保存权限后，双击打开预览时若有待执行的自动保存，saveCanvas 会把 node.images 规范化为新对象；预览使用对象引用检查原图是否仍存在，误判为已删除并关闭。先前预览测试的成员替身没有 canSave，未覆盖真实自动保存。
+
+修复将预览来源绑定到原节点、图片位置、素材 ID 与 URL，普通保存时重建图片对象不会中断预览。全景入口同步使用打开时的分组位置映射，避免保存后切换缩略图进入全景时丢失来源节点。原图 URL/素材 ID 改变、节点删除、画布切换和会话暂停仍保留失效保护。
+
+- 新回归使用真实 DOM 双击、开启成员 canSave，并等待生产 scheduleSave 发出的 PUT；修复前稳定复现预览关闭，修复后通过。
+- 补充保存后替换 URL 或素材 ID 时仍关闭预览的边界检查。
+- 图片预览、生成历史和画布选择浏览器回归 56/56 通过。JavaScript 语法、git diff --check 通过。
+- 日志：`.local/commercial-kickoff/image-preview-autosave-fix.log`。
+
+```powershell
+node --test --test-concurrency=2 tests/pixmax-image-detail.browser.cjs tests/pixmax-generation-history.browser.cjs tests/smart-selection.browser.cjs
+```
+
+本轮仅修改图片预览及对应回归，没有改动自动保存协议、数据库或积分规则。未推送、未部署。

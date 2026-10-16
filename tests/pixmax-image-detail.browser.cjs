@@ -3,6 +3,22 @@ const {fixture}=require('./helpers/canvas-browser.cjs');
 const record=()=>({nodes:[{id:'a',type:'smart-image',x:100,y:100,images:[{url:'/test-image.svg',name:'source.svg',kind:'image',natural_w:320,natural_h:240},{url:'/test-image.svg',name:'second.svg',kind:'image',natural_w:320,natural_h:240}]}],connections:[]});
 async function setup(t,extra={}){return fixture(t,'smart',true,{record:record(),...extra});}
 
+test('real double click stays open across pending autosave and panorama retains the source node',async t=>{
+ const {page,errors}=await setup(t);
+ await page.evaluate(()=>{Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});window.originalPreviewSource=nodes[0].images[0];scheduleSave();});
+ const saved=page.waitForResponse(response=>response.request().method()==='PUT'&&new URL(response.url()).pathname==='/api/canvases/canvas-test');
+ await page.locator('.image-node[data-id="a"] [data-image-index="0"]').first().dblclick();
+ await saved;
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ assert.equal(await page.evaluate(()=>nodes[0].images[0]===originalPreviewSource),false,'autosave normalizes media into new objects');
+ const modal=page.getByRole('dialog',{name:'图片预览',exact:true});assert.equal(await modal.isVisible(),true,'autosave must not dismiss the preview');
+ await modal.getByRole('button',{name:'查看 second.svg',exact:true}).click();
+ await modal.getByRole('button',{name:'进入全景预览',exact:true}).click();
+ await page.waitForFunction(()=>smartPanoramaPreview.state.ready);
+ assert.deepEqual(await page.evaluate(()=>({id:smartImageEditor.state.nodeId,index:smartImageEditor.state.imageIndex})),{id:'a',index:1});
+ assert.deepEqual(errors,[]);
+});
+
 test('node and log image previews are read-only, independent, zoomable and have separate result thumbnails',async t=>{
  const {page,errors,writes}=await setup(t);await page.evaluate(()=>{window.beforePreview=JSON.stringify(nodes);openImagePreview('a');});
  const modal=page.getByRole('dialog',{name:'图片预览',exact:true});await modal.waitFor();await page.waitForFunction(()=>document.querySelector('.pixmax-detail-stage>img')?.naturalWidth===320);
@@ -26,6 +42,14 @@ test('session pause clears preview; removing the source closes it without leavin
  const {page,errors}=await setup(t);await page.evaluate(()=>openImagePreview('a'));const modal=page.getByRole('dialog',{name:'图片预览',exact:true});await modal.waitFor();
  await page.evaluate(()=>{CanvasSession.paused=true;window.dispatchEvent(new Event('member-session:paused'));});await modal.waitFor({state:'detached'});
  await page.evaluate(()=>{CanvasSession.paused=false;openImagePreview('a');nodes=[];render();});await modal.waitFor({state:'detached'});assert.deepEqual(errors,[]);
+});
+
+for(const change of ['url','asset-id'])test(`replacing the actual preview resource still closes it after autosave (${change})`,async t=>{
+ const {page,errors}=await setup(t);
+ await page.evaluate(async()=>{Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});openImagePreview('a');await saveCanvas({force:true});});
+ const modal=page.getByRole('dialog',{name:'图片预览',exact:true});assert.equal(await modal.isVisible(),true);
+ await page.evaluate(change=>{const item=nodes[0].images[0];if(change==='url')item.url='/changed.svg';else item.media_asset_id='replacement-asset';render();},change);
+ await modal.waitFor({state:'detached'});assert.deepEqual(errors,[]);
 });
 
 async function toolsSetup(t,mode){const f=await setup(t);await f.page.evaluate(mode=>{
