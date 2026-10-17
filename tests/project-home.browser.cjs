@@ -69,10 +69,38 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'shell '+width);
   assert.equal(await home.locator('#canvasGate').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,'catalog '+width);
+  const metrics=await home.locator('.canvas-item').first().evaluate(el=>{
+   const r=el.getBoundingClientRect(),cover=el.querySelector('.studio-canvas-cover').getBoundingClientRect();
+   return {width:r.width,height:r.height,cover:cover.height,info:el.querySelector('.canvas-card-info').getBoundingClientRect().height};
+  });
+  // Pixmax: max-width includes 80px padding, 24px gaps, 4/5 columns, 4:3 cards.
+  if(width!==1024)assert.ok(Math.abs(metrics.width-(width===1920?284.8:262))<1,JSON.stringify(metrics));
+  assert.ok(Math.abs(metrics.height-metrics.width*.75)<1,'card aspect ratio '+width);
+  assert.equal(metrics.info,60);
+  assert.ok(Math.abs(metrics.cover+metrics.info+2-metrics.height)<1,'cover fills remaining height');
+  const createBox=await home.locator('.project-new-card').boundingBox();
+  assert.ok(Math.abs(createBox.height-metrics.height)<1,'new and existing cards align');
   const wallet=await page.locator('.member-home-wallet').boundingBox(),account=await page.locator('.member-session-account').boundingBox();
   assert.ok(wallet.x>=0&&wallet.y>=0&&account.x+account.width<=width+1&&wallet.x+wallet.width<=account.x+1,'account controls '+width);
   if([1440,1920].includes(width))await page.screenshot({path:path.join(shots,'project-home-'+width+'.png')});
  }
+ await page.setViewportSize({width:1440,height:1000});
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ const firstCard=home.locator('.canvas-item').first(),overlay=firstCard.locator('.project-card-enter');
+ await firstCard.hover();
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('#frame-canvas').contentDocument.querySelector('.project-card-enter')).opacity==='1');
+ assert.equal(await overlay.evaluate(el=>getComputedStyle(el).transitionDuration),'0.15s');
+ assert.equal(await overlay.evaluate(el=>getComputedStyle(el).transitionTimingFunction),'cubic-bezier(0.4, 0, 0.2, 1)');
+ await page.screenshot({path:path.join(shots,'project-home-hover-aligned.png')});
+ await firstCard.locator('.studio-card-menu summary').click();
+ assert.equal(await firstCard.locator('.studio-card-menu').getAttribute('open'),'');
+ await firstCard.locator('.studio-card-menu summary').press('Escape');
+ assert.equal(await firstCard.locator('.studio-card-menu').getAttribute('open'),null);
+ await page.mouse.move(800,60);
+ await firstCard.locator('.canvas-open').focus();
+ assert.equal(await overlay.evaluate(el=>getComputedStyle(el).opacity),'1');
+ await page.emulateMedia({reducedMotion:'reduce'});
+ assert.equal(await overlay.evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
  await home.getByRole('searchbox').fill('深度视频');
  for(const width of [867,390,320]){
   await page.setViewportSize({width,height:844});

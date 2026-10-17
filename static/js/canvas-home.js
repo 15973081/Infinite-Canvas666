@@ -458,7 +458,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
     list.innerHTML = '';
     if(!trashMode&&!String(canvasSearchQuery).trim()){
         const create=document.createElement('button');create.type='button';create.className='project-new-card';
-        create.innerHTML='<i data-lucide="plus" aria-hidden="true"></i><span>新建画布</span><small>从一个想法开始</small>';
+        create.innerHTML='<i data-lucide="plus" aria-hidden="true"></i><span>新建画布</span>';
         create.onclick=()=>window.CanvasHome.beginCreate();list.append(create);
     }
     if(!items.length){
@@ -489,11 +489,13 @@ function renderCanvasListInto(list, model=canvasGateModel()){
                     <span class="canvas-preview-mark ${color ? `icon-has-color cc-${escapeAttr(color)}` : ''}" role="button" tabindex="0" title="${trashMode ? '已删除画布' : ('编辑图标 / 颜色 / 负责人')}">${renderCanvasIcon(view.icon, 16)}</span>
                     ${isSmartCanvas ? `<span class="canvas-kind-chip">智能</span>` : ''}
                 </div>
-                <div class="canvas-card-title">${escapeHtml(item.title)}</div>
+                <div class="canvas-card-info">
+                <div class="canvas-card-title" title="${escapeAttr(item.title)}">${escapeHtml(item.title)}</div>
 
                 <div class="canvas-card-meta">
                     <span class="canvas-card-meta-dot"></span>
                     <div class="canvas-card-time">${trashMode ? `删除于 ${formatCanvasTime(item.deleted_at)}` : `更新于 ${formatCanvasTime(item.updated_at || item.created_at)}`}</div>
+                </div>
                 </div>
             </a>
             ${trashMode ? (pendingPurgeCanvasId === item.id ? `
@@ -540,6 +542,11 @@ function renderCanvasListInto(list, model=canvasGateModel()){
             `)}
         `;
         if(!trashMode) {
+            const overlay = document.createElement('span');
+            overlay.className = 'project-card-enter';
+            overlay.setAttribute('aria-hidden', 'true');
+            overlay.innerHTML = '<i data-lucide="arrow-up-right"></i>进入画布';
+            row.querySelector('.studio-canvas-cover')?.appendChild(overlay);
             row.draggable = true;
             row.addEventListener('dragstart', e => {
                 e.dataTransfer?.setData('text/canvas-id', item.id);
