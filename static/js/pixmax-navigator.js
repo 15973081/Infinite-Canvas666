@@ -140,7 +140,7 @@
         if(innerWidth<=700)setOpened(false);
         const box=nodeRect(node),bounds=viewportBounds(),px=bounds.x+bounds.width/2,py=bounds.y+bounds.height/2;
         viewport.x=px-(box.x+box.width/2)*viewport.scale;viewport.y=py-(box.y+box.height/2)*viewport.scale;
-        smartSelection.createdNode(node.id);applyViewport();render();scheduleSave();
+        smartSelection.createdNode(node.id);applyViewport();render();
     }
     function closeMenu(){
         if(menuAnchor?.matches('.pixmax-project-toggle'))menuAnchor.setAttribute('aria-expanded','false');

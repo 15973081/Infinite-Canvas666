@@ -32,6 +32,7 @@ function fixture() {
             if(path.endsWith('/renew'))return reply(status);
             if(path.endsWith('/edit-lease/transfers'))return reply({lease:{...status,holder:null},requests:[]});
             if(path.endsWith('/edit-lease'))return reply({...status,holder:null});
+            if(path.endsWith('/page-state'))return reply({accepted:true,presence:{online_members:0,members:[]}});
             if(init.method==='PUT')return reply({canvas:{revision:4}});
             return reply({id:'created'});
         }};
@@ -384,20 +385,55 @@ test('canvas roster renders trusted names as text and expires without changing t
     assert.equal(entry.lease.canSave,false);
     entry.presenceReceivedAt=0;entry.lease.emit();
     assert.equal(entry.presenceSummary.textContent,'在线名单暂不可用');
-    assert.equal(entry.presenceList.children.length,0);
+    assert.match(entry.presenceList.children[0].textContent,/暂时无法获取/);
 });
 
-test('late roster responses cannot restore an older list or leak across account changes',async()=>{
+test('overlapping roster requests coalesce and late responses cannot leak across account changes',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);const entry=f.api.active;
     const pending=[];f.context.fetch=()=>new Promise(resolve=>pending.push(resolve));
     const tick=f.timers.get(entry.reportTimer),one=tick(),two=tick();
     const roster=name=>reply({accepted:true,presence:{online_members:1,members:[{id:'member',display_name:name,activity:'viewing'}]}});
-    pending[1](roster('新名单'));await two;pending[0](roster('旧名单'));await one;
+    assert.equal(pending.length,1,'only one request may be in flight');
+    pending[0](roster('新名单'));await Promise.all([one,two]);
     assert.match(entry.presenceList.children[0].textContent,/新名单/);
     const three=f.timers.get(entry.reportTimer)();
-    f.context.CanvasSession.context.member.id='other';pending[2](roster('旧账号的名单'));await three;
-    assert.equal(entry.presenceList.children.length,0);
+    f.context.CanvasSession.context.member.id='other';pending[1](roster('旧账号的名单'));await three;
+    assert.match(entry.presenceList.children[0].textContent,/暂时无法获取/);
     assert.equal(entry.presenceSummary.textContent,'在线名单暂不可用');
+});
+
+test('repeated edits report only dirty transitions, preserving a fresh roster on temporary failure',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);const entry=f.api.active;
+    await entry.lease.start(async()=>({revision:3}));
+    let count=0,resolve,dirty=true;
+    entry.options.dirty=()=>dirty;
+    f.context.fetch=()=>{count++;return new Promise(done=>{resolve=done;});};
+    const changed=async()=>{
+        f.api.markDirty();const [id,fn]=[...f.timers].find(([id])=>f.delays.get(id)===150);
+        f.timers.delete(id);f.delays.delete(id);fn();await new Promise(setImmediate);
+    };
+    for(let i=0;i<12;i++)await changed();
+    assert.equal(count,1);resolve(reply({accepted:true,presence:{online_members:1,members:[{id:'member',display_name:'甲',is_self:true,activity:'editing'}]}}));
+    await new Promise(setImmediate);assert.equal(entry.presenceSummary.textContent,'1 人在线');
+    for(let i=0;i<12;i++)await changed();assert.equal(count,1,'unchanged dirty status does not post again');
+    const stamp=entry.presenceReceivedAt;
+    f.context.fetch=async()=>{throw Error('timeout');};await f.timers.get(entry.reportTimer)();
+    assert.equal(entry.presenceSummary.textContent,'1 人在线');assert.equal(entry.presenceReceivedAt,stamp);
+    assert.equal(f.delays.get(entry.reportTimer),3000);assert.equal(entry.lease.canEdit,true);
+    entry.presenceReceivedAt=0;entry.lease.emit();assert.equal(entry.presenceSummary.textContent,'在线名单暂不可用');
+    assert.match(entry.presenceList.children[0].textContent,/重试/);
+    entry.lease.pause('续期失败');assert.equal(entry.label.textContent,'本页编辑已暂停');
+});
+
+test('closing a page bypasses a pending report and late completion cannot revive its roster',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);const entry=f.api.active,pending=[];
+    f.context.fetch=(path,init)=>new Promise(resolve=>pending.push({body:JSON.parse(init.body),resolve}));
+    const operation=f.timers.get(entry.reportTimer)();f.listeners.get('pagehide')({persisted:false});
+    assert.equal(pending.length,2);assert.equal(pending[1].body.closed,true);assert.ok(pending[1].body.sequence>pending[0].body.sequence);
+    pending[1].resolve(reply({accepted:true}));pending[0].resolve(reply({presence:{members:[{id:'late'}],online_members:1}}));
+    await operation;await new Promise(setImmediate);
+    assert.equal(entry.presence.members.length,0);assert.equal(entry.reportClosed,true);
+    assert.equal(f.timers.has(entry.reportTimer),false);
 });
 
 

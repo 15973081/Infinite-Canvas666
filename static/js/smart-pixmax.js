@@ -266,7 +266,7 @@ function zoomPixmaxCanvas(factor){
     const bounds=smartViewportBounds(),cx=bounds.x+bounds.width/2,cy=bounds.y+bounds.height/2;
     const x=(cx-viewport.x)/viewport.scale,y=(cy-viewport.y)/viewport.scale;
     viewport.scale=Math.min(2,Math.max(.1,safeScale(viewport.scale*factor)));viewport.x=cx-x*viewport.scale;viewport.y=cy-y*viewport.scale;
-    applyViewport();scheduleSave();
+    applyViewport();
 }
 function setPixmaxCanvasTool(tool){
     pixmaxCanvasMode=tool==='select'?'normal':tool==='pan'?'gripper':pixmaxCanvasMode==='preview'?'normal':'preview';

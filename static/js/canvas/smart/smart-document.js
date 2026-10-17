@@ -531,7 +531,6 @@ async function saveCanvas(options={}){
         });
         canvas.nodes = nodes;
         canvas.settings = settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings);
-        canvas.viewport = {...viewport};
         const storageCanvas = canvasForStorage();
         const savedNodeIds = new Set((storageCanvas.nodes || []).map(node => node?.id).filter(Boolean));
         const savedConnectionKeys = new Set((storageCanvas.connections || []).map(connection => `${connection?.from}->${connection?.to}:${connection?.kind || 'flow'}`));

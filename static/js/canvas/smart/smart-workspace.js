@@ -539,7 +539,38 @@ function withSmartComputation(...args){return smartWorkspaceView.withComputation
 
 function nodeRect(...args){return smartWorkspaceView.nodeRect(...args);}
 
+function smartLocalViewportKey(id){
+    const key='smart-viewport:'+id;
+    return window.CanvasSession?.storageKey?.(key) || key;
+}
+function smartLocalViewportForCanvas(id, fallback={}){
+    const key=smartLocalViewportKey(id);
+    if(rememberSmartViewport.cache?.has(key))return rememberSmartViewport.cache.get(key);
+    try { return JSON.parse(sessionStorage.getItem(key)) || fallback; } catch(_) { return fallback; }
+}
+function flushSmartLocalViewport(){
+    clearTimeout(rememberSmartViewport.timer);
+    const pending=rememberSmartViewport.pending;
+    rememberSmartViewport.pending=null;
+    if(pending)try {sessionStorage.setItem(pending.key,JSON.stringify(pending.view));} catch(_) {}
+}
+function rememberSmartViewport(){
+    if(!canvas?.id)return;
+    const key=smartLocalViewportKey(canvas.id),view={...viewport};
+    rememberSmartViewport.cache ||= new Map();rememberSmartViewport.cache.set(key,view);
+    if(rememberSmartViewport.pending?.key!==key)flushSmartLocalViewport();
+    rememberSmartViewport.pending={key,view};
+    clearTimeout(rememberSmartViewport.timer);
+    rememberSmartViewport.timer=setTimeout(flushSmartLocalViewport,200);
+    if(!rememberSmartViewport.bound){
+        rememberSmartViewport.bound=true;
+        window.addEventListener('pagehide',flushSmartLocalViewport);
+    }
+}
+
 function applyViewport(){
+    // Navigation is local UI state, never a document edit or cloud save.
+    rememberSmartViewport();
     world.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`;
     // world 被 transform:scale 缩放后，其内部带 backdrop-filter 的卡片（参数设置/合成卡等）
     // 会被部分浏览器（Chrome/Edge 等 Blink 内核）当作独立合成层先按 1x 栅格化、再整体缩放，
@@ -833,7 +864,6 @@ function centerViewportOnWorldPoint(point){
     viewport.x = bounds.x+bounds.width / 2 - point.x * viewport.scale;
     viewport.y = bounds.y+bounds.height / 2 - point.y * viewport.scale;
     applyViewport();
-    scheduleSave();
 }
 
 function fitAllNodesViewport(){
@@ -844,7 +874,6 @@ function fitAllNodesViewport(){
         viewport.x = bounds.x+bounds.width / 2;
         viewport.y = bounds.y+bounds.height / 2;
         applyViewport();
-        scheduleSave();
         return;
     }
     const rects = visible.map(nodeRect);
@@ -862,7 +891,6 @@ function fitAllNodesViewport(){
     viewport.x = bounds.x+bounds.width / 2 - cx * viewport.scale;
     viewport.y = bounds.y+bounds.height / 2 - cy * viewport.scale;
     applyViewport();
-    scheduleSave();
 }
 
 function enterZoomPreview(){
@@ -888,7 +916,6 @@ function exitZoomPreview(point=null){
         viewport.y = prev.y;
     }
     applyViewport();
-    scheduleSave();
     return true;
 }
 
@@ -913,7 +940,6 @@ function exitZoomPreviewToNode(nodeId){
     viewport.x = bounds.x+bounds.width / 2 - cx * viewport.scale;
     viewport.y = bounds.y+bounds.height / 2 - cy * viewport.scale;
     applyViewport();
-    scheduleSave();
     return true;
 }
 
@@ -3789,7 +3815,6 @@ function bindSmartWorkspaceGestures(){
         if(panState) {
             panState = null;
             shell.classList.remove('panning');
-            scheduleSave();
             setTimeout(() => { didPan = false; }, 0);
         }
         smartMinimap.endDrag();
@@ -3834,7 +3859,7 @@ function bindSmartWorkspaceGestures(){
             const unit=e.deltaMode===1?20:1;
             viewport.x-=(e.shiftKey?e.deltaY:e.deltaX)*unit*.5;
             viewport.y-=e.shiftKey?0:e.deltaY*unit*.5;
-            applyViewport();scheduleSave();return;
+            applyViewport();return;
         }
         const rect = shell.getBoundingClientRect();
         const sx = e.clientX - rect.left;
@@ -3845,7 +3870,6 @@ function bindSmartWorkspaceGestures(){
         viewport.x = sx - before.x * viewport.scale;
         viewport.y = sy - before.y * viewport.scale;
         applyViewport();
-        scheduleSave();
     }, {passive:false});
     shell.ondragover = e => setSmartDropCopyEffect(e, true);
     shell.ondrop = async e => {

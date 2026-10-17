@@ -322,7 +322,7 @@ async function loadCanvas(options={}){
         canvas.connections = Array.isArray(canvas.connections) ? canvas.connections : [];
         const cleanedDetachedInputs = cleanupDetachedRunInputRefs();
         /* 不从服务端合并视野 —— 每台电脑保持各自的视角 */
-        const savedViewport=canvas.viewport || {};
+        const savedViewport=smartLocalViewportForCanvas(canvasId, canvas.viewport || {});
         viewport={x:Number.isFinite(savedViewport.x)?savedViewport.x:0,y:Number.isFinite(savedViewport.y)?savedViewport.y:0,scale:Math.min(2,Math.max(.1,safeScale(savedViewport.scale||1)))};
         viewport.scale = safeScale(viewport.scale);
         if(canvas.settings) settings = {...settings, ...canvas.settings};

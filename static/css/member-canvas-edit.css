@@ -18,6 +18,8 @@
 .member-canvas-edit .member-canvas-menu,.member-canvas-edit .member-canvas-presence ul{position:absolute;bottom:calc(100% + 14px);right:0;min-width:180px;max-width:min(300px,80vw);max-height:240px;overflow:auto;margin:0;padding:6px;background:var(--mc-bg);color:var(--mc-text);border:1px solid var(--mc-border);border-radius:12px;box-shadow:0 8px 28px #26324718;list-style:none}
 .member-canvas-menu button{display:block;width:100%;text-align:left}
 .member-canvas-edit .member-canvas-presence li{padding:9px;font-size:12px;border-radius:7px}
+.member-canvas-edit .member-canvas-presence .member-presence-feedback{display:flex;align-items:center;gap:10px;min-width:220px;line-height:1.6;color:var(--mc-muted)}
+.member-canvas-edit .member-presence-feedback button{flex-shrink:0;font-size:12px}
 .member-canvas-edit .member-canvas-presence{border-left:1px solid var(--mc-border);padding-left:4px}
 .member-canvas-edit-notice{width:100%;font-size:11px;color:var(--mc-muted);text-align:center;line-height:1.5;padding:0 6px 2px;box-sizing:border-box}
 .member-canvas-edit-notice[data-tone=warning]{color:#a96320;background:#fff7e8;border-radius:7px;padding:5px 8px}

@@ -45,7 +45,28 @@
             entry.draftMessage='草稿暂存失败，请保持页面打开并重试'; if(entry===active) render();
         });
     }
-    async function reportPage(entry=active, closed=false) {
+    function reportPage(entry=active, closed=false, changedOnly=false) {
+        if(!entry || entry.reportClosed) return Promise.resolve(false);
+        const dirty=Boolean(entry.options.dirty());
+        if(!closed && entry.reporting){
+            if(dirty!==entry.reportingDirty)entry.reportAgain=true;
+            return entry.reporting;
+        }
+        if(!closed && changedOnly && entry.lastReportedDirty===dirty)return Promise.resolve(true);
+        if(closed)return sendPageReport(entry,true,dirty);
+        entry.reportingDirty=dirty;
+        const operation=sendPageReport(entry,false,dirty);
+        entry.reporting=operation.finally(()=>{
+            entry.reporting=null;
+            const again=entry.reportAgain;entry.reportAgain=false;
+            if(!validEntry(entry) || entry.reportClosed)return;
+            clearTimeout(entry.reportTimer);
+            if(again && Boolean(entry.options.dirty())!==entry.lastReportedDirty)reportPage(entry,false,true);
+            else entry.reportTimer=setTimeout(()=>reportTick(entry),entry.reportFailed?3000:20000);
+        });
+        return entry.reporting;
+    }
+    async function sendPageReport(entry, closed, dirty) {
         if(!entry || entry.reportClosed) return false;
         const context=window.CanvasSession.context;
         if(window.CanvasSession.paused || context?.member.id!==entry.memberId || context?.workspace.id!==entry.workspaceId) return false;
@@ -55,27 +76,31 @@
             const response=await fetch(`/api/canvases/${encodeURIComponent(entry.id)}/page-state`, {
                 method:'POST',credentials:'same-origin',keepalive:closed,signal:AbortSignal.timeout(5000),
                 headers:{'Content-Type':'application/json','X-Workspace-ID':entry.workspaceId,'X-Member-ID':entry.memberId},
-                body:JSON.stringify({page_id:entry.reportId,sequence,dirty:Boolean(entry.options.dirty()),closed})
+                body:JSON.stringify({page_id:entry.reportId,sequence,dirty,closed})
             });
-            if(!response.ok) throw new Error('维护页面状态暂未上报，后台可能显示本页失联。');
+            if(!response.ok){const error=new Error('页面状态暂未上报，正在重试。');error.status=response.status;throw error;}
             const data=await response.json();
-            if(sequence===entry.reportSequence && entry===active && !closed && !window.CanvasSession.paused &&
+            if(!closed && (!Array.isArray(data.presence?.members) || !Number.isSafeInteger(data.presence.online_members)))throw new Error('在线名单响应不完整');
+            if(sequence===entry.reportSequence && entry===active && !entry.reportClosed && !closed && !window.CanvasSession.paused &&
                 window.CanvasSession.context?.member.id===entry.memberId && window.CanvasSession.context?.workspace.id===entry.workspaceId) {
-                entry.reportMessage='';
-                entry.presence=Array.isArray(data.presence?.members) ? data.presence : null;
+                entry.reportMessage='';entry.reportFailed=false;entry.lastReportedDirty=dirty;
+                entry.presence=data.presence;
                 entry.presenceReceivedAt=Date.now();
             }
             return true;
         } catch(error) {
-            if(sequence===entry.reportSequence) {entry.presence=null;entry.reportMessage='维护页面状态暂未上报，后台可能显示本页失联。';}
+            if(sequence===entry.reportSequence && entry===active && !entry.reportClosed){
+                // A transient timeout must not discard a still-fresh roster. Its
+                // original timestamp remains unchanged; revoked scopes clear it.
+                if([401,403,404].includes(error.status))entry.presence=null;
+                entry.reportFailed=true;entry.reportMessage='页面状态暂未上报，正在重试。';
+            }
             return false;
         } finally {if(entry===active && !closed) render();}
     }
     async function reportTick(entry) {
         if(entry!==active || entry.reportClosed || entry.reportSuspended) return;
         await reportPage(entry);
-        // Keep within the server's 35-second presence expiry, including hidden pages.
-        if(entry===active && !entry.reportClosed && !entry.reportSuspended) entry.reportTimer=setTimeout(() => reportTick(entry),20000);
     }
     async function preserveDraft(entry) {
         assertDraftScope(entry);
@@ -340,6 +365,12 @@
             const name=String(member.display_name || '成员')+' · '+String(member.id).slice(-6)+(member.is_self ? '（你）' : '');
             entry.presenceList.append(element('li',name+' · '+(member.activity==='editing' ? '编辑中' : '查看中')));
         }
+        if(!fresh || entry.reportFailed){
+            const message=element('li',fresh?'名单更新稍有延迟，正在重试。':'暂时无法获取在线名单，正在重试。');
+            message.className='member-presence-feedback';
+            entry.presenceRetry ||= button('重试',()=>reportPage(entry));
+            message.append(entry.presenceRetry);entry.presenceList.append(message);
+        } else if(!entry.presence.members.length)entry.presenceList.append(element('li','暂无在线成员'));
     }
     function render() {
         if(!active) return;
@@ -365,6 +396,7 @@
         options.changed?.(lease);
         const holder=lease.status?.holder;
         label.textContent=lease.canSave ? (lease.maintenance==='draining' ? '准备维护 · 请完成保存' : '你正在编辑')
+            : lease.state==='paused' ? '本页编辑已暂停'
             : active.stateError ? '占用状态待确认' : !active.lastStateAt ? '正在检查占用状态…'
             : holder ? `${holder.display_name || '成员'} 正在编辑${holder.is_self ? '（你的其他页面）' : ''}` : '查看模式 · 无人编辑';
         label.title=active.stateError && holder ? `上次编辑者：${holder.display_name || '成员'}，当前占用尚未确认` : label.textContent;
@@ -591,7 +623,7 @@
             }
             return entry;
         },
-        markDirty() { clearTimeout(draftTimer); const entry=active; draftTimer=setTimeout(() => {persist(entry);reportPage(entry);},150); },
+        markDirty() { clearTimeout(draftTimer); const entry=active; draftTimer=setTimeout(() => {persist(entry);reportPage(entry,false,true);},150); },
         prepareReload() {
             const entry=active;
             if(!entry) return Promise.resolve(true);
