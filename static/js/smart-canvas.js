@@ -294,6 +294,7 @@ async function loadCanvas(options={}){
             smartImageEditor.reset();
         }
         canvas = data.canvas;
+        scheduleSave.pendingSince=null;
         smartServerNodeIds = new Set((Array.isArray(canvas.nodes) ? canvas.nodes : []).map(node => node?.id).filter(Boolean));
         smartServerConnectionKeys = new Set((Array.isArray(canvas.connections) ? canvas.connections : []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
         smartCanvasDirty = false;

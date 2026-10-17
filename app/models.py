@@ -450,7 +450,22 @@ class CanvasCoverSelection(BaseModel):
     text: str = Field(default="", max_length=80)
 
 
+class CanvasGraphDelta(BaseModel):
+    model_config = {'extra': 'forbid'}
+    version: Literal[1] = 1
+    base_revision: Optional[int] = Field(default=None, ge=1, strict=True)
+    base_updated_at: int = Field(ge=1, strict=True)
+    create: List[Dict[str, Any]] = Field(default_factory=list)
+    update: List[Dict[str, Any]] = Field(default_factory=list)
+    delete: List[str] = Field(default_factory=list)
+    node_order: Optional[List[str]] = None
+    connections_add: List[Dict[str, Any]] = Field(default_factory=list)
+    connections_remove: List[Dict[str, Any]] = Field(default_factory=list)
+    connections_order: Optional[List[Dict[str, Any]]] = None
+
+
 class CanvasSaveRequest(CanvasTagEnvelope):
+    graph_delta: Optional[CanvasGraphDelta] = None
     cover: Optional[CanvasCoverSelection] = None
     task_result_version: int = Field(default=0, ge=0, strict=True)
     title: str = "未命名画布"

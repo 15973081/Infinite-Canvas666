@@ -7,6 +7,24 @@ async function prepare(page){
  await page.clock.install({time});await page.clock.pauseAt(time);
 }
 for(const kind of ['smart','classic']){
+ test(kind+': continuous edits save by thirty seconds and unchanged content stays quiet',async t=>{
+  const {page,writes,errors}=await fixture(t,kind,true);await prepare(page);
+  const saves=()=>writes.filter(row=>row.method==='PUT');
+  await page.evaluate(()=>{canvas.title='continuous 0';scheduleSave();});
+  for(let i=1;i<=7;i++){
+   await page.clock.runFor(4000);
+   await page.evaluate(i=>{canvas.title='continuous '+i;scheduleSave();},i);
+   assert.equal(saves().length,0);
+  }
+  await page.clock.runFor(1999);assert.equal(saves().length,0);
+  await page.clock.runFor(1);await page.waitForFunction(()=>!MemberCanvasEdit.options.dirty());
+  assert.equal(saves().length,1);assert.equal(saves()[0].body.title,'continuous 7');
+  await page.evaluate(()=>{const original=canvas.title;canvas.title='temporary';scheduleSave();canvas.title=original;scheduleSave();});
+  await page.clock.runFor(5000);await page.waitForFunction(()=>!MemberCanvasEdit.options.dirty());
+  assert.equal(saves().length,1,'reverting changes does not upload or advance the version');
+  await page.clock.runFor(60000);assert.equal(saves().length,1,'clean canvases stay idle');
+  assert.deepEqual(errors,[]);
+ });
  test(kind+': autosave waits five idle seconds, manual flush remains immediate',async t=>{
   const {page,writes,record,errors}=await fixture(t,kind,true);await prepare(page);
   const saves=()=>writes.filter(row=>row.method==='PUT');

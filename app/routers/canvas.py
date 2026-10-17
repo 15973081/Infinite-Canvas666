@@ -1270,7 +1270,7 @@ def move_canvas_to_folder(canvas_id: str, payload: CanvasMoveRequest):
 
 @router.get("/api/canvases/{canvas_id}")
 def get_canvas(canvas_id: str):
-    return {"canvas": load_canvas(canvas_id)}
+    return {"canvas": load_canvas(canvas_id), "save_protocol": "graph-delta-v1" if postgres_enabled() else None}
 
 @router.post("/api/canvases/{canvas_id}/touch")
 def touch_canvas(canvas_id: str):
@@ -1565,15 +1565,23 @@ async def trim_smart_canvas_video(payload: SmartCanvasVideoTrimRequest):
 async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
     canvas = await run_in_threadpool(_save_canvas_update, canvas_id, payload)
     await manager.broadcast_canvas_updated(canvas_id, int(canvas.get("updated_at") or now_ms()), payload.client_id)
-    return {"canvas": canvas}
+    return {"canvas": canvas, "save_protocol": "graph-delta-v1" if postgres_enabled() else None}
+
+
+@router.put("/api/canvases/{canvas_id}/delta")
+async def update_canvas_delta(canvas_id: str, payload: CanvasSaveRequest):
+    if payload.graph_delta is None:
+        raise HTTPException(400, '缺少画布增量')
+    return await update_canvas(canvas_id, payload)
 
 
 def _save_canvas_update(canvas_id: str, payload: CanvasSaveRequest):
     from app.storage.settings import member_auth_enabled
+    if payload.graph_delta is not None and not postgres_enabled():
+        raise HTTPException(400, '当前存储不支持版本化增量保存')
     if member_auth_enabled() and payload.base_revision is None:
         raise HTTPException(428, {'code': 'canvas_protocol_required'})
     canvas = load_canvas(canvas_id)
-    fields_set = getattr(payload, "model_fields_set", getattr(payload, "__fields_set__", set()))
     current_updated_at = int(canvas.get("updated_at") or 0)
     if postgres_enabled():
         if payload.base_revision is None and not payload.base_updated_at:
@@ -1586,6 +1594,9 @@ def _save_canvas_update(canvas_id: str, payload: CanvasSaveRequest):
             "canvas": canvas,
             "updated_at": current_updated_at,
         })
+    from app.services.canvas_delta import expand_canvas_delta
+    payload = expand_canvas_delta(canvas, payload)
+    fields_set = payload.model_fields_set
     canvas["title"] = (payload.title or canvas.get("title") or "未命名画布")[:80]
     canvas["icon"] = (payload.icon or canvas.get("icon") or "layers")[:32]
     canvas["kind"] = normalize_canvas_kind(canvas.get("kind"))

@@ -177,12 +177,18 @@ test('late successful save after revocation cannot clear the caller draft', asyn
     f.lease.pause('revoked'); resolve(json({canvas:{revision:4}}));
     await assert.rejects(pending,/资格已改变/); assert.equal(f.lease.revision,3);
 });
-test('maintenance drain permits final save but blocks new edits and other mutations', async () => {
-    const f=fixture(path => path.endsWith('/acquire') ? json(publicLease({edit_token:'private'})) : json({canvas:{revision:4}}));
+for(const suffix of ['', '/delta'])test('maintenance drain permits final save but blocks other mutations '+suffix, async () => {
+    const f=fixture((path,init) => {
+        if(path.endsWith('/acquire'))return json(publicLease({edit_token:'private'}));
+        const body=JSON.parse(init.body);
+        assert.equal(body.base_revision,3);
+        assert.equal(body.graph_delta.base_revision,1,'lease proof must not rewrite the diff baseline');
+        return json({canvas:{revision:4}});
+    });
     await f.start(); f.lease.setMaintenance('draining');
     assert.equal(f.lease.canEdit,false); assert.equal(f.lease.canSave,true);
     await assert.rejects(f.lease.write('/api/canvases/a/meta',{method:'POST',body:'{}'}));
-    await f.lease.write('/api/canvases/a',{method:'PUT',body:'{}'});
+    await f.lease.write('/api/canvases/a'+suffix,{method:'PUT',body:JSON.stringify({graph_delta:{base_revision:1}})});
     f.lease.setMaintenance('read_only'); assert.equal(f.lease.canSave,false);
     f.lease.setMaintenance('normal'); assert.equal(f.lease.canSave,false);
 });

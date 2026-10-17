@@ -252,7 +252,7 @@
                 const headers = new Headers(init.headers);
                 Object.entries(this.headers()).forEach(([key,value]) => headers.set(key,value));
                 const request = {...init, headers, signal:init.signal || AbortSignal.timeout(30000)};
-                const wholeCanvas = new URL(path, 'http://canvas.local').pathname === `/api/canvases/${encodeURIComponent(this.id)}` && init.method?.toUpperCase() === 'PUT';
+                const wholeCanvas = [`/api/canvases/${encodeURIComponent(this.id)}`,`/api/canvases/${encodeURIComponent(this.id)}/delta`].includes(new URL(path, 'http://canvas.local').pathname) && init.method?.toUpperCase() === 'PUT';
                 const removal=allowRemoval&&this.finishing&&init.method?.toUpperCase()==='DELETE'&&new URL(path,'http://canvas.local').pathname===`/api/canvases/${encodeURIComponent(this.id)}`;
                 if (!this.canEdit && !wholeCanvas && !removal) throw new Error('维护准备期间只能保存当前画布或结束编辑。');
                 if (wholeCanvas) request.body = JSON.stringify({...JSON.parse(init.body), base_revision:this.revision});

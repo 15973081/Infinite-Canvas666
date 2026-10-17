@@ -13,6 +13,10 @@ function scheduleSave(){
         setStatus('当前为查看模式，更改尚未保存');
         return;
     }
+    // Debounce for five seconds with a thirty-second ceiling for continuous edits.
+    if(!localCanvasDirty || scheduleSave.pendingSince==null || scheduleSave.canvasId!==canvas.id){
+        scheduleSave.pendingSince=Date.now();scheduleSave.canvasId=canvas.id;
+    }
     localCanvasDirty = true;
     window.MemberCanvasEdit?.markDirty();
     setStatus('Saving...');
@@ -23,7 +27,7 @@ function scheduleSave(){
         saveCanvasAgain = true;
         return;
     }
-    saveTimer = setTimeout(saveCanvas, 5000);
+    saveTimer = setTimeout(saveCanvas, Math.min(5000,Math.max(0,30000-(Date.now()-scheduleSave.pendingSince))));
 }
 
 function serializableCanvasNode(node){
@@ -85,6 +89,7 @@ async function saveCanvas(){
         return;
     }
 
+    scheduleSave.pendingSince=null;
     sanitizeConnections();
     const payload = canvasSavePayload();
     const submittedSnapshot = canvasSaveSnapshot(payload);
@@ -139,7 +144,8 @@ async function saveCanvas(){
             saveCanvasAgain = false;
             localCanvasDirty = true;
             clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveCanvas, Math.max(0, 5000 - (Date.now() - (scheduleSave.lastEditAt ?? Date.now()))));
+            saveTimer = setTimeout(saveCanvas,Math.max(0,Math.min(5000-(Date.now()-(scheduleSave.lastEditAt??Date.now())),
+                30000-(Date.now()-(scheduleSave.pendingSince??Date.now())))));
         }
     }
 }

@@ -357,6 +357,7 @@ async function openCanvas(id){
         classicImageEditor.reset();
         classicOutputPreview.reset();
         canvas = nextCanvas;
+        scheduleSave.pendingSince=null;
         document.title = (canvas.title || '经典画布') + ' · shadox';
         resetCanvasHistory();
         canvas.logs = canvas.logs || [];

@@ -164,6 +164,8 @@ def permissions(path, method):
         return PERMISSIONS if method == 'GET' and path.endswith('/task-results') else (*PERMISSIONS, 'canvas.edit') if method == 'POST' and path.endswith('/join') else None
     if re.fullmatch(r'/api/canvases/[^/]+/page-state', path):
         return ('canvas.read',) if method == 'POST' else None
+    if re.fullmatch(r'/api/canvases/[^/]+/delta', path):
+        return ('canvas.read', 'canvas.edit') if method == 'PUT' else None
     if re.fullmatch(r'/api/canvases/[^/]+/touch', path):
         return ('canvas.read',) if method == 'POST' else None
     if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
@@ -244,7 +246,7 @@ def operation(path, method):
         return 'upload.finish', upload[1]
     canvas = re.fullmatch(r'/api/canvases/([^/]+)(?:/.*)?', path)
     if canvas and path != '/api/canvases/trash':
-        return ('canvas.finish' if method == 'PUT' and path == '/api/canvases/' + canvas[1] else 'canvas.write'), canvas[1]
+        return ('canvas.finish' if method == 'PUT' and path in {'/api/canvases/' + canvas[1], '/api/canvases/' + canvas[1] + '/delta'} else 'canvas.write'), canvas[1]
     return 'write', None
 
 

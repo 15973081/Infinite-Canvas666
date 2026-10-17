@@ -76,10 +76,12 @@
         }, {checkOk:true});
     }
 
-    function getCanvas(id, options={}){
+    async function getCanvas(id, options={}){
         const path = `/api/canvases/${encodeURIComponent(id)}`;
-        if('fallback' in options) return jsonOr(path, options.fallback);
-        return json(path, {}, {checkOk:true, errorFallback:options.errorFallback});
+        const key=saveScope(id);
+        const data=await ('fallback' in options ? jsonOr(path, options.fallback) : json(path, {}, {checkOk:true, errorFallback:options.errorFallback}));
+        if(data?.canvas?.id===id && key===saveScope(id))rememberSaved(key,data.canvas,data.canvas,data.save_protocol);
+        return data;
     }
 
     function getCanvasMeta(id, fallback=null){
@@ -94,8 +96,75 @@
         return jsonOr(`/api/canvases/${encodeURIComponent(id)}/touch`, fallback, {method:'POST'});
     }
 
-    function saveCanvas(id, payload){
-        return request(`/api/canvases/${encodeURIComponent(id)}`, jsonBodyInit('PUT', payload));
+    const savedDocuments=new Map();
+    const contentFields=['title','icon','cover','nodes','connections','node_tags','logs','settings','task_result_version'];
+    const clone=value=>JSON.parse(JSON.stringify(value));
+    function stable(value){
+        if(Array.isArray(value))return '['+value.map(stable).join(',')+']';
+        if(value && typeof value==='object')return '{'+Object.keys(value).sort().filter(key=>value[key]!==undefined).map(key=>JSON.stringify(key)+':'+stable(value[key])).join(',')+'}';
+        return JSON.stringify(value);
+    }
+    function saveScope(id){
+        const context=window.CanvasSession?.context;
+        return JSON.stringify([window.CanvasSession?.enabled?context?.member?.id:'local',context?.workspace?.id,id]);
+    }
+    function rememberSaved(key,document,submitted,protocol){
+        savedDocuments.delete(key);
+        savedDocuments.set(key,{document:clone(document),submitted:clone({...submitted,task_result_version:submitted.task_result_version||0}),protocol});
+        // A small cache is enough for the active canvas; do not retain every
+        // large canvas opened during a session.
+        while(savedDocuments.size>3)savedDocuments.delete(savedDocuments.keys().next().value);
+    }
+    function graphDelta(previous,next,document){
+        const before=previous.nodes||[],after=next.nodes||[];
+        const nodes=new Map(before.map(node=>[node.id,node])),current=new Map(after.map(node=>[node.id,node]));
+        if(nodes.size!==before.length||current.size!==after.length||[...before,...after].some(node=>typeof node.id!=='string'||!node.id))return null;
+        const delta={version:1,base_updated_at:document.updated_at,base_revision:document.revision??null,
+            create:after.filter(node=>!nodes.has(node.id)),
+            update:after.filter(node=>nodes.has(node.id)&&stable(node)!==stable(nodes.get(node.id))),
+            delete:before.filter(node=>!current.has(node.id)).map(node=>node.id)};
+        const natural=[...before.filter(node=>current.has(node.id)),...delta.create].map(node=>node.id);
+        if(stable(natural)!==stable(after.map(node=>node.id)))delta.node_order=after.map(node=>node.id);
+        const oldEdges=previous.connections||[],newEdges=next.connections||[];
+        const oldKeys=new Set(oldEdges.map(stable)),newKeys=new Set(newEdges.map(stable));
+        if(oldKeys.size!==oldEdges.length||newKeys.size!==newEdges.length)return null;
+        delta.connections_remove=oldEdges.filter(edge=>!newKeys.has(stable(edge)));
+        delta.connections_add=newEdges.filter(edge=>!oldKeys.has(stable(edge)));
+        const naturalEdges=[...oldEdges.filter(edge=>newKeys.has(stable(edge))),...delta.connections_add];
+        if(stable(naturalEdges)!==stable(newEdges))delta.connections_order=newEdges;
+        return delta;
+    }
+    async function saveCanvas(id, payload){
+        // Freeze before awaiting HTTP: an acknowledgement only covers this
+        // submission, never edits made while the request was in flight.
+        const submitted=clone(payload),key=saveScope(id),saved=savedDocuments.get(key);
+        const lease=window.MemberCanvasEdit?.active?.lease;
+        const sameVersion=saved && Number(submitted.base_updated_at)===Number(saved.document.updated_at)
+            && (!window.CanvasSession?.enabled || lease?.revision===undefined || lease.revision===saved.document.revision);
+        let wire=submitted;
+        if(sameVersion){
+            const changed=contentFields.filter(field=>field in submitted && stable(submitted[field])!==stable(saved.submitted[field]));
+            if(!changed.length)return new Response(JSON.stringify({canvas:clone(saved.document),unchanged:true}),{headers:{'Content-Type':'application/json'}});
+            if(saved.protocol==='graph-delta-v1'){
+                const delta=graphDelta(saved.submitted,submitted,saved.document);
+                if(delta){
+                    const compact={graph_delta:delta,client_id:submitted.client_id,base_updated_at:submitted.base_updated_at,
+                        base_revision:submitted.base_revision,task_result_version:submitted.task_result_version||0};
+                    for(const field of changed)if(!['nodes','connections'].includes(field))compact[field]=submitted[field];
+                    if(JSON.stringify(compact).length<JSON.stringify(submitted).length)wire=compact;
+                }
+            }
+        }
+        try {
+            // A distinct route makes an older/rolled-back server reject the
+            // delta rather than interpreting omitted nodes as an empty canvas.
+            const response=await request(`/api/canvases/${encodeURIComponent(id)}${wire.graph_delta?'/delta':''}`, jsonBodyInit('PUT', wire));
+            if(response.ok){
+                const data=await response.clone().json();
+                if(data.canvas?.id===id && key===saveScope(id))rememberSaved(key,data.canvas,submitted,data.save_protocol);
+            } else savedDocuments.delete(key);
+            return response;
+        } catch(error){savedDocuments.delete(key);throw error;}
     }
 
     function deleteCanvas(id){

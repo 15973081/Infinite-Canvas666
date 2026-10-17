@@ -491,6 +491,11 @@ function scheduleSave(){
     // existing dirty state after lease loss, but do not create a false draft.
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     if(isSmartCanvasLocked()) return;
+    // Debounce for five seconds, but never postpone continuous edits beyond
+    // thirty seconds. Both paths share the existing serialized save operation.
+    if(!smartCanvasDirty || scheduleSave.pendingSince==null || scheduleSave.canvasId!==canvas?.id){
+        scheduleSave.pendingSince=Date.now();scheduleSave.canvasId=canvas?.id;
+    }
     smartCanvasDirty = true;
     window.MemberCanvasEdit?.markDirty();
     syncPixmaxSaveStatus();
@@ -504,7 +509,7 @@ function scheduleSave(){
     saveTimer = setTimeout(() => {
         saveTimer = null;
         saveCanvas();
-    }, 5000);
+    }, Math.min(5000,Math.max(0,30000-(Date.now()-scheduleSave.pendingSince))));
 }
 
 async function saveCanvas(options={}){
@@ -523,6 +528,7 @@ async function saveCanvas(options={}){
         return result;
     }
     if(!force && !smartCanvasDirty) return true;
+    scheduleSave.pendingSince=null;
 
     const operation = (async () => {
         // 先将编辑面板草稿写回节点，再制作本次提交的数据和节点/连线集合。
@@ -623,7 +629,8 @@ async function saveCanvas(options={}){
             saveTimer = setTimeout(() => {
                 saveTimer = null;
                 saveCanvas();
-            }, Math.max(300, 5000 - (Date.now() - (scheduleSave.lastEditAt ?? Date.now()))));
+            }, Math.max(300,Math.min(5000-(Date.now()-(scheduleSave.lastEditAt??Date.now())),
+                30000-(Date.now()-(scheduleSave.pendingSince??Date.now())))));
         }
     }
 }

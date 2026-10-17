@@ -539,3 +539,60 @@ def test_directory_cover_style_persists_without_changing_content(world, kind):
     rows = client.get('/api/canvases', headers=head).json()['canvases']
     assert next(row for row in rows if row['id'] == original['id'])['cover_style'] == 'editorial'
     assert client.post(path + '/meta', headers=head, json={'cover_style': 'invalid'}).status_code == 422
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_graph_delta_saves_nodes_edges_and_preserves_metadata(world, kind):
+    path, canvas = setup_canvas(world, kind); lease = acquire(world, path)
+    client = world['editor']; head = headers(world['a'])
+    assert client.get(path, headers=head).json()['save_protocol'] == 'graph-delta-v1'
+    saved = client.put(path, headers=proof(world, lease), json={
+        'base_revision': lease['revision'], 'title':'Keep title', 'settings':{'custom':'keep'},
+        'nodes':[{'id':'a','x':0},{'id':'b','x':10}], 'connections':[{'from':'a','to':'b'}]})
+    assert saved.status_code == 200, saved.text
+    base = saved.json()['canvas']
+    delta = {'base_revision':base['revision'], 'base_updated_at':base['updated_at'],
+        'create':[{'id':'c','x':20}], 'update':[{'id':'a','x':7}], 'delete':['b'],
+        'connections_remove':[{'from':'a','to':'b'}], 'connections_add':[{'from':'a','to':'c'}],
+        'node_order':['c','a']}
+    result = client.put(path + '/delta', headers=proof(world, lease, base['revision']), json={
+        'base_revision':base['revision'], 'graph_delta':delta})
+    assert result.status_code == 200, result.text
+    doc = client.get(path, headers=head).json()['canvas']
+    assert doc['revision'] == base['revision'] + 1
+    assert doc['nodes'] == [{'id':'c','x':20},{'id':'a','x':7}]
+    assert doc['connections'] == [{'from':'a','to':'c'}]
+    assert doc['title'] == base['title'] and doc['settings'] == base['settings']
+    # Even a current lease/revision cannot turn the old delta into a new one.
+    stale = client.put(path + '/delta', headers=proof(world, lease, doc['revision']), json={
+        'base_revision':doc['revision'], 'graph_delta':delta})
+    assert stale.status_code == 409 and stale.json()['detail']['code'] == 'canvas_delta_conflict'
+    assert client.get(path, headers=head).json()['canvas'] == doc
+
+
+def test_graph_delta_requires_lease_scope_and_valid_graph(world):
+    path, doc = setup_canvas(world, 'smart'); lease = acquire(world, path)
+    delta = {'base_revision':doc['revision'], 'base_updated_at':doc['updated_at'], 'create':[{'id':'a'}]}
+    body = {'base_revision':doc['revision'], 'graph_delta':delta}
+    client = world['editor']; head = proof(world, lease)
+    assert client.put(path + '/delta', headers=headers(world['a']), json=body).status_code == 428
+    assert world['viewer'].put(path + '/delta', headers=head, json=body).status_code == 403
+    assert world['outsider'].put(path + '/delta', headers={**head, **headers(world['b'])}, json=body).status_code == 404
+    forged = {**head, 'X-Canvas-Edit-Token':'forged'}
+    assert client.put(path + '/delta', headers=forged, json=body).status_code == 409
+    invalid = {**delta, 'connections_add':[{'from':'a','to':'missing'}]}
+    response = client.put(path + '/delta', headers=head, json={**body, 'graph_delta':invalid})
+    assert response.status_code == 400, response.text
+    assert client.get(path, headers=headers(world['a'])).json()['canvas'] == doc
+
+
+def test_graph_delta_final_save_is_allowed_during_maintenance_drain(world):
+    path, doc = setup_canvas(world, 'smart'); lease = acquire(world, path)
+    change(world['operator'], world['a']['id'], 'draining', grace_seconds=30)
+    response = world['editor'].put(path + '/delta', headers=proof(world, lease), json={
+        'base_revision':doc['revision'], 'graph_delta':{
+            'base_revision':doc['revision'], 'base_updated_at':doc['updated_at'], 'create':[{'id':'last'}]}})
+    assert response.status_code == 200, response.text
+    saved = response.json()['canvas']
+    assert saved['nodes'] == [{'id':'last'}]
+    assert world['editor'].post(path+'/edit-lease/release', headers=proof(world,lease,saved['revision'])).status_code == 200
