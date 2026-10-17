@@ -29,7 +29,7 @@ let createCanvasKind = 'classic';
 let trashMode = false;
 let pendingDeleteCanvasId = null;
 let pendingPurgeCanvasId = null;
-let movingCanvasId = null;
+const pendingCanvasMoves = new Set();
 let emojiPickerCanvasId = null;
 let canvasMetaAnchorId = '';
 let canvasSortMode = (() => { try { return localStorage.getItem('canvasSortMode') || 'recent'; } catch(e){ return 'recent'; } })();
@@ -220,7 +220,6 @@ function setActiveFolder(folderId,options={}){
         canvasSearchQuery=folderLocations.get(next)?.query||'';
     }
     activeFolderId = next;
-    movingCanvasId = null;
     closeCanvasMetaPopover();
     const model = canvasGateModel();
     renderFolderTree(model);
@@ -277,49 +276,47 @@ async function deleteCanvasFolder(folderId){
     }
 }
 
-function toggleMoveCanvasMenu(id, event){
-    event?.preventDefault();
-    event?.stopPropagation();
-    movingCanvasId = movingCanvasId === id ? null : id;
-    closeCanvasMetaPopover();
-    renderCanvasList();
+function focusCanvasActions(id){
+    const summary = document.querySelector(`.canvas-item[data-canvas-id="${CSS.escape(id)}"] .studio-card-menu summary`);
+    (summary || document.getElementById('studioFolderTrigger') || gateSearchInput)?.focus();
 }
 
-function canvasMoveMenuHtml(item){
-    if(movingCanvasId !== item.id || trashMode) return '';
-    const entries = [
-        {id:'', name:'未分类', depth:0, icon:'inbox'},
-        ...canvasFolders.map(folder => ({id:folder.id, name:folder.name, depth:canvasFolderDepth(folder.id), icon:'folder'})),
-    ];
-    return `
-        <div class="canvas-folder-menu">
-            ${entries.map(entry => `
-                <button type="button" data-move-folder="${escapeAttr(entry.id)}" class="${normalizeCanvasFolderId(item.folder_id) === entry.id ? 'active' : ''}" style="--depth:${entry.depth || 0}">
-                    <i data-lucide="${entry.icon}" class="w-3 h-3"></i>
-                    <span>${escapeHtml(entry.name)}</span>
-                </button>
-            `).join('')}
-        </div>
-    `;
+function openMoveCanvasPicker(id, event){
+    event?.preventDefault(); event?.stopPropagation();
+    const item = canvases.find(entry => entry.id === id);
+    if(!item) return;
+    closeCanvasMetaPopover();
+    document.querySelectorAll('.studio-card-menu[open]').forEach(menu => { menu.open = false; });
+    window.CanvasFolderPicker.open({
+        title:item.title, currentFolder:normalizeCanvasFolderId(item.folder_id), folders:canvasFolders, canvases,
+        onMove:async target => {
+            const result = await moveCanvasToFolder(id, target);
+            if(!result.ok) throw new Error(result.message);
+        },
+        restoreFocus:() => focusCanvasActions(id)
+    });
 }
 
 async function moveCanvasToFolder(id, folderId){
+    if(pendingCanvasMoves.has(id)) return {ok:false, message:'正在移动，请稍候。'};
     const target = normalizeCanvasFolderId(folderId);
     const item = canvases.find(entry => entry.id === id);
-    const prev = item ? normalizeCanvasFolderId(item.folder_id) : '';
-    if(item) item.folder_id = target;
-    movingCanvasId = null;
-    renderFolderTree();
-    renderCanvasList();
-    refreshGateViewControls();
+    if(!item) return {ok:false, message:'画布已不在当前列表，请刷新后重试。'};
+    if(normalizeCanvasFolderId(item.folder_id) === target) return {ok:true};
+    pendingCanvasMoves.add(id);
     try {
         const data = await window.CanvasDirectoryApi.moveCanvasToFolder(id, target);
-        if(data.canvas) updateCanvasListRecord(data.canvas);
+        updateCanvasListRecord(data.canvas || {...item, folder_id:target});
+        renderFolderTree();
+        setStatus(target ? '已移动到文件夹' : '已移出文件夹，可在全部画布中查看');
+        return {ok:true};
     } catch(e) {
-        if(item) item.folder_id = prev;
         console.error(e);
-        await loadCanvasList(false);
-        setStatus(e?.message || '移动画布失败');
+        const message = e?.message || '移动画布失败';
+        setStatus(message);
+        return {ok:false, message};
+    } finally {
+        pendingCanvasMoves.delete(id);
     }
 }
 
@@ -595,7 +592,6 @@ function renderCanvasListInto(list, model=canvasGateModel()){
                 <button class="canvas-delete" type="button" title="移入回收站" aria-label="移入回收站 ${escapeHtml(item.title)}">
                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                 </button>
-                ${canvasMoveMenuHtml(item)}
             `)}
         `;
         if(!trashMode) {
@@ -638,15 +634,8 @@ function renderCanvasListInto(list, model=canvasGateModel()){
         const folderBtn = row.querySelector('.canvas-folder-btn');
         if(folderBtn){
             folderBtn.onmousedown = e => e.stopPropagation();
-            folderBtn.onclick = e => toggleMoveCanvasMenu(item.id, e);
+            folderBtn.onclick = e => openMoveCanvasPicker(item.id, e);
         }
-        row.querySelectorAll('[data-move-folder]').forEach(btn => {
-            btn.onmousedown = e => e.stopPropagation();
-            btn.onclick = e => {
-                e.stopPropagation();
-                moveCanvasToFolder(item.id, btn.dataset.moveFolder || '');
-            };
-        });
         const ownerChipEl = row.querySelector('.canvas-owner-chip');
         if(ownerChipEl && !trashMode){
             ownerChipEl.onmousedown = e => e.stopPropagation();
@@ -688,6 +677,17 @@ function renderCanvasListInto(list, model=canvasGateModel()){
                     actions.appendChild(control);
                 }
             }
+            if(normalizeCanvasFolderId(item.folder_id)){
+                const remove = document.createElement('button');
+                remove.type = 'button'; remove.className = 'canvas-folder-remove';
+                remove.innerHTML = '<i data-lucide="inbox"></i>移出文件夹';
+                remove.onclick = async event => {
+                    event.stopPropagation(); menu.open = false; remove.disabled = true;
+                    try { await moveCanvasToFolder(item.id, ''); }
+                    finally { remove.disabled = false; focusCanvasActions(item.id); }
+                };
+                actions.querySelector('.canvas-folder-btn')?.after(remove);
+            }
             menu.appendChild(actions);
             menu.addEventListener('click', e => {e.stopPropagation();if(e.target.closest('button'))menu.open=false;});
             menu.addEventListener('pointerdown', e => e.stopPropagation());
@@ -713,10 +713,13 @@ function renderCanvasListInto(list, model=canvasGateModel()){
 
 function positionOpenCardMenus(){
     document.querySelectorAll('.studio-card-menu[open]').forEach(menu=>{
-        const rect=menu.querySelector('summary').getBoundingClientRect();
         const actions=menu.querySelector('.studio-card-menu-items');
         actions.style.position='fixed';actions.style.right='auto';
-        actions.style.left=Math.max(12,Math.min(rect.right-200,window.innerWidth-212))+'px';
+        // Remove the panel from flow before measuring: otherwise opening details
+        // temporarily widens the trigger's container and shifts the anchor left.
+        const rect=menu.querySelector('summary').getBoundingClientRect();
+        const width=actions.getBoundingClientRect().width;
+        actions.style.left=Math.max(12,Math.min(rect.right-width,window.innerWidth-width-12))+'px';
         actions.style.top=Math.max(12,rect.bottom+actions.offsetHeight+8>window.innerHeight?rect.top-actions.offsetHeight-6:rect.bottom+6)+'px';
     });
 }
@@ -1045,10 +1048,6 @@ gateSearchInput?.addEventListener('keydown', event => {
 gateSearchClear?.addEventListener('click', () => clearCanvasSearch(true));
 
 document.addEventListener('mousedown', e => {
-    if(movingCanvasId && !e.target.closest('.canvas-folder-menu') && !e.target.closest('.canvas-folder-btn')){
-        movingCanvasId = null;
-        renderCanvasList();
-    }
     if(emojiPickerCanvasId === null) return;
     if(e.target.closest('.canvas-meta-pop') || e.target.closest('.canvas-preview-mark') || e.target.closest('.canvas-owner-chip')) return;
     closeCanvasMetaPopover();

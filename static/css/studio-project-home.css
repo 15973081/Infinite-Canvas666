@@ -47,7 +47,8 @@ html:has(body.studio-home),html:has(body.studio-canvas-home),body.studio-home,bo
 #canvasGate .canvas-card-title{display:block;flex:none;min-width:0;margin:0;font-size:16px;line-height:24px;font-weight:600;letter-spacing:0;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
 #canvasGate .canvas-card-meta{margin:0;min-width:0;align-self:stretch;height:16px}
 #canvasGate .canvas-card-time{font:12px/16px var(--studio-font);letter-spacing:0;min-width:0;overflow:hidden;text-overflow:ellipsis}
-#canvasGate .studio-card-menu{top:8px;right:8px;bottom:auto}
+#canvasGate .studio-card-menu{top:8px;right:8px;bottom:auto;z-index:10;color:var(--studio-text)}
+#canvasGate .canvas-item:has(.studio-card-menu[open]){z-index:20}
 #canvasGate .studio-card-menu summary{opacity:0;background:#141416e6;transition:opacity var(--project-motion) var(--project-ease),background-color var(--project-motion) var(--project-ease)}
 #canvasGate .canvas-item:is(:hover,:focus-within) .studio-card-menu summary,#canvasGate .studio-card-menu[open] summary{opacity:1}
 #canvasGate .studio-card-menu summary{width:32px;height:32px}
