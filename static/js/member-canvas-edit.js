@@ -503,9 +503,11 @@
                 if(!['offline','recovering'].includes(value.maintenance.mode))await refreshState(entry);
                 entry.refreshTasks?.();
                 render();
-            },onDisconnect:(message,{fatal=false}={})=>{
+            },onDisconnect:(message,{fatal=false,source}={})=>{
                 if(!validEntry(entry))return;
-                entry.streamMessage=message;
+                // refreshState already reports the failed HTTP read. Do not
+                // duplicate it as a socket outage or leave it after recovery.
+                entry.streamMessage=source==='state-refresh' && entry.stateError ? '' : message;
                 // Notifications are only hints. Losing this socket does not revoke
                 // a private lease that the independent HTTP heartbeat still proves.
                 if(fatal && (entry.lease.token || entry.lease.pending || ['starting','requesting'].includes(entry.lease.state)))entry.lease.pause(message);

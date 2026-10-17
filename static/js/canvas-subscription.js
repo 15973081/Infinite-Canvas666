@@ -43,8 +43,12 @@
                 const next=[value.revision,value.generation,value.stamp].join(':');
                 if(next===marker)return;marker=next;
                 Promise.resolve().then(()=>{if(current())return this.onChange(value);}).catch(error=>{
-                    if(current())this.onDisconnect('画布状态更新失败，正在重新核对；查看状态由轮询补充。',
-                        {fatal:[401,403,404].includes(error?.status)});
+                    if(!current() || marker!==next)return;
+                    // A received hint is not an applied state. Retry an unchanged
+                    // heartbeat after a failed read, and enable the HTTP fallback.
+                    marker=null;this.healthy=false;
+                    this.onDisconnect('画布状态更新失败，正在重新核对；查看状态由轮询补充。',
+                        {fatal:[401,403,404].includes(error?.status),source:'state-refresh'});
                 });
             };
             socket.onerror=()=>{if(current())socket.close();};

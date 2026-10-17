@@ -61,6 +61,24 @@ test('state-refresh transport failures are recoverable while authorization failu
     }
 });
 
+test('failed application of a state hint retries on unchanged heartbeats',async()=>{
+ const f=fixture();let attempts=0;
+ f.subscription.onChange=async value=>{if(++attempts===1)throw new Error('temporary read failure');f.messages.push(value);};
+ f.send(state());await settle();
+ assert.equal(f.subscription.healthy,false);assert.equal(f.failures[0].source,'state-refresh');
+ f.send(state({sequence:2}));await settle();
+ assert.equal(attempts,2);assert.equal(f.subscription.healthy,true);assert.equal(f.messages.length,1);
+ f.send(state({sequence:3}));await settle();assert.equal(attempts,2);
+});
+
+test('late failure for an older hint cannot invalidate a newer successful update',async()=>{
+ const f=fixture();let reject;
+ f.subscription.onChange=value=>value.revision===3?new Promise((_,fail)=>reject=fail):Promise.resolve();
+ f.send(state());await settle();f.send(state({sequence:2,revision:4}));await settle();
+ reject(new Error('old failure'));await settle();
+ assert.equal(f.subscription.healthy,true);assert.equal(f.errors.length,0);
+});
+
 test('default browser timers are called without a subscription receiver',()=>{
     const vm=require('node:vm');
     const source=require('node:fs').readFileSync(require.resolve('../static/js/canvas-subscription.js'),'utf8');

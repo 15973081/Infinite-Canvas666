@@ -83,6 +83,26 @@ test('transient renewal failure schedules a two-second retry and clears recovere
     assert.equal(f.calls.filter(([path])=>path.endsWith('/acquire')).length,1);
 });
 
+test('one failed occupancy read produces one notice and recovery clears it without losing editing',async()=>{
+ const f=fixture();f.context.CanvasSubscription=class {constructor(options){this.options=options;}start(){}stop(){}};
+ f.context.CanvasSession.socketUrl=value=>value;
+ await f.api.mount({id:'a',dirty:()=>false,snapshot:()=>({id:'a',revision:3,nodes:[]}),reload:async()=>({revision:3}),refresh:async()=>{},flush:async()=>true});
+ await new Promise(setImmediate);const entry=f.api.active;
+ await entry.lease.start(async()=>({revision:3}));
+ let fail=true;entry.lease.transport=async(path)=>{
+  if(path.endsWith('/transfers')){if(fail)throw new TypeError('temporary');return reply({lease:status,requests:[]});}
+  return reply(status);
+ };
+ const update={maintenance:{mode:'normal'}};
+ await assert.rejects(entry.subscription.options.onChange(update));
+ await entry.subscription.options.onDisconnect('画布状态更新失败，正在重新核对；查看状态由轮询补充。',{fatal:false,source:'state-refresh'});
+ assert.match(entry.notice.textContent,/占用状态刷新失败/);
+ assert.doesNotMatch(entry.notice.textContent,/画布状态更新失败/);assert.equal(entry.lease.canEdit,true);
+ fail=false;await entry.subscription.options.onChange(update);
+ assert.equal(entry.stateError,'');assert.equal(entry.streamMessage,'');assert.equal(entry.lease.canEdit,true);
+ assert.doesNotMatch(entry.notice.textContent,/失败|重新核对/);
+});
+
 test('slow occupancy reads cannot stall private heartbeat scheduling',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);
     const entry=f.api.active;await entry.lease.start(async()=>({revision:3}));
