@@ -14,6 +14,7 @@ async function folder(page,id){await page.locator('#studioFolderTrigger').click(
 test('independent directory loads no editor, provider config, task or document modules',async t=>{
  const {page,errors,writes,requests}=await setup(t,true);
  assert.equal(await page.locator('[data-folder-id="one"] .gate-folder-count').textContent(),'2');
+ await folder(page,'child');
  assert.equal(await page.locator('[data-canvas-id="three"]').getAttribute('data-cover-style'),'sage');
  assert.equal(await page.evaluate(()=>typeof canvas),'undefined');
  assert.equal(await page.locator('#board,#nodes,[data-canvas-module]').count(),0);
@@ -24,14 +25,16 @@ test('independent directory loads no editor, provider config, task or document m
 test('directory search, clear, folder, sort and trash controls remain independent',async t=>{
  const {page,errors,writes}=await setup(t);
  await page.locator('#gateSearchInput').fill('beta');assert.deepEqual(await ids(page),['three']);
- assert.equal(await page.locator('#gateCountPill').innerText(),'1 个');
+ assert.equal(await page.locator('#gateCountPill').innerText(),'1 个画布');
  await page.locator('#gateSearchClear').click();
  assert.equal(await page.locator('#gateSearchInput').evaluate(el=>el===document.activeElement),true);
  await folder(page,'one');assert.deepEqual(await ids(page),['two','canvas-test']);
  await page.locator('#gateSearchInput').fill('missing');assert.equal(await page.locator('.gate-list-empty').innerText(),'没有找到匹配的画布');
  await page.locator('#gateSearchInput').press('Escape');assert.deepEqual(await ids(page),['two','canvas-test']);
  await folder(page,'all');await page.locator('#studioSortTrigger').click();await page.locator('[data-sort="name"]').click();
- assert.deepEqual(await ids(page),['two','canvas-test','three','other']);
+ assert.deepEqual(await ids(page),['other']);
+ assert.equal(await page.locator('[data-folder-card="one"]').count(),1);
+ await folder(page,'one');assert.deepEqual(await ids(page),['two','canvas-test']);
  await page.locator('#gateTrashBtn').click();await page.locator('[data-canvas-id="gone"]').waitFor();assert.deepEqual(await ids(page),['gone']);
  assert.equal(await page.locator('.canvas-pin-btn').count(),0);assert.equal(await page.locator('.canvas-restore').count(),1);
  await page.locator('.canvas-purge').click();assert.equal(await page.locator('.canvas-delete-confirm').count(),1);
@@ -42,6 +45,7 @@ test('directory search, clear, folder, sort and trash controls remain independen
 test('directory metadata commands issue only the intended mutation and preserve server errors',async t=>{
  const {page,record,errors}=await setup(t);const calls=[];
  await page.route('**/api/canvases/canvas-test/meta',async route=>{const patch=route.request().postDataJSON();calls.push(patch);Object.assign(record,patch);await route.fulfill({json:{canvas:record}});});
+ await folder(page,'one');
  const card=page.locator('[data-canvas-id="canvas-test"]');
  await card.locator('summary').click();await card.getByRole('button',{name:'置顶',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('[data-canvas-id="canvas-test"]').classList.contains('pinned'));

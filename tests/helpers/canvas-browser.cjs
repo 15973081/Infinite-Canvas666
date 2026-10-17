@@ -96,7 +96,7 @@ async function fixture(t, kind, member, options={}) {
         return {page,errors,writes,record,requests};
     }
     if(options.home){
-        await page.frameLocator('#frame-canvas').locator('.canvas-open').first().waitFor().catch(async error=>{
+        await page.frameLocator('#frame-canvas').locator('.canvas-open,.project-folder-open').first().waitFor().catch(async error=>{
             throw new Error(error.message+'; page errors: '+errors.join('; ')+'; frames: '+page.frames().map(f=>f.url()).join(', '));
         });
         return {page,errors,writes,record};

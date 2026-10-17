@@ -22,6 +22,7 @@ let canvases = [];
 let deletedCanvases = [];
 let canvasFolders = [];
 let activeFolderId = 'all';
+const folderLocations = new Map();
 let canvasSearchQuery = '';
 let creatingCanvas = false;
 let createCanvasKind = 'classic';
@@ -59,8 +60,44 @@ function normalizeCanvasFolderId(value){
 }
 
 function canvasGateModel(){
-    return window.CanvasDirectoryModel.build({canvases, deletedCanvases, folders:canvasFolders,
+    // Root shows folders plus unfiled canvases. Search still reaches every
+    // canvas, so grouping does not make projects harder to find.
+    const model=window.CanvasDirectoryModel.build({canvases, deletedCanvases, folders:canvasFolders,
         trashMode, folderId:activeFolderId, query:canvasSearchQuery});
+    if(activeFolderId==='all'&&!trashMode&&!String(canvasSearchQuery).trim()){
+        const known=new Set(canvasFolders.map(folder=>folder.id));
+        const rows=Object.freeze(model.rows.filter(row=>!known.has(normalizeCanvasFolderId(row.item.folder_id))));
+        return Object.freeze({...model,rows,items:Object.freeze(rows.map(row=>row.item))});
+    }
+    return model;
+}
+
+function visibleFolderCards(){
+    if(trashMode || activeFolderId==='')return [];
+    const query=String(canvasSearchQuery).trim().normalize('NFKC').toLocaleLowerCase('zh-CN');
+    const folders=activeFolderId==='all'&&query ? [...canvasFolders] : canvasFolderChildren(activeFolderId==='all'?'':activeFolderId);
+    return folders.filter(folder=>!query || String(folder.name).normalize('NFKC').toLocaleLowerCase('zh-CN').includes(query));
+}
+
+function renderFolderPath(){
+    const path=document.getElementById('projectFolderPath');
+    if(!path)return;
+    path.replaceChildren();path.hidden=trashMode||activeFolderId==='all';
+    if(path.hidden)return;
+    const chain=[],seen=new Set();let id=activeFolderId;
+    while(id&&!seen.has(id)){
+        seen.add(id);const folder=canvasFolders.find(item=>item.id===id);
+        if(!folder)break;chain.unshift(folder);id=folder.parent_id;
+    }
+    const items=[{id:'all',name:'全部画布'},...chain];
+    if(activeFolderId==='')items.push({id:'',name:'未分类'});
+    items.forEach((item,index)=>{
+        if(index){const separator=document.createElement('span');separator.textContent='/';separator.setAttribute('aria-hidden','true');path.append(separator);}
+        const link=document.createElement('button');link.type='button';link.textContent=item.name;link.title=item.name;
+        if(index===items.length-1){link.setAttribute('aria-current','page');link.disabled=true;}
+        else link.onclick=()=>setActiveFolder(item.id,{focus:true});
+        path.append(link);
+    });
 }
 
 function canvasFolderLabel(folderId){
@@ -175,22 +212,36 @@ function renderFolderTree(model=canvasGateModel()){
     refreshIcons();
 }
 
-function setActiveFolder(folderId){
-    activeFolderId = folderId === 'all' ? 'all' : normalizeCanvasFolderId(folderId);
+function setActiveFolder(folderId,options={}){
+    const previous=activeFolderId;
+    const next=folderId==='all'?'all':normalizeCanvasFolderId(folderId);
+    if(next!==previous){
+        folderLocations.set(previous,{query:canvasSearchQuery,scroll:canvasGate.scrollTop});
+        canvasSearchQuery=folderLocations.get(next)?.query||'';
+    }
+    activeFolderId = next;
     movingCanvasId = null;
     closeCanvasMetaPopover();
     const model = canvasGateModel();
     renderFolderTree(model);
     renderCanvasList(model);
     refreshGateViewControls(model);
+    const savedScroll=folderLocations.get(next)?.scroll||0;
+    requestAnimationFrame(()=>{
+        if(activeFolderId!==next)return;
+        canvasGate.scrollTop=savedScroll;
+        if(options.focus){
+            const origin=[...gateCanvasList.querySelectorAll('[data-folder-card]')].find(card=>card.dataset.folderCard===previous)?.querySelector('.project-folder-open');
+            const target=origin||gateTitleText;target?.setAttribute('tabindex',target===gateTitleText?'-1':'0');target?.focus({preventScroll:true});
+        }
+    });
 }
 
 function createCanvasFolder(parentId=''){
     window.CanvasNameDialog.open({title:'新建文件夹', label:'文件夹名称', placeholder:'例如：品牌设计', confirm:'创建', description:'将相关画布收纳在一起，方便查找。', onSubmit:async name => {
         const data = await window.CanvasDirectoryApi.createCanvasFolder({name, parent_id:normalizeCanvasFolderId(parentId)});
         canvasFolders = data.folders || canvasFolders;
-        activeFolderId = data.folder?.id || activeFolderId;
-        renderFolderTree(); renderCanvasList(); refreshGateViewControls();
+        setActiveFolder(data.folder?.id || activeFolderId);
     }});
 }
 
@@ -201,7 +252,7 @@ function renameCanvasFolder(folderId){
         if(name === folder.name) return;
         const data = await window.CanvasDirectoryApi.updateCanvasFolder(folderId, {name});
         canvasFolders = data.folders || canvasFolders;
-        renderFolderTree();
+        renderFolderTree();renderCanvasList();
     }});
 }
 
@@ -216,7 +267,7 @@ async function deleteCanvasFolder(folderId){
         canvases.forEach(item => {
             if(normalizeCanvasFolderId(item.folder_id) === folderId) item.folder_id = parentId;
         });
-        if(activeFolderId === folderId) activeFolderId = parentId || '';
+        if(activeFolderId === folderId) activeFolderId = parentId || 'all';
         renderFolderTree();
         renderCanvasList();
         refreshGateViewControls();
@@ -274,7 +325,8 @@ async function moveCanvasToFolder(id, folderId){
 
 function refreshGateViewControls(model=canvasGateModel()){
     canvasGate.classList.toggle('trash-mode', trashMode);
-    if(gateTitleText) gateTitleText.textContent = trashMode ? '回收站' : '全部画布';
+    if(gateTitleText) gateTitleText.textContent = trashMode ? '回收站' : canvasFolderLabel(activeFolderId);
+    renderFolderPath();
     if(gateSubtitle) gateSubtitle.textContent = trashMode ? '已删除画布可恢复，30 天后自动清理。' : '打开已有画布，或新建一个开始创作。';
     const trashCount = deletedCanvases.length;
     if(gateTrashCount){
@@ -284,8 +336,8 @@ function refreshGateViewControls(model=canvasGateModel()){
     const countPill = document.getElementById('gateCountPill');
     if(countPill){
         const items = model.items;
-        const suffix = '个';
-        countPill.textContent = suffix ? `${items.length} ${suffix}` : String(items.length);
+        const folders=visibleFolderCards();
+        countPill.textContent = `${items.length} 个画布${folders.length ? ' · '+folders.length+' 个文件夹' : ''}`;
     }
     const sortSwitch = document.getElementById('gateSortSwitch');
     if(sortSwitch){
@@ -333,7 +385,7 @@ async function loadDirectory(trash,refreshFolders=false){
         if(epoch!==window.CanvasDirectoryApi.epoch){await window.CanvasDirectoryApi.flush();return loadDirectory(trashMode,refreshFolders);}
         if(folders){
             canvasFolders=folders.folders||[];
-            if(activeFolderId!=='all'&&activeFolderId&&!canvasFolders.some(folder=>folder.id===activeFolderId))activeFolderId='';
+            if(activeFolderId!=='all'&&activeFolderId&&!canvasFolders.some(folder=>folder.id===activeFolderId))activeFolderId='all';
         }
         if(trash)deletedCanvases=data.canvases||[];
         else{canvases=data.canvases||[];sortCanvasListByUpdated();}
@@ -461,7 +513,12 @@ function renderCanvasListInto(list, model=canvasGateModel()){
         create.innerHTML='<i data-lucide="plus" aria-hidden="true"></i><span>新建画布</span>';
         create.onclick=()=>window.CanvasHome.beginCreate();list.append(create);
     }
-    if(!items.length){
+    const folders=visibleFolderCards();
+    folders.forEach(folder=>list.append(window.CanvasFolderCards.card(folder,{
+        canvases,folders:canvasFolders,open:id=>setActiveFolder(id,{focus:true}),rename:renameCanvasFolder,
+        remove:deleteCanvasFolder,createChild:createCanvasFolder,move:moveCanvasToFolder,formatTime:formatCanvasTime
+    })));
+    if(!items.length&&!folders.length){
         const empty = document.createElement('div');
         empty.className = 'gate-list-empty';
         empty.innerHTML = model.emptyKind === 'search'
@@ -930,11 +987,17 @@ async function openCanvasCoverStyle(item){
  window.addEventListener('resize',positionOpenCardMenus);
  window.CanvasHome={
   remember(){
-   try {sessionStorage.setItem(window.CanvasSession?.storageKey('canvas-home')||'canvas-home:local',JSON.stringify({folder:activeFolderId,query:canvasSearchQuery,sort:canvasSortMode,scroll:byId('canvasGate').scrollTop}));}catch(_){}
+   folderLocations.set(activeFolderId,{query:canvasSearchQuery,scroll:byId('canvasGate').scrollTop});
+   try {sessionStorage.setItem(window.CanvasSession?.storageKey('canvas-home')||'canvas-home:local',JSON.stringify({folder:activeFolderId,query:canvasSearchQuery,sort:canvasSortMode,scroll:byId('canvasGate').scrollTop,locations:[...folderLocations]}));}catch(_){}
   },
   restore(){
    try {
     const saved=JSON.parse(sessionStorage.getItem(window.CanvasSession?.storageKey('canvas-home')||'canvas-home:local')||'null');if(!saved)return;
+    if(Array.isArray(saved.locations))for(const entry of saved.locations){
+     if(!Array.isArray(entry)||entry.length!==2)continue;
+     const [id,value]=entry;
+     if((id==='all'||id===''||canvasFolders.some(folder=>folder.id===id))&&value&&typeof value.query==='string')folderLocations.set(id,{query:value.query,scroll:Math.max(0,Number(value.scroll)||0)});
+    }
     activeFolderId=saved.folder==='all'||saved.folder===''||canvasFolders.some(folder=>folder.id===saved.folder)?saved.folder:'all';
     canvasSearchQuery=typeof saved.query==='string'?saved.query:'';canvasSortMode=saved.sort==='name'?'name':'recent';
     sortCanvasListByUpdated();renderCanvasList();refreshGateViewControls();

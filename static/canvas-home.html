@@ -17,12 +17,14 @@
 <link rel="stylesheet" href="/static/css/canvas-home.css">
 <link rel="stylesheet" href="/static/css/canvas-cover.css">
 <link rel="stylesheet" href="/static/css/studio-project-home.css">
+<link rel="stylesheet" href="/static/css/canvas-folder-cards.css">
 </head>
 <body class="studio-skin studio-canvas-home">
 <section class="studio-desktop-required" aria-labelledby="desktopRequiredTitle"><div><h2 id="desktopRequiredTitle">请使用桌面端访问</h2><p>编辑与创作功能需在较宽屏幕下使用。请将浏览器窗口拉大，或改用电脑访问以获得完整体验。</p></div></section>
 <main id="shell" class="shell">
         <div id="canvasGate" class="canvas-gate gate-loading" aria-busy="true">
           <div class="gate-panel">
+            <nav id="projectFolderPath" class="project-folder-path" aria-label="文件夹路径" hidden></nav>
             <div class="gate-head"><div class="gate-head-text"><button id="gateBackBtn" class="gate-back-link" type="button"><i data-lucide="arrow-left"></i>返回画布列表</button><div class="gate-title-row"><h1 id="gateTitleText" class="gate-title">全部画布</h1><span id="gateCountPill" class="gate-count-pill">0 个</span></div><div id="gateSubtitle" class="gate-subtitle"></div></div></div>
             <div class="studio-library-tools"><div id="gateSearch" class="gate-search" role="search">
                             <i data-lucide="search" class="w-4 h-4" aria-hidden="true"></i>
@@ -57,5 +59,6 @@
 <script src="/static/js/canvas-name-dialog.js"></script>
 <script src="/static/js/canvas-media-loader.js"></script>
 <script src="/static/js/canvas-cover-preview.js"></script>
+<script src="/static/js/canvas-folder-cards.js"></script>
 <script src="/static/js/canvas-home.js"></script>
 </body></html>

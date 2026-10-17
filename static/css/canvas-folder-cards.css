@@ -1,0 +1,34 @@
+#canvasGate .project-folder-card{position:relative;min-width:0;aspect-ratio:31/24;border:1px solid var(--studio-border);border-radius:12px;background:var(--studio-panel);isolation:isolate}
+#canvasGate .project-folder-open{display:grid;grid-template-rows:minmax(0,1fr) 60px;gap:0;width:100%;height:100%;padding:0;text-align:left;border-radius:12px;color:var(--studio-text);background:transparent;overflow:hidden}
+#canvasGate .project-folder-mosaic{display:grid;grid-template-columns:62fr 38fr;grid-template-rows:1fr 1fr;position:relative;gap:8px;padding:12px;min-height:0}
+#canvasGate .project-folder-mosaic>:first-child{grid-row:1/3}
+#canvasGate .project-folder-mosaic :is(.studio-canvas-cover,.project-folder-placeholder){min-height:0;height:100%;border-radius:12px;background:#08090b;overflow:hidden;display:grid;place-items:center}
+#canvasGate .project-folder-mosaic .canvas-cover-copy,#canvasGate .project-folder-mosaic .canvas-cover-kind,#canvasGate .project-folder-mosaic .canvas-cover-unavailable{display:none}
+#canvasGate .project-folder-placeholder svg{width:26px;height:26px;color:#42444d}
+#canvasGate .project-folder-mosaic .studio-canvas-cover:before{width:24px;height:28px}
+#canvasGate .project-folder-info{display:flex;flex-direction:column;justify-content:center;gap:6px;padding:0 12px;min-width:0}
+#canvasGate .project-folder-info strong{min-width:0;font-size:16px;line-height:24px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#canvasGate .project-folder-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--studio-text-muted);font-size:12px;line-height:16px}
+#canvasGate .project-folder-meta>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#canvasGate .project-folder-meta>span:last-child{flex-shrink:0}
+#canvasGate .project-folder-enter{position:absolute;inset:12px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;background:#000b;opacity:0;pointer-events:none;transition:opacity var(--project-motion) var(--project-ease);font-size:14px;color:#aeb6c5}
+#canvasGate .project-folder-enter svg{width:20px;height:20px}
+#canvasGate .project-folder-card:is(:hover,:focus-within) .project-folder-enter{opacity:1}
+#canvasGate .project-folder-menu{position:absolute;top:8px;right:8px;z-index:3}
+#canvasGate .project-folder-menu summary{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#141416e6;cursor:pointer;list-style:none;opacity:0;transition:opacity var(--project-motion) var(--project-ease)}
+#canvasGate .project-folder-menu summary::-webkit-details-marker{display:none}
+#canvasGate .project-folder-menu svg{width:18px;height:18px;flex-shrink:0}
+#canvasGate .project-folder-card:is(:hover,:focus-within) summary,#canvasGate .project-folder-menu[open] summary{opacity:1}
+#canvasGate .project-folder-card:has(details[open]){z-index:15}
+#canvasGate .project-folder-actions{position:fixed;width:174px;padding:6px;border:1px solid var(--studio-border);border-radius:12px;background:var(--studio-panel);box-shadow:0 12px 36px #0008}
+#canvasGate .project-folder-actions button{display:flex;align-items:center;gap:10px;width:100%;height:36px;padding:8px;border-radius:6px;color:var(--studio-text);background:transparent;font-size:13px}
+#canvasGate .project-folder-actions button:hover{background:var(--studio-surface-muted)}
+#canvasGate .project-folder-card.drag-over{border-color:var(--studio-accent-label);box-shadow:0 0 0 2px var(--studio-accent-label)}
+#canvasGate :is(.project-folder-card,.canvas-item,.project-new-card){align-self:start}
+#canvasGate .project-folder-path{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 18px;font-size:13px;color:var(--studio-text-muted)}
+#canvasGate .project-folder-path[hidden]{display:none}
+#canvasGate .project-folder-path button{max-width:280px;min-height:32px;padding:4px 8px;border-radius:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--studio-text-muted);background:transparent}
+#canvasGate .project-folder-path button:hover:not(:disabled){background:var(--studio-surface-muted);color:var(--studio-text)}
+#canvasGate .project-folder-path button:disabled{color:var(--studio-text);cursor:default}
+#canvasGate #gateTitleText[tabindex="-1"]:focus{outline:none}
+@media(prefers-reduced-motion:reduce){#canvasGate .project-folder-enter,#canvasGate .project-folder-menu summary{transition:none}}
