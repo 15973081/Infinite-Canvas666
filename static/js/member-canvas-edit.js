@@ -471,11 +471,16 @@
                 if(!['offline','recovering'].includes(value.maintenance.mode))await refreshState(entry);
                 entry.refreshTasks?.();
                 render();
-            },onDisconnect:message=>{
-                if(entry!==active)return;
+            },onDisconnect:(message,{fatal=false}={})=>{
+                if(!validEntry(entry))return;
                 entry.streamMessage=message;
-                if(entry.lease.token || entry.lease.pending || ['starting','requesting'].includes(entry.lease.state))entry.lease.pause(message);
+                // Notifications are only hints. Losing this socket does not revoke
+                // a private lease that the independent HTTP heartbeat still proves.
+                if(fatal && (entry.lease.token || entry.lease.pending || ['starting','requesting'].includes(entry.lease.state)))entry.lease.pause(message);
                 render();
+                if(!fatal && entry.lease.canSave)return entry.lease.renew().catch(error=>{
+                    if(validEntry(entry)){entry.feedback=error.message;render();}
+                });
             }});
         entry.subscription.start();
     }
@@ -488,7 +493,11 @@
             // Real-time hints handle changes. HTTP is a slower fallback; renewals
             // remain independent of visibility so a hidden editor cannot lose its lock.
             if(!document.hidden && (!entry.subscription?.healthy || entry.lease.pending ||
-                Date.now()-(entry.lastStateAt || 0)>=60000)) await refreshState(entry);
+                Date.now()-(entry.lastStateAt || 0)>=60000)) {
+                // State reads share the document queue and may wait on a slow save.
+                // They must not delay scheduling the next private-lease heartbeat.
+                if(!entry.refreshing)refreshState(entry).catch(()=>{});
+            }
         }
         catch(error) {if(entry===active){if(!entry.stateError)entry.feedback=error.message;render();}}
         finally {entry.ticking=false;}

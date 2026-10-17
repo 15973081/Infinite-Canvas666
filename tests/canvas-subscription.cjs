@@ -4,13 +4,13 @@ const Subscription=require('../static/js/canvas-subscription.js');
 const settle=()=>new Promise(setImmediate);
 const state=(extra={})=>({type:'canvas_state',workspace_id:'space',canvas_id:'a',sequence:1,revision:3,generation:2,stamp:'one',maintenance:{mode:'normal'},...extra});
 function fixture(){
-    const sockets=[],messages=[],errors=[],timers=new Map();let serial=0,valid=true;
+    const sockets=[],messages=[],errors=[],failures=[],timers=new Map();let serial=0,valid=true;
     const subscription=new Subscription({id:'a',workspace:'space',url:'ws://canvas.test/ws/canvases/a?workspace=space&member=me',
-        onChange:value=>messages.push(value),onDisconnect:value=>errors.push(value),valid:()=>valid,
+        onChange:value=>messages.push(value),onDisconnect:(value,detail)=>{errors.push(value);failures.push(detail);},valid:()=>valid,
         delay:(fn,ms)=>{timers.set(++serial,{fn,ms});return serial;},cancel:id=>timers.delete(id),
         socketFactory:url=>{const socket={url,close(code=1006){this.closed=true;this.onclose?.({code});}};sockets.push(socket);return socket;}});
     const send=(value,socket=sockets.at(-1))=>socket.onmessage({data:JSON.stringify(value)});
-    subscription.start();return {subscription,sockets,messages,errors,timers,send,setValid:value=>valid=value};
+    subscription.start();return {subscription,sockets,messages,errors,failures,timers,send,setValid:value=>valid=value};
 }
 test('only the bound canvas and workspace with increasing sequence can notify',async()=>{
     const f=fixture();
@@ -32,6 +32,7 @@ test('replayed or rolled-back generations cannot overwrite newer state even afte
         const f=fixture();f.send(state());await settle();f.sockets[0].close();f.timers.get(f.subscription.retry).fn();
         f.send(state(extra));await settle();assert.equal(f.messages.length,1);assert.equal(f.subscription.stopped,true);
         assert.match(f.errors.at(-1),/版本发生回退/);
+        assert.equal(f.failures.at(-1).fatal,true);
     }
 });
 test('heartbeats keep transport live without repeatedly refreshing the document',async()=>{
@@ -40,12 +41,24 @@ test('heartbeats keep transport live without repeatedly refreshing the document'
     f.send(state({sequence:2}));await settle();assert.equal(f.messages.length,1);assert.equal(f.timers.has(first),false);
     f.timers.get(f.subscription.watchdog).fn();assert.equal(f.sockets[0].closed,true);assert.equal(f.errors.length,1);
     assert.equal(f.subscription.healthy,false);
+    assert.notEqual(f.failures.at(-1)?.fatal,true,'transport timeout is not a revocation');
 });
 test('intentional stop and account changes suppress old callbacks; revoked subscriptions do not retry',async()=>{
     const f=fixture();f.setValid(false);f.send(state());await settle();assert.equal(f.messages.length,0);
     f.subscription.stop();f.sockets[0].onclose({code:1006});assert.equal(f.errors.length,0);
     const other=fixture();other.sockets[0].close(1008);assert.equal(other.subscription.stopped,true);
     assert.equal(other.timers.size,0);assert.match(other.errors[0],/权限已失效/);
+    assert.equal(other.failures[0].fatal,true);
+});
+
+test('state-refresh transport failures are recoverable while authorization failures are fatal',async()=>{
+    for(const status of [503,401,403,404]){
+        const f=fixture();
+        f.subscription.onChange=async()=>{const error=new Error('refresh failed');error.status=status;throw error;};
+        f.send(state());await settle();
+        assert.equal(f.failures.at(-1).fatal,status!==503);
+        f.subscription.stop();
+    }
 });
 
 test('default browser timers are called without a subscription receiver',()=>{

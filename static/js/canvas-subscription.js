@@ -37,13 +37,14 @@
                     typeof value.stamp!=='string' || !value.maintenance || typeof value.maintenance.mode!=='string')return;
                 sequence=value.sequence;
                 if(value.revision<this.revision || value.generation<this.generation) {
-                    this.stop();this.onDisconnect('服务器版本发生回退，已暂停编辑，请保留草稿并重新打开画布。');return;
+                    this.stop();this.onDisconnect('服务器版本发生回退，已暂停编辑，请保留草稿并重新打开画布。',{fatal:true});return;
                 }
                 this.revision=value.revision;this.generation=value.generation;this.attempt=0;this.healthy=true;watch();
                 const next=[value.revision,value.generation,value.stamp].join(':');
                 if(next===marker)return;marker=next;
-                Promise.resolve().then(()=>{if(current())return this.onChange(value);}).catch(()=>{
-                    if(current())this.onDisconnect('画布状态更新失败，请保留草稿；查看状态由轮询补充。');
+                Promise.resolve().then(()=>{if(current())return this.onChange(value);}).catch(error=>{
+                    if(current())this.onDisconnect('画布状态更新失败，正在重新核对；查看状态由轮询补充。',
+                        {fatal:[401,403,404].includes(error?.status)});
                 });
             };
             socket.onerror=()=>{if(current())socket.close();};
@@ -51,9 +52,9 @@
                 if(!current())return;
                 this.socket=null;this.healthy=false;this.cancel(this.watchdog);
                 if(event.code===1008) {
-                    this.stop();this.onDisconnect('画布订阅权限已失效，请检查账号与空间；当前草稿保留。');return;
+                    this.stop();this.onDisconnect('画布订阅权限已失效，请检查账号与空间；当前草稿保留。',{fatal:true});return;
                 }
-                this.onDisconnect('实时连接中断，已暂停编辑；连接恢复后请重新确认编辑资格。');this.reconnect();
+                this.onDisconnect('实时通知连接中断，正在重连；编辑资格由服务端续期核对。');this.reconnect();
             };
         }
     }

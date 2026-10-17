@@ -45,7 +45,7 @@ test('healthy idle subscription suppresses transfer polling but keeps a minute f
     const f=fixture();await f.mount();await new Promise(setImmediate);
     const entry=f.api.active;entry.subscription={healthy:true};
     const count=()=>f.calls.filter(([path])=>path.endsWith('/transfers')).length;
-    const tick=()=>[...f.timers].find(([id])=>f.delays.get(id)===15000)[1]();
+    const tick=async()=>{await [...f.timers].find(([id])=>f.delays.get(id)===15000)[1]();await new Promise(setImmediate);};
     assert.equal(count(),1);assert.equal(f.delays.get(entry.reportTimer),20000);
     await tick();assert.equal(count(),1);
     entry.lastStateAt=Date.now()-61000;await tick();assert.equal(count(),2);
@@ -66,6 +66,23 @@ test('hidden editor renews at the server heartbeat without transfer requests',as
     assert.deepEqual(f.calls.slice(before).map(([path])=>path),['/api/canvases/a/edit-lease/renew']);
     assert.ok([...f.delays.values()].includes(10000));assert.equal(entry.lease.canSave,true);
     entry.reportSuspended=true;const suspended=f.calls.length;await tick();assert.equal(f.calls.length,suspended);
+});
+
+test('slow occupancy reads cannot stall private heartbeat scheduling',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);
+    const entry=f.api.active;await entry.lease.start(async()=>({revision:3}));
+    let complete;entry.lease.transport=async(path,init)=>{
+        f.calls.push([path,init]);
+        if(path.endsWith('/transfers'))return new Promise(resolve=>{complete=()=>resolve(reply({lease:status,requests:[]}));});
+        return reply({...status,heartbeat_seconds:5});
+    };
+    const first=[...f.timers].find(([id])=>f.delays.get(id)===15000)[1];
+    await first();await new Promise(setImmediate);assert.ok(complete);
+    const next=[...f.timers].find(([id])=>f.delays.get(id)===5000);
+    assert.ok(next,'next heartbeat is scheduled while status read is still pending');
+    await next[1]();
+    assert.equal(f.calls.filter(([path])=>path.endsWith('/renew')).length,2);
+    assert.equal(entry.lease.canEdit,true);complete();await new Promise(setImmediate);
 });
 test('opening a member canvas only observes; saves require explicit start',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);
@@ -399,7 +416,7 @@ test('subscription refreshes clean viewers but never replaces dirty documents',a
     assert.equal(refreshes,1);assert.equal(revision,4);
 });
 
-test('subscription loss pauses editing without release; reconnect cannot auto-resume or reload a draft',async()=>{
+test('transient subscription loss retains the private lease and draft across repeated reconnects',async()=>{
     const f=fixture();let dirty=false;
     f.context.CanvasSubscription=class {constructor(options){this.options=options;}start(){}stop(){this.stopped=true;}};
     f.context.CanvasSession.socketUrl=value=>value;
@@ -407,11 +424,35 @@ test('subscription loss pauses editing without release; reconnect cannot auto-re
         refresh:async()=>assert.fail('draft overwritten'),reload:async()=>({revision:3}),flush:async()=>true});
     await new Promise(setImmediate);const entry=f.api.active;
     await entry.lease.start(async()=>({revision:3}));dirty=true;
-    entry.subscription.options.onDisconnect('连接中断');await new Promise(setImmediate);
-    assert.equal(entry.lease.state,'paused');assert.equal(entry.lease.canSave,false);assert.equal(f.records.size,1);
+    const token=entry.lease.token,epoch=entry.lease.epoch;
+    entry.lease.transport=async(path,init)=>{
+        f.calls.push([path,init]);
+        return reply(path.endsWith('/transfers')?{lease:status,requests:[]}:status);
+    };
+    for(let i=0;i<3;i++){
+        await entry.subscription.options.onDisconnect('实时通知中断');await new Promise(setImmediate);
+        assert.equal(entry.lease.canEdit,true);assert.equal(entry.lease.token,token);assert.equal(entry.lease.epoch,epoch);
+        await entry.subscription.options.onChange({maintenance:{mode:'normal'}});
+    }
     assert.equal(f.calls.some(([path])=>path.endsWith('/release')),false);
-    await entry.subscription.options.onChange({maintenance:{mode:'normal'}});
-    assert.equal(entry.lease.state,'paused');assert.equal(entry.lease.canSave,false);
+    assert.equal(f.calls.filter(([path])=>path.endsWith('/acquire')).length,1);
+    assert.equal(f.calls.filter(([path])=>path.endsWith('/renew')).length,3);
+});
+
+test('revoked subscriptions and rejected private renewals still pause without automatic reacquisition',async()=>{
+    for(const fatal of [true,false]){
+        const f=fixture();f.context.CanvasSubscription=class {constructor(options){this.options=options;}start(){}stop(){}};
+        f.context.CanvasSession.socketUrl=value=>value;
+        await f.api.mount({id:'a',dirty:()=>true,snapshot:()=>({id:'a',revision:3,nodes:[{text:'draft'}]}),
+            refresh:async()=>assert.fail('draft overwritten'),reload:async()=>({revision:3}),flush:async()=>true});
+        await new Promise(setImmediate);const entry=f.api.active;
+        await entry.lease.start(async()=>({revision:3}));
+        entry.lease.transport=async()=>reply({detail:{code:'canvas_lease_lost'}},409);
+        await entry.subscription.options.onDisconnect('连接异常',{fatal});await new Promise(setImmediate);
+        assert.equal(entry.lease.canEdit,false);assert.equal(entry.lease.state,'paused');assert.equal(f.records.size,1);
+        assert.equal(f.calls.filter(([path])=>path.endsWith('/acquire')).length,1);
+        assert.equal(f.calls.some(([path])=>path.endsWith('/release')),false);
+    }
 });
 
 test('canceling start with unsaved work never downloads a draft',async()=>{
@@ -522,7 +563,7 @@ test('failed occupancy refresh is explicit and manual recovery never acquires a 
     entry.lease.emit();assert.match(entry.label.textContent,/乙 正在编辑/);
     entry.lease.transport=async()=>{throw new Error('offline');};
     const tick=[...f.timers].find(([id])=>f.delays.get(id)===15000)[1];
-    await tick();assert.equal(entry.label.textContent,'占用状态待确认');
+    await tick();await new Promise(setImmediate);assert.equal(entry.label.textContent,'占用状态待确认');
     assert.match(entry.notice.textContent,/刷新占用状态/);
     const all=node=>[node,...(node.children||[]).flatMap(all)];
     const refresh=all(entry.bar).find(node=>node.textContent==='刷新占用状态');
