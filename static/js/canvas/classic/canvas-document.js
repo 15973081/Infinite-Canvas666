@@ -16,12 +16,14 @@ function scheduleSave(){
     localCanvasDirty = true;
     window.MemberCanvasEdit?.markDirty();
     setStatus('Saving...');
+    // Keep the idle deadline even when an earlier save is still in flight.
+    scheduleSave.lastEditAt = Date.now();
     clearTimeout(saveTimer);
     if(savingCanvasNow){
         saveCanvasAgain = true;
         return;
     }
-    saveTimer = setTimeout(saveCanvas, 1500);
+    saveTimer = setTimeout(saveCanvas, 5000);
 }
 
 function serializableCanvasNode(node){
@@ -137,7 +139,7 @@ async function saveCanvas(){
             saveCanvasAgain = false;
             localCanvasDirty = true;
             clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveCanvas, 1500);
+            saveTimer = setTimeout(saveCanvas, Math.max(0, 5000 - (Date.now() - (scheduleSave.lastEditAt ?? Date.now()))));
         }
     }
 }

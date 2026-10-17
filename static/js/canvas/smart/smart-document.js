@@ -494,6 +494,8 @@ function scheduleSave(){
     smartCanvasDirty = true;
     window.MemberCanvasEdit?.markDirty();
     syncPixmaxSaveStatus();
+    // Keep the idle deadline even when an earlier save is still in flight.
+    scheduleSave.lastEditAt = Date.now();
     clearTimeout(saveTimer);
     if(smartSaveInFlight){
         smartSaveAgain = true;
@@ -502,7 +504,7 @@ function scheduleSave(){
     saveTimer = setTimeout(() => {
         saveTimer = null;
         saveCanvas();
-    }, 450);
+    }, 5000);
 }
 
 async function saveCanvas(options={}){
@@ -621,7 +623,7 @@ async function saveCanvas(options={}){
             saveTimer = setTimeout(() => {
                 saveTimer = null;
                 saveCanvas();
-            }, 300);
+            }, Math.max(300, 5000 - (Date.now() - (scheduleSave.lastEditAt ?? Date.now()))));
         }
     }
 }
