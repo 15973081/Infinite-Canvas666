@@ -69,6 +69,20 @@ test('hidden editor renews at the server heartbeat without transfer requests',as
     entry.reportSuspended=true;const suspended=f.calls.length;await tick();assert.equal(f.calls.length,suspended);
 });
 
+test('transient renewal failure schedules a two-second retry and clears recovered feedback',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);
+    const entry=f.api.active;await entry.lease.start(async()=>({revision:3}));
+    f.context.document.hidden=true;
+    let fail=true;entry.lease.transport=async()=>{if(fail)throw new TypeError('network');return reply({...status,heartbeat_seconds:10});};
+    await [...f.timers].find(([id])=>f.delays.get(id)===15000)[1]();
+    assert.equal(entry.lease.canEdit,true);assert.equal(entry.lease.renewRetry,true);assert.ok(entry.feedback);
+    const retry=[...f.timers].find(([id])=>f.delays.get(id)===2000);assert.ok(retry);
+    fail=false;await retry[1]();
+    assert.equal(entry.lease.canEdit,true);assert.equal(entry.feedback,'');assert.equal(entry.lease.renewRetry,false);
+    assert.ok([...f.delays.values()].includes(10000));
+    assert.equal(f.calls.filter(([path])=>path.endsWith('/acquire')).length,1);
+});
+
 test('slow occupancy reads cannot stall private heartbeat scheduling',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);
     const entry=f.api.active;await entry.lease.start(async()=>({revision:3}));

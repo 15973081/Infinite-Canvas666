@@ -1270,7 +1270,7 @@ def move_canvas_to_folder(canvas_id: str, payload: CanvasMoveRequest):
 
 @router.get("/api/canvases/{canvas_id}")
 def get_canvas(canvas_id: str):
-    return {"canvas": load_canvas(canvas_id), "save_protocol": "graph-delta-v1" if postgres_enabled() else None}
+    return {"canvas": load_canvas(canvas_id), "save_protocol": "graph-delta-v2" if postgres_enabled() else None}
 
 @router.post("/api/canvases/{canvas_id}/touch")
 def touch_canvas(canvas_id: str):
@@ -1565,7 +1565,7 @@ async def trim_smart_canvas_video(payload: SmartCanvasVideoTrimRequest):
 async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
     canvas = await run_in_threadpool(_save_canvas_update, canvas_id, payload)
     await manager.broadcast_canvas_updated(canvas_id, int(canvas.get("updated_at") or now_ms()), payload.client_id)
-    return {"canvas": canvas, "save_protocol": "graph-delta-v1" if postgres_enabled() else None}
+    return {"canvas": canvas, "save_protocol": "graph-delta-v2" if postgres_enabled() else None}
 
 
 @router.put("/api/canvases/{canvas_id}/delta")

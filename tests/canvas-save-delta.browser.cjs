@@ -19,7 +19,7 @@ for(const kind of ['smart','classic'])test(kind+': editor sends only changed nod
    }else Object.assign(record,body);
    record.updated_at++;record.revision++;
   }
-  return route.fulfill({json:{canvas:record,save_protocol:'graph-delta-v1'}});
+  return route.fulfill({json:{canvas:record,save_protocol:'graph-delta-v2'}});
  });
  await page.evaluate(async()=>{
   nodes=Array.from({length:40},(_,i)=>({id:'node-'+i,type:'text',x:i*10,y:0,width:200,height:150,text:'content '.repeat(150)}));
@@ -33,5 +33,17 @@ for(const kind of ['smart','classic'])test(kind+': editor sends only changed nod
  assert.ok(JSON.stringify(writes[1]).length<JSON.stringify(writes[0]).length/10);
  await page.evaluate(async()=>{scheduleSave();await MemberCanvasEdit.options.flush();});
  assert.equal(writes.length,2,'same content does not create another version');
+ // A delivery added and deleted between saves leaves the same graph, but the
+ // observed result version must still reach the server to persist the deletion.
+ record.nodes.push({id:'delivered',type:'text',text:'result'});record.task_result_version=1;
+ await page.evaluate(async()=>{
+  nodes.push({id:'delivered',type:'text',text:'result'});canvas.task_result_version=1;
+  nodes=nodes.filter(node=>node.id!=='delivered');scheduleSave();await MemberCanvasEdit.options.flush();
+ });
+ assert.equal(writes.length,3,'intentional deletion is not skipped as unchanged');
+ assert.equal(writes[2].graph_delta,undefined);assert.equal(writes[2].task_result_version,1);
+ assert.equal(record.nodes.some(node=>node.id==='delivered'),false);
+ await page.evaluate(async()=>{nodes[3].x=4321;scheduleSave();await MemberCanvasEdit.options.flush();});
+ assert.equal(writes[3].graph_delta.base_task_result_version,1,'ordinary edits return to deltas after reconciliation');
  assert.deepEqual(errors,[]);
 });

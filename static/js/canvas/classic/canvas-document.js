@@ -67,7 +67,8 @@ function canvasSaveSnapshot(payload){
         cover:payload.cover || null,
         nodes:payload.nodes || [],
         connections:payload.connections || [],
-        logs:payload.logs || []
+        logs:payload.logs || [],
+        task_result_version:payload.task_result_version || 0
     });
 }
 

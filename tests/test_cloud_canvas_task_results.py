@@ -506,3 +506,97 @@ def test_concurrent_workers_deliver_each_task_once(world, tmp_path):
         document = canvases.get(canvas['id'])
         assert document['task_result_version'] == 2
         assert {node['result_task_id'] for node in document['nodes']} == set(task_ids)
+
+
+def _browser_save_wire(base, submitted, acknowledged=None):
+    """Use the shipping JS encoder, including its previous-submit cache."""
+    import json
+    import subprocess
+    script = r'''
+const fs=require('fs'),vm=require('vm');
+const [base,next,ack]=JSON.parse(fs.readFileSync(0,'utf8'));
+const window={CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w'}}}};
+let wire,prime=Boolean(ack);
+const fetch=async(path,init={})=>{
+ if(init.method==='PUT'){
+  wire=JSON.parse(init.body);
+  if(prime){prime=false;return new Response(JSON.stringify({canvas:ack,save_protocol:'graph-delta-v2'}));}
+  return new Response('{}',{status:400});
+ }
+ return new Response(JSON.stringify({canvas:base,save_protocol:'graph-delta-v2'}));
+};
+vm.runInNewContext(fs.readFileSync('static/js/canvas-api.js','utf8'),{window,fetch,Response});
+(async()=>{
+ await window.CanvasApi.getCanvas(base.id);
+ if(ack)await window.CanvasApi.saveCanvas(base.id,{...base,title:ack.title,base_updated_at:base.updated_at});
+ await window.CanvasApi.saveCanvas(base.id,next);
+ process.stdout.write(JSON.stringify(wire));
+})();
+'''
+    result = subprocess.run(['node', '-e', script], input=json.dumps([base, submitted, acknowledged]),
+                            text=True, capture_output=True, check=True)
+    return json.loads(result.stdout)
+
+
+@pytest.mark.parametrize('kind', ['smart', 'classic'])
+@pytest.mark.parametrize('scenario', ['delivered_create', 'deleted_result', 'unseen_reorder'])
+def test_delta_reconciles_background_results_without_losing_edits(world, tmp_path, kind, scenario):
+    import copy
+    from app.storage import database
+    from app.storage.workspace import workspace_scope
+    from app.services.canvas_task_results import deliver_completed
+    path, _ = setup_canvas(world, kind)
+    lease = acquire(world, path)
+    client = world['editor']
+    result = client.put(path, headers=proof(world, lease), json={
+        'base_revision': lease['revision'], 'title': 'base',
+        'nodes': [{'id': str(i), 'type': 'prompt', 'text': 'x' * 1000} for i in range(40)]})
+    assert result.status_code == 200, result.text
+    base = result.json()['canvas']
+    tid, _ = result_task(world, base, tmp_path)
+    with workspace_scope(world['a']['id']), database.connection() as conn:
+        assert deliver_completed(conn, tid)
+    delivered = client.get(path, headers=headers(world['a'])).json()['canvas']
+    assert delivered['revision'] == base['revision'] and delivered['updated_at'] == base['updated_at']
+    acknowledged = None
+    if scenario == 'delivered_create':
+        payload = copy.deepcopy(delivered)
+        payload['nodes'][0]['text'] = 'user edit'
+    elif scenario == 'deleted_result':
+        # Server merges an unseen delivery into this save acknowledgement.
+        result = client.put(path, headers=proof(world, lease, base['revision']), json={
+            **base, 'title': 'renamed', 'base_revision': base['revision'], 'task_result_version': 0})
+        assert result.status_code == 200, result.text
+        acknowledged = result.json()['canvas']
+        payload = {**acknowledged, 'nodes': copy.deepcopy(base['nodes']), 'task_result_version': 1}
+    else:
+        payload = copy.deepcopy(base)
+        payload['nodes'].reverse()  # Delivery is still unseen when this diff is built.
+    version = acknowledged or base
+    payload.update(base_updated_at=version['updated_at'], base_revision=version['revision'])
+    wire = _browser_save_wire(base, payload, acknowledged)
+    if scenario == 'unseen_reorder':
+        assert wire.get('graph_delta')
+        rejected = client.put(path + '/delta', headers=proof(world, lease, version['revision']), json=wire)
+        assert rejected.status_code == 409, rejected.text
+        assert rejected.json()['detail']['code'] == 'canvas_delta_delivery_changed'
+        assert client.get(path, headers=headers(world['a'])).json()['canvas'] == delivered
+        wire = payload  # CanvasApi's single full-snapshot retry.
+    else:
+        assert 'graph_delta' not in wire
+    saved = client.put(path, headers=proof(world, lease, version['revision']), json=wire)
+    assert saved.status_code == 200, saved.text
+    record = client.get(path, headers=headers(world['a'])).json()['canvas']
+    result_nodes = [node for node in record['nodes'] if node.get('result_task_id') == tid]
+    assert len(result_nodes) == (0 if scenario == 'deleted_result' else 1)
+    assert record['nodes'][:40] == payload['nodes'][:40]
+    assert record['revision'] == version['revision'] + 1
+    # Subsequent ordinary edits can use deltas again at the acknowledged result version.
+    next_payload = {**copy.deepcopy(record), 'base_updated_at': record['updated_at'], 'base_revision': record['revision']}
+    next_payload['nodes'][0]['text'] = 'next edit'
+    next_wire = _browser_save_wire(record, next_payload)
+    assert next_wire['graph_delta']['base_task_result_version'] == 1
+    saved = client.put(path + '/delta', headers=proof(world, lease, record['revision']), json=next_wire)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()['canvas']['nodes'][0]['text'] == 'next edit'
+    assert len([node for node in saved.json()['canvas']['nodes'] if node.get('result_task_id') == tid]) == len(result_nodes)

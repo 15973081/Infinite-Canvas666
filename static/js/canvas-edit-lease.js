@@ -7,11 +7,11 @@
             this.state = 'view'; this.status = null; this.token = null; this.generation = null;
             this.revision = null; this.deadline = 0; this.epoch = 0; this.tail = Promise.resolve();
             this.message = ''; this.maintenance = 'normal'; this.finishing = false;
-            this.pending = null; this.requests = [];
+            this.pending = null; this.requests = []; this.renewRetry = false;
         }
         emit() { this.changed(this); }
         pause(message='连接已中断，请保留草稿并重新开始编辑。') {
-            this.epoch++; this.token = null; this.pending = null; this.deadline = 0; this.state = 'paused'; this.message = message; this.emit();
+            this.epoch++; this.token = null; this.pending = null; this.deadline = 0; this.renewRetry = false; this.state = 'paused'; this.message = message; this.emit();
         }
         get canSave() {
             if (this.token && ['read_only','offline','recovering'].includes(this.maintenance)) this.pause('维护已开始，请保留草稿。');
@@ -34,16 +34,24 @@
             return {'X-Canvas-Edit-Token':this.token, 'X-Canvas-Generation':String(this.generation), 'X-Canvas-Revision':String(this.revision)};
         }
         async request(suffix, init={}) {
-            const response = await this.transport(`/api/canvases/${encodeURIComponent(this.id)}/edit-lease${suffix}`, {
-                cache:'no-store', ...init, signal:AbortSignal.timeout(15000)
-            });
-            const data = await response.json();
+            let response;
+            try {
+                response = await this.transport(`/api/canvases/${encodeURIComponent(this.id)}/edit-lease${suffix}`, {
+                    cache:'no-store', ...init, signal:AbortSignal.timeout(15000)
+                });
+            } catch (cause) {
+                const error = new Error('连接暂时中断，正在重试。', {cause});
+                error.retryableTransport = true; throw error;
+            }
+            const data = await response.json().catch(error => {if(response.ok)throw error;return {};});
             if (!response.ok) {
                 const error = new Error({canvas_locked:'已有成员正在编辑。',canvas_lease_lost:'编辑资格已失效，请保留草稿。',
                     canvas_revision_conflict:'服务器版本已改变，请保留草稿后重新载入。',permission_denied:'当前角色没有操作权限。',
                     canvas_transfer_expired:'接手申请已过期或已处理。',canvas_transfer_recipient_changed:'申请人的权限已改变，不能交接。',
                     canvas_transfer_no_holder:'画布目前无人编辑，可以直接开始编辑。',canvas_takeover_confirmation_required:'编辑状态已改变，请重新确认接管。'}[data.detail?.code] || '编辑请求未完成，请刷新状态后重试。');
-                error.data = data.detail; error.status = response.status; throw error;
+                error.data = data.detail; error.status = response.status;
+                error.retryableTransport = [408,429,502,503,504].includes(response.status) && !data.detail?.code;
+                throw error;
             }
             return data;
         }
@@ -121,8 +129,18 @@
                     if (epoch !== this.epoch) return;
                     this.accept(data, sentAt);
                     // A heartbeat acknowledges ownership, never a document revision.
+                    this.renewRetry = false;
                     this.emit();
-                } catch (error) { if (epoch === this.epoch) this.pause(error.message); throw error; }
+                } catch (error) {
+                    if (epoch === this.epoch) {
+                        if(error.retryableTransport && this.canSave){
+                            // Keep only the already-proven lease lifetime. No
+                            // extension, acquisition or revival from a failed call.
+                            this.renewRetry = true; this.emit();
+                        } else this.pause(error.message);
+                    }
+                    throw error;
+                }
             })();
             this.renewing=request.finally(()=>{this.renewing=null;});
             return this.renewing;
@@ -131,7 +149,11 @@
             // Finish outstanding heartbeats before releasing/transferring ownership;
             // a late rejected heartbeat must not invalidate a successful handoff.
             this.settlingOwnership=true;
-            try {await this.renewing;return await operation();}
+            try {
+                try {await this.renewing;}
+                catch(error){if(!error.retryableTransport || !this.canSave)throw error;}
+                return await operation();
+            }
             finally {this.settlingOwnership=false;}
         }
         async restoreDraft(baseRevision, apply) {
@@ -263,7 +285,9 @@
                     if (!response.ok) {
                         const taskSubmission = /^\/api\/canvas-(image|video|llm|audio|model)-tasks$/.test(new URL(path, 'http://canvas.local').pathname);
                         const rejectedModel = taskSubmission && response.status === 403 && ['model_not_available','model_resolution_not_allowed'].includes(data.detail?.code);
-                        if (!rejectedModel && ([401,403,409,423,428,503].includes(response.status) || response.status >= 500)) {
+                        const changedDelivery = wholeCanvas && new URL(path,'http://canvas.local').pathname.endsWith('/delta')
+                            && response.status===409 && data.detail?.code==='canvas_delta_delivery_changed';
+                        if (!rejectedModel && !changedDelivery && ([401,403,409,423,428,503].includes(response.status) || response.status >= 500)) {
                             const reason = typeof data.detail === 'string' ? data.detail : data.detail?.message;
                             this.pause((reason ? reason + ' ' : '') + '写入未完成，已停止自动重试，请保留草稿。');
                         }

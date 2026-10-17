@@ -521,7 +521,11 @@
         if(entry.ticking)return;
         entry.ticking=true;
         try {
-            if(entry.lease.canSave) await entry.lease.renew();
+            if(entry.lease.canSave){
+                const retrying=entry.lease.renewRetry;
+                await entry.lease.renew();
+                if(retrying){entry.feedback='';render();}
+            }
             // Real-time hints handle changes. HTTP is a slower fallback; renewals
             // remain independent of visibility so a hidden editor cannot lose its lock.
             if(!document.hidden && (!entry.subscription?.healthy || entry.lease.pending ||
@@ -533,7 +537,7 @@
         }
         catch(error) {if(entry===active){if(!entry.stateError)entry.feedback=error.message;render();}}
         finally {entry.ticking=false;}
-        const delay=entry.lease.canSave ? Math.max(1000,Math.min(10000,(entry.lease.status?.heartbeat_seconds || 5)*1000)) :
+        const delay=entry.lease.canSave ? (entry.lease.renewRetry ? 2000 : Math.max(1000,Math.min(10000,(entry.lease.status?.heartbeat_seconds || 5)*1000))) :
             entry.lease.pending ? 5000 : 15000;
         if(validEntry(entry)) timer=setTimeout(() => tick(entry),delay);
     }

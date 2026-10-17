@@ -18,6 +18,12 @@ def expand_canvas_delta(canvas, payload):
             delta.base_revision != canvas.get('revision')):
         raise HTTPException(409, {'code': 'canvas_delta_conflict',
                                  'message': '增量基准已变化，请重新加载后合并', 'canvas': canvas})
+    # Worker deliveries change the graph without advancing the editor revision.
+    # Reject before applying any diff; the client may retry its frozen full
+    # snapshot, whose existing save path preserves all unseen deliveries.
+    if delta.base_task_result_version != (canvas.get('task_result_version') or 0):
+        raise HTTPException(409, {'code': 'canvas_delta_delivery_changed',
+                                 'message': '生成结果已更新，请使用完整快照保存'})
 
     def invalid():
         raise HTTPException(400, '画布增量格式或节点关系不一致')

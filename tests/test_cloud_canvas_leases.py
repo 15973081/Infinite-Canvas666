@@ -545,7 +545,7 @@ def test_directory_cover_style_persists_without_changing_content(world, kind):
 def test_graph_delta_saves_nodes_edges_and_preserves_metadata(world, kind):
     path, canvas = setup_canvas(world, kind); lease = acquire(world, path)
     client = world['editor']; head = headers(world['a'])
-    assert client.get(path, headers=head).json()['save_protocol'] == 'graph-delta-v1'
+    assert client.get(path, headers=head).json()['save_protocol'] == 'graph-delta-v2'
     saved = client.put(path, headers=proof(world, lease), json={
         'base_revision': lease['revision'], 'title':'Keep title', 'settings':{'custom':'keep'},
         'nodes':[{'id':'a','x':0},{'id':'b','x':10}], 'connections':[{'from':'a','to':'b'}]})

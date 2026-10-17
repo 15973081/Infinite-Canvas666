@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('static/js/canvas-api.js','utf8');
 const clone=value=>JSON.parse(JSON.stringify(value));
-function setup(protocol='graph-delta-v1'){
+function setup(protocol='graph-delta-v2'){
  let document={id:'test',revision:1,updated_at:10,title:'Test',nodes:Array.from({length:100},(_,i)=>({id:'n'+i,x:i,text:'x'.repeat(1000)})),connections:[{from:'n0',to:'n1'}],logs:[]};
  const calls=[];let hold=null,fail=false;
  const window={CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w'}}}};
@@ -48,8 +48,58 @@ test('acknowledgement cannot include edits made during the request',async()=>{
  assert.equal(h.calls.length,2);assert.equal(h.calls[0].graph_delta.update[0].x,111);assert.equal(h.calls[1].graph_delta.update[0].x,222);
 });
 test('old servers and changed workspace use full saves; failed saves never acknowledge changes',async()=>{
- const old=setup(null);await old.api.getCanvas('test');let p=old.payload();p.nodes[0].x=99;await old.api.saveCanvas('test',p);assert.ok(old.calls[0].nodes);
- const h=setup();await h.api.getCanvas('test');h.window.CanvasSession.context.workspace.id='other';p=h.payload();p.nodes[0].x=99;await h.api.saveCanvas('test',p);assert.ok(h.calls[0].nodes);
+ for(const protocol of [null,'graph-delta-v1']){
+  const old=setup(protocol);await old.api.getCanvas('test');let p=old.payload();p.nodes[0].x=99;await old.api.saveCanvas('test',p);assert.ok(old.calls[0].nodes);
+ }
+ const h=setup();await h.api.getCanvas('test');h.window.CanvasSession.context.workspace.id='other';let p=h.payload();p.nodes[0].x=99;await h.api.saveCanvas('test',p);assert.ok(h.calls[0].nodes);
  h.fail();p=h.payload();p.nodes[0].x=101;assert.equal((await h.api.saveCanvas('test',p)).status,409);
  await h.api.saveCanvas('test',p);assert.equal(h.calls.length,3);
+});
+
+test('observing a new result version reconciles with a full snapshot then resumes deltas',async()=>{
+ const h=setup();await h.api.getCanvas('test');
+ h.doc.nodes.push({id:'delivered',text:'result'});h.doc.task_result_version=1;
+ let p=h.payload();p.nodes[0].x=17;await h.api.saveCanvas('test',p);
+ assert.ok(h.calls[0].nodes);assert.equal(h.calls[0].graph_delta,undefined);
+ p=h.payload();p.nodes=p.nodes.filter(n=>n.id!=='delivered');await h.api.saveCanvas('test',p);
+ assert.deepEqual(h.calls[1].graph_delta.delete,['delivered']);assert.equal(h.calls[1].graph_delta.base_task_result_version,1);
+ assert.equal(h.doc.nodes.some(n=>n.id==='delivered'),false);
+});
+
+test('delivery race retries one frozen full snapshot through the lease; ordinary conflicts never retry',async()=>{
+ const Lease=require('../static/js/canvas-edit-lease.js');
+ for(const outcome of ['recover','full-conflict','lease-conflict','epoch-change']){
+  let record={id:'test',revision:1,updated_at:10,title:'Test',nodes:Array.from({length:40},(_,i)=>({id:'n'+i,text:'x'.repeat(1000)})),connections:[],task_result_version:0};
+  const calls=[];let payload;
+  const grant={canvas_id:'test',revision:1,generation:1,holder:{is_self:true},server_time:'2026-10-17T00:00:00Z',expires_at:'2026-10-17T00:01:00Z',edit_token:'test-private'};
+  let lease;
+  const transport=async(path,init={})=>{
+   if(path.endsWith('/acquire'))return new Response(JSON.stringify(grant));
+   if(init.method==='PUT'){
+    const body=JSON.parse(init.body);calls.push(body);
+    assert.equal(new Headers(init.headers).get('X-Canvas-Edit-Token'),'test-private');
+    if(path.endsWith('/delta')){
+     payload.nodes[0].text='later edit';
+     if(outcome==='epoch-change')lease.pause('taken over');
+     return new Response(JSON.stringify({detail:{code:outcome==='lease-conflict'?'canvas_revision_conflict':'canvas_delta_delivery_changed'}}),{status:409});
+    }
+    if(outcome==='full-conflict')return new Response(JSON.stringify({detail:{code:'canvas_revision_conflict'}}),{status:409});
+    record={...record,...body,revision:2,updated_at:11};
+   }
+   return new Response(JSON.stringify({canvas:record,save_protocol:'graph-delta-v2'}));
+  };
+  lease=new Lease({id:'test',fetch:transport,now:()=>0});
+  const window={CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w'}}},MemberCanvasEdit:{active:{lease},send:(path,init)=>init.method==='PUT'?lease.write(path,init,transport):transport(path,init)}};
+  vm.runInNewContext(source,{window,fetch:transport,Response});
+  await lease.start(async()=>(await window.CanvasApi.getCanvas('test')).canvas);
+  payload={...clone(record),base_updated_at:10};payload.nodes[0].text='submitted edit';
+  if(outcome==='epoch-change')await assert.rejects(window.CanvasApi.saveCanvas('test',payload));
+  else {
+   const result=await window.CanvasApi.saveCanvas('test',payload);
+   assert.equal(result.status,outcome==='recover'?200:409);
+  }
+  assert.equal(calls.length,['recover','full-conflict'].includes(outcome)?2:1);
+  if(calls.length===2){assert.equal(calls[1].nodes[0].text,'submitted edit');assert.equal(calls[1].base_updated_at,10);}
+  assert.equal(lease.canEdit,outcome==='recover');
+ }
 });

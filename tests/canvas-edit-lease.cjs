@@ -95,6 +95,41 @@ test('renewal extends time but never replaces the acknowledged document revision
     assert.equal(f.lease.revision,3);
 });
 
+test('temporary renewal failures retain only the original lifetime and recover without acquiring',async()=>{
+    for(const failure of [()=>{throw new TypeError('network');},()=>{throw new DOMException('timeout','TimeoutError');},
+        ()=>new Response('gateway unavailable',{status:502}),()=>json({},429)]){
+        let fail=true;
+        const f=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):fail?failure():json(publicLease()));
+        await f.start();f.setTime(10000);
+        await assert.rejects(f.lease.renew());
+        assert.equal(f.lease.canEdit,true);assert.equal(f.lease.token,'private');assert.equal(f.lease.deadline,60000);
+        assert.equal(f.lease.renewRetry,true);
+        fail=false;f.setTime(12000);await f.lease.renew();
+        assert.equal(f.lease.renewRetry,false);assert.equal(f.lease.deadline,72000);assert.equal(f.lease.revision,3);
+        assert.equal(f.calls.filter(([path])=>path.endsWith('/acquire')).length,1);
+    }
+});
+
+test('renewal retries cannot outlive the original lease or revive revoked ownership',async()=>{
+    const f=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):Promise.reject(new Error('network')));
+    await f.start();f.setTime(59000);await assert.rejects(f.lease.renew());assert.equal(f.lease.canSave,true);
+    f.setTime(60000);assert.equal(f.lease.canSave,false);assert.equal(f.lease.token,null);
+    const count=f.calls.length;await f.lease.renew();assert.equal(f.calls.length,count);
+    for(const [code,status] of [['canvas_lease_lost',409],['permission_denied',403],['maintenance_restricted',503]]){
+        const g=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):json({detail:{code}},status));
+        await g.start();await assert.rejects(g.lease.renew());assert.equal(g.lease.canEdit,false);assert.equal(g.lease.renewRetry,false);
+    }
+});
+
+test('only a rejected delta with changed deliveries preserves the private lease for full retry',async()=>{
+    for(const suffix of ['', '/delta']){
+        const f=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):
+            json({detail:{code:'canvas_delta_delivery_changed'}},409));
+        await f.start();const response=await f.lease.write('/api/canvases/a'+suffix,{method:'PUT',body:'{}'});
+        assert.equal(response.status,409);assert.equal(f.lease.canSave,suffix==='/delta');assert.equal(f.lease.revision,3);
+    }
+});
+
 test('heartbeat bypasses slow writes and coalesces renewals without resurrecting a lost lease',async()=>{
  let releaseWrite,releaseRenew;
  const writeGate=new Promise(resolve=>releaseWrite=resolve),renewGate=new Promise(resolve=>releaseRenew=resolve);
@@ -129,6 +164,17 @@ test('release waits for an in-flight heartbeat and prevents another renewal duri
  assert.equal(f.lease.renew(),renewal);
  releaseRenew();await renewal;assert.equal(await ending,true);
  assert.equal(f.lease.state,'view');assert.equal(f.calls.filter(([path])=>path.endsWith('/renew')).length,1);
+});
+
+test('ending editing can release a still-valid lease after a concurrent heartbeat network failure',async()=>{
+ let rejectRenew;
+ const gate=new Promise((_,reject)=>rejectRenew=reject);
+ const f=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):
+  path.endsWith('/renew')?gate:json({released:true,revision:3,generation:1}));
+ await f.start();const renewal=f.lease.renew();const rejected=assert.rejects(renewal);
+ const ending=f.lease.finish(async()=>true);await new Promise(setImmediate);
+ rejectRenew(new TypeError('network'));await rejected;assert.equal(await ending,true);
+ assert.equal(f.lease.state,'view');assert.equal(f.calls.at(-1)[0].endsWith('/release'),true);
 });
 test('writes serialize revision proofs, and release waits for acknowledged saves', async () => {
     let revision=3;

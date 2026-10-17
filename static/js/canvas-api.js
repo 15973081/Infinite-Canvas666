@@ -120,6 +120,7 @@
         const nodes=new Map(before.map(node=>[node.id,node])),current=new Map(after.map(node=>[node.id,node]));
         if(nodes.size!==before.length||current.size!==after.length||[...before,...after].some(node=>typeof node.id!=='string'||!node.id))return null;
         const delta={version:1,base_updated_at:document.updated_at,base_revision:document.revision??null,
+            base_task_result_version:document.task_result_version||0,
             create:after.filter(node=>!nodes.has(node.id)),
             update:after.filter(node=>nodes.has(node.id)&&stable(node)!==stable(nodes.get(node.id))),
             delete:before.filter(node=>!current.has(node.id)).map(node=>node.id)};
@@ -139,13 +140,19 @@
         // submission, never edits made while the request was in flight.
         const submitted=clone(payload),key=saveScope(id),saved=savedDocuments.get(key);
         const lease=window.MemberCanvasEdit?.active?.lease;
+        const leaseEpoch=lease?.epoch;
         const sameVersion=saved && Number(submitted.base_updated_at)===Number(saved.document.updated_at)
             && (!window.CanvasSession?.enabled || lease?.revision===undefined || lease.revision===saved.document.revision);
         let wire=submitted;
         if(sameVersion){
             const changed=contentFields.filter(field=>field in submitted && stable(submitted[field])!==stable(saved.submitted[field]));
             if(!changed.length)return new Response(JSON.stringify({canvas:clone(saved.document),unchanged:true}),{headers:{'Content-Type':'application/json'}});
-            if(saved.protocol==='graph-delta-v1'){
+            // A delivery may already exist on the server but not in the last
+            // submitted graph. Reconcile with a full snapshot until both sides
+            // acknowledge the same result version (including intentional deletes).
+            const sameResults=(submitted.task_result_version||0)===(saved.submitted.task_result_version||0)
+                && (submitted.task_result_version||0)===(saved.document.task_result_version||0);
+            if(saved.protocol==='graph-delta-v2' && sameResults){
                 const delta=graphDelta(saved.submitted,submitted,saved.document);
                 if(delta){
                     const compact={graph_delta:delta,client_id:submitted.client_id,base_updated_at:submitted.base_updated_at,
@@ -158,7 +165,16 @@
         try {
             // A distinct route makes an older/rolled-back server reject the
             // delta rather than interpreting omitted nodes as an empty canvas.
-            const response=await request(`/api/canvases/${encodeURIComponent(id)}${wire.graph_delta?'/delta':''}`, jsonBodyInit('PUT', wire));
+            let response=await request(`/api/canvases/${encodeURIComponent(id)}${wire.graph_delta?'/delta':''}`, jsonBodyInit('PUT', wire));
+            if(wire.graph_delta && response.status===409 && key===saveScope(id)
+                && (!lease || (lease===window.MemberCanvasEdit?.active?.lease && lease.epoch===leaseEpoch))){
+                const rejected=await response.clone().json().catch(()=>({}));
+                if(rejected.detail?.code==='canvas_delta_delivery_changed'){
+                    // Only this pre-write rejection is retryable, once, with the
+                    // original snapshot and version. Lease/epoch checks still run.
+                    response=await request(`/api/canvases/${encodeURIComponent(id)}`,jsonBodyInit('PUT',submitted));
+                }
+            }
             if(response.ok){
                 const data=await response.clone().json();
                 if(data.canvas?.id===id && key===saveScope(id))rememberSaved(key,data.canvas,submitted,data.save_protocol);

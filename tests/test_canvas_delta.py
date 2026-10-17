@@ -56,3 +56,14 @@ def test_connection_numbers_survive_javascript_json_roundtrip():
     doc=document();doc['connections'][0]['weight']=1.0
     result=expand_canvas_delta(doc,request(connections_remove=[{'from':'a','to':'b','weight':1}]))
     assert result.connections==[]
+
+
+def test_background_results_have_an_independent_delta_baseline():
+    doc=document();doc['task_result_version']=1
+    original=copy.deepcopy(doc)
+    with pytest.raises(HTTPException) as error:
+        expand_canvas_delta(doc,request(update=[{'id':'a','x':9}]))
+    assert error.value.status_code==409
+    assert error.value.detail['code']=='canvas_delta_delivery_changed'
+    assert doc==original
+    assert expand_canvas_delta(doc,request(base_task_result_version=1,update=[{'id':'a','x':9}])).nodes[0]['x']==9
