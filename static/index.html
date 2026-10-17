@@ -510,22 +510,18 @@
 
     <div class="app-shell">
         <a class="studio-desktop-brand shadox-wordmark" href="/" aria-label="shadox 工作台"><img src="/static/images/shadox-mark.svg" alt="">shadox</a>
-        <header class="studio-mobile-header"><button id="studioMobileMenu" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="studioSidebar"><svg data-tabler="menu-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span class="shadox-wordmark">shadox</span><span>创作工作台</span></header>
-        <button class="studio-sidebar-backdrop" id="studioSidebarBackdrop" type="button" aria-label="关闭导航" hidden></button>
         <aside class="sidebar" id="studioSidebar">
-            <div class="studio-sidebar-brand"><a class="shadox-wordmark" href="/" aria-label="shadox 工作台">shadox</a><button id="sidebarLogoToggle" type="button" class="studio-sidebar-toggle" onclick="toggleSidebarPinned(event)" aria-label="收起导航栏" aria-controls="studioSidebar" aria-expanded="true" title="收起导航栏"><svg data-tabler="layout-sidebar-left-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16m6-11-3 3 3 3"/></svg></button></div>
-            <button id="studioNewCanvas" class="studio-new-canvas" type="button" title="新建画布" aria-label="新建画布"><svg data-tabler="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="nav-text">新建画布</span></button>
             <nav aria-label="工作台导航">
                 <div class="studio-nav-label">创作</div>
-                <button class="nav-item active" type="button" data-page="canvas" title="画布首页" aria-label="画布首页" onclick="switchUI(this, 'canvas')"><svg data-tabler="layout-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12"/></svg><span class="nav-text">画布首页</span></button>
-                <button class="nav-item" type="button" data-page="online" title="图片工作台" aria-label="图片工作台" onclick="switchUI(this, 'online')"><svg data-tabler="photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m3 16 5-5 5 5 4-4 4 4"/><circle cx="15" cy="8" r="1"/></svg><span class="nav-text">图片工作台</span></button>
-                <button class="nav-item" type="button" data-page="gpt-chat" title="AI 对话" aria-label="AI 对话" onclick="switchUI(this, 'gpt-chat')"><svg data-tabler="message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v13H9l-5 4V4Z"/><path d="M8 9h8M8 13h5"/></svg><span class="nav-text">AI 对话</span></button>
+                <button class="nav-item active" type="button" data-page="canvas" aria-label="画布首页" onclick="switchUI(this, 'canvas')"><svg data-tabler="layout-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12"/></svg><span class="nav-text">画布首页</span></button>
+                <button class="nav-item" type="button" data-page="online" aria-label="图片工作台" onclick="switchUI(this, 'online')"><svg data-tabler="photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m3 16 5-5 5 5 4-4 4 4"/><circle cx="15" cy="8" r="1"/></svg><span class="nav-text">图片工作台</span></button>
+                <button class="nav-item" type="button" data-page="gpt-chat" aria-label="AI 对话" onclick="switchUI(this, 'gpt-chat')"><svg data-tabler="message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v13H9l-5 4V4Z"/><path d="M8 9h8M8 13h5"/></svg><span class="nav-text">AI 对话</span></button>
                 <div class="studio-nav-label">资源</div>
-                <button class="nav-item" type="button" data-page="asset-manager" title="素材库" aria-label="素材库" onclick="switchUI(this, 'asset-manager')"><svg data-tabler="archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M7 7V3h10v4M8 12h8M8 16h5"/></svg><span class="nav-text">素材库</span></button>
-                <button class="nav-item" type="button" data-page="skill-library" title="Skill 库" aria-label="Skill 库" onclick="switchUI(this, 'skill-library')"><svg data-tabler="book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 3H20v19H6.5A2.5 2.5 0 0 1 4 19.5v-14A2.5 2.5 0 0 1 6.5 3Z"/></svg><span class="nav-text">Skill 库</span></button>
+                <button class="nav-item" type="button" data-page="asset-manager" aria-label="素材库" onclick="switchUI(this, 'asset-manager')"><svg data-tabler="archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M7 7V3h10v4M8 12h8M8 16h5"/></svg><span class="nav-text">素材库</span></button>
+                <button class="nav-item" type="button" data-page="skill-library" aria-label="Skill 库" onclick="switchUI(this, 'skill-library')"><svg data-tabler="book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 3H20v19H6.5A2.5 2.5 0 0 1 4 19.5v-14A2.5 2.5 0 0 1 6.5 3Z"/></svg><span class="nav-text">Skill 库</span></button>
             </nav>
             <div class="side-actions">
-                <button class="side-pill settings-fold-toggle" id="settings-fold-toggle" onclick="toggleSidebarSettings()" type="button" title="更多设置" aria-expanded="false">
+                <button class="side-pill settings-fold-toggle" id="settings-fold-toggle" onclick="toggleSidebarSettings()" type="button" aria-label="更多设置" aria-controls="settings-fold-group" aria-expanded="false">
                     <svg data-tabler="settings" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.36 1.08V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.08-.36H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .36-1.08V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.22.38.58.69 1 .86.2.08.42.13.65.14H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
@@ -536,7 +532,7 @@
                     </svg>
                 </button>
                 <div class="settings-fold-group is-collapsed" id="settings-fold-group">
-                    <a id="management-entry" class="side-pill" title="管理平台" target="_blank" rel="noopener noreferrer" hidden>
+                    <a id="management-entry" class="side-pill" aria-label="管理平台" target="_blank" rel="noopener noreferrer" hidden>
                         <svg data-tabler="link" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M15 7h3a5 5 0 0 1 0 10h-3"></path>
                             <path d="M9 17H6A5 5 0 0 1 6 7h3"></path>
@@ -611,46 +607,12 @@
         const ACTIVE_PAGE_KEY = 'studio_active_page';
         const LOCAL_NAV_COLLAPSED_KEY = 'studio_local_nav_collapsed';
         const SIDEBAR_SETTINGS_COLLAPSED_KEY = 'studio_sidebar_settings_collapsed';
-        const SIDEBAR_PINNED_KEY = 'studio_sidebar_pinned';
         const DEFAULT_PAGE_ID = 'canvas';
         const PAGE_IDS = ['online','gpt-chat','canvas','asset-manager','skill-library'];
         const LOCAL_PAGE_IDS = [];
         let maintenanceState = null;
         let maintenanceStatusRequest = null;
         let maintenancePollingTimer = null;
-
-        function setSidebarPinned(pinned, options = {}) {
-            const sidebar = document.getElementById('studioSidebar');
-            const logo = document.getElementById('sidebarLogoToggle');
-            if(!sidebar) return;
-            sidebar.classList.toggle('is-pinned', pinned);
-
-            if(logo) {
-                logo.setAttribute('aria-pressed', pinned ? 'true' : 'false');
-                logo.setAttribute('aria-expanded', pinned ? 'true' : 'false');
-                logo.title = pinned ? '收起导航栏' : '展开导航栏';
-                logo.setAttribute('aria-label', logo.title);
-            }
-            if(!options.skipRemember) localStorage.setItem(SIDEBAR_PINNED_KEY, pinned ? '1' : '0');
-        }
-
-        function toggleSidebarPinned(event) {
-            event?.preventDefault?.();
-            event?.stopPropagation?.();
-            const sidebar = document.getElementById('studioSidebar');
-            const expanding = !sidebar?.classList.contains('is-pinned');
-            setSidebarPinned(expanding);
-            const logo = document.getElementById('sidebarLogoToggle');
-            if(logo && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                logo.classList.remove('logo-opening', 'logo-closing');
-                void logo.offsetWidth; // Restart the feedback on each deliberate click.
-                logo.classList.add(expanding ? 'logo-opening' : 'logo-closing');
-            }
-        }
-
-        function restoreSidebarPinned() {
-            setSidebarPinned(localStorage.getItem(SIDEBAR_PINNED_KEY) === '1', { skipRemember:true });
-        }
 
         function setLocalNavCollapsed(collapsed, options = {}) {
             const group = document.getElementById('local-nav-group');
@@ -679,7 +641,6 @@
             if(group) group.classList.toggle('is-collapsed', collapsed);
             if(toggle) {
                 toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-                toggle.title = collapsed ? '展开更多设置' : '收起更多设置';
             }
             if(!options.skipRemember) localStorage.setItem(SIDEBAR_SETTINGS_COLLAPSED_KEY, collapsed ? '1' : '0');
         }
@@ -711,7 +672,7 @@
                 if(n.dataset.page === id) n.setAttribute('aria-current','page');
                 else n.removeAttribute('aria-current');
             });
-            window.StudioShell?.closeMobile();
+            window.StudioShell?.hideTooltip();
             document.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
             const target = document.getElementById('frame-' + id);
             target.classList.add('active');
@@ -744,7 +705,6 @@
 
         async function restoreActivePage() {
             if (window.CanvasSession) await window.CanvasSession.ready;
-            restoreSidebarPinned();
             const savedId = localStorage.getItem(ACTIVE_PAGE_KEY);
             const id = /^\/workspaces\/[^/]+$/.test(location.pathname) ? 'canvas' : PAGE_IDS.includes(savedId) && !LOCAL_PAGE_IDS.includes(savedId) ? savedId : DEFAULT_PAGE_ID;
             restoreLocalNav(id);

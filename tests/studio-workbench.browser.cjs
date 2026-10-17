@@ -63,11 +63,73 @@ async function shellFixture(t,stored){
  await page.goto(origin+'/static/index.html');await page.waitForFunction(()=>document.querySelector('#frame-canvas').contentWindow?.CanvasHome);
  return {page,errors};
 }
-test('shell defaults to the icon rail, remembers expansion and preserves its frame behind the narrow-screen notice',async t=>{
+
+test('icon rail has hover and keyboard labels, two SVG states and stable navigation',async t=>{
  const {page,errors}=await shellFixture(t,null);
- assert.equal(await page.locator('#sidebarLogoToggle').getAttribute('aria-expanded'),'false');
- await page.locator('#sidebarLogoToggle').click();await page.reload();
- assert.equal(await page.locator('#sidebarLogoToggle').getAttribute('aria-expanded'),'true');
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const home=page.locator('[data-page="canvas"]'),chat=page.locator('[data-page="gpt-chat"]');
+ const tooltip=page.locator('#studioRailTooltip');
+ const opacity=el=>getComputedStyle(el).opacity;
+ assert.equal(await home.getAttribute('aria-current'),'page');
+ assert.equal(await chat.locator('.studio-rail-symbol svg').count(),2);
+ assert.equal(await chat.locator('.studio-rail-outline').evaluate(opacity),'1');
+ assert.equal(await chat.locator('.studio-rail-accent').evaluate(opacity),'0');
+ await chat.hover();
+ await tooltip.waitFor({state:'visible'});
+ assert.equal(await tooltip.textContent(),'AI 对话');
+ assert.equal(await chat.getAttribute('title'),null);
+ assert.equal(await chat.locator('.studio-rail-accent').evaluate(opacity),'1');
+ assert.equal(await chat.evaluate(el=>getComputedStyle(el).color),'rgb(76, 226, 243)');
+ await tooltip.hover();
+ assert.equal(await tooltip.isVisible(),true,'label remains readable while hovered');
+ await page.keyboard.press('Escape');
+ assert.equal(await tooltip.isVisible(),false);
+ await chat.focus();
+ assert.equal(await chat.getAttribute('aria-describedby'),'studioRailTooltip');
+ assert.equal(await tooltip.isVisible(),true);
+ await chat.press('Enter');
+ await page.waitForFunction(()=>document.querySelector('[data-page="gpt-chat"]').getAttribute('aria-current')==='page');
+ assert.equal(await home.getAttribute('aria-current'),null);
+ assert.equal(await tooltip.isVisible(),false);
+ assert.equal(await page.locator('#frame-gpt-chat').getAttribute('class'),'active');
+ assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),88);
+ await home.click();
+ await chat.hover();
+ fs.mkdirSync(path.resolve('.local/commercial-kickoff'),{recursive:true});
+ await page.screenshot({path:path.resolve('.local/commercial-kickoff/project-icon-rail.png')});
+ await page.mouse.move(400,50);
+ await tooltip.waitFor({state:'hidden'});
+ await chat.focus();
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await tooltip.isVisible(),false);
+ assert.equal(await page.locator('.app-shell').isVisible(),false);
+ assert.deepEqual(errors,[]);
+});
+
+test('settings keeps the server-controlled management link in the icon rail',async t=>{
+ const {page,errors}=await shellFixture(t,null);
+ assert.equal(await page.locator('#management-entry').getAttribute('hidden'),'');
+ await page.route('**/api/management-entry',route=>route.fulfill({json:{url:'https://manage.example.test/'}}));
+ await page.reload();
+ await page.waitForFunction(()=>!document.getElementById('management-entry').hidden);
+ const settings=page.getByRole('button',{name:'更多设置',exact:true});
+ await settings.click();
+ const link=page.getByRole('link',{name:'管理平台',exact:true});
+ await link.waitFor({state:'visible'});
+ assert.equal(await link.getAttribute('href'),'https://manage.example.test/');
+ await link.focus();
+ assert.equal(await page.locator('#studioRailTooltip').textContent(),'管理平台');
+ assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),88);
+ await settings.click();
+ assert.equal(await link.isVisible(),false);
+ assert.deepEqual(errors,[]);
+});
+test('shell ignores old expansion preferences and preserves its frame behind the narrow-screen notice',async t=>{
+ const {page,errors}=await shellFixture(t,'1');
+ assert.equal(await page.locator('#sidebarLogoToggle,#studioMobileMenu').count(),0);
+ assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),88);
+ await page.reload();
+ assert.equal(await page.locator('#studioSidebar.is-pinned').count(),0);
  await page.evaluate(()=>{window.homeFrameBefore=document.querySelector('#frame-canvas').contentWindow;});
  await page.setViewportSize({width:390,height:844});
  await page.getByRole('heading',{name:'请使用桌面端访问'}).waitFor();
@@ -75,7 +137,7 @@ test('shell defaults to the icon rail, remembers expansion and preserves its fra
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.setViewportSize({width:1440,height:900});
  assert.equal(await page.locator('.studio-desktop-required').isVisible(),false);
- assert.equal(await page.locator('#sidebarLogoToggle').getAttribute('aria-expanded'),'true');
+ assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),88);
  assert.equal(await page.evaluate(()=>homeFrameBefore===document.querySelector('#frame-canvas').contentWindow),true);
  assert.deepEqual(errors,[]);
 });

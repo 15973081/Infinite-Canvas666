@@ -1,7 +1,29 @@
 (() => {
  'use strict';
- const sidebar=document.getElementById('studioSidebar'),backdrop=document.getElementById('studioSidebarBackdrop'),toggle=document.getElementById('studioMobileMenu'),stage=document.querySelector('.stage'),mobile=window.matchMedia('(max-width:760px)');
+ const sidebar=document.getElementById('studioSidebar');
+ const controls=[...sidebar.querySelectorAll('.nav-item,.side-pill')];
+ // Reuse the pinned MIT Tabler outlines; closed geometry gets a soft fill
+ // in the second SVG so both states keep the same silhouette and stroke.
+ window.StudioIcons.createIcons({root:sidebar});
+ for(const control of controls){
+  const outline=control.querySelector('svg');
+  if(!outline)continue;
+  const symbol=document.createElement('span');symbol.className='studio-rail-symbol';symbol.setAttribute('aria-hidden','true');
+  const accent=outline.cloneNode(true);
+  for(const attr of ['data-tabler','data-lucide','data-studio-icon','id'])accent.removeAttribute(attr);
+  outline.classList.add('studio-rail-outline');accent.classList.add('studio-rail-accent');
+  for(const shape of accent.children){
+   if(['rect','circle','polygon','ellipse'].includes(shape.tagName)||/[zZ]\s*$/.test(shape.getAttribute('d')||'')){
+    shape.setAttribute('fill','currentColor');shape.setAttribute('fill-opacity','.22');
+   }
+  }
+  outline.before(symbol);symbol.append(outline,accent);
+ }
  function syncContextLocation(){
+  for(const control of controls){
+   if(control.matches('.nav-item.active'))control.setAttribute('aria-current','page');
+   else control.removeAttribute('aria-current');
+  }
   const bar=document.querySelector('.member-session-bar');if(!bar)return;
   let label=bar.querySelector('.studio-context-location');
   if(!label){label=document.createElement('span');label.className='studio-context-location';bar.insertBefore(label,bar.querySelector('.member-session-account'));}
@@ -11,13 +33,35 @@
  window.addEventListener('member-session:ready',syncContextLocation);
  window.addEventListener('member-session:profile',syncContextLocation);
  syncContextLocation();
- function closeMobile(restore=false){sidebar.classList.remove('mobile-open');backdrop.hidden=true;toggle.setAttribute('aria-expanded','false');stage.inert=false;if(restore)toggle.focus();}
- toggle.addEventListener('click',()=>{if(sidebar.classList.contains('mobile-open'))return closeMobile(true);sidebar.classList.add('mobile-open');backdrop.hidden=false;toggle.setAttribute('aria-expanded','true');stage.inert=true;sidebar.querySelector('#studioNewCanvas').focus();});
- backdrop.addEventListener('click',()=>closeMobile(true));
- document.addEventListener('keydown',e=>{if(!mobile.matches||!sidebar.classList.contains('mobile-open'))return;if(e.key==='Escape'){e.preventDefault();closeMobile(true);}if(e.key==='Tab'){const controls=Array.from(sidebar.querySelectorAll('button,a[href]')).filter(el=>el.getClientRects().length&&!el.hidden&&!el.disabled),first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
- mobile.addEventListener('change',()=>closeMobile());window.StudioShell={closeMobile};
- document.getElementById('studioNewCanvas').addEventListener('click',async()=>{
-  const button=document.getElementById('studioNewCanvas');button.disabled=true;
-  try{switchUI(document.querySelector('[data-page="canvas"]'),'canvas');const frame=document.getElementById('frame-canvas');if(!frame.contentWindow?.CanvasHome)await new Promise(resolve=>frame.addEventListener('load',resolve,{once:true}));await frame.contentWindow?.CanvasHome?.beginCreate();}finally{button.disabled=false;}
- });
+ const tooltip=document.createElement('div');
+ tooltip.id='studioRailTooltip';tooltip.className='studio-rail-tooltip';tooltip.role='tooltip';tooltip.hidden=true;
+ document.body.append(tooltip);
+ let owner=null,hideTimer;
+ function hideTooltip(){
+  clearTimeout(hideTimer);tooltip.hidden=true;
+  owner?.removeAttribute('aria-describedby');owner=null;
+ }
+ function showTooltip(control){
+  if(window.innerWidth<=900)return;
+  hideTooltip();owner=control;
+  tooltip.textContent=control.getAttribute('aria-label')||control.textContent.trim();
+  control.setAttribute('aria-describedby',tooltip.id);tooltip.hidden=false;
+  const rect=control.getBoundingClientRect();
+  tooltip.style.left=`${sidebar.getBoundingClientRect().right+10}px`;
+  tooltip.style.top=`${Math.max(8,Math.min(innerHeight-tooltip.offsetHeight-8,rect.top+(rect.height-tooltip.offsetHeight)/2))}px`;
+ }
+ function deferHide(){clearTimeout(hideTimer);hideTimer=setTimeout(hideTooltip,120);}
+ for(const control of controls){
+  control.addEventListener('pointerenter',()=>showTooltip(control));
+  control.addEventListener('pointerleave',deferHide);
+  control.addEventListener('focus',()=>showTooltip(control));
+  control.addEventListener('blur',hideTooltip);
+  control.addEventListener('click',hideTooltip);
+ }
+ tooltip.addEventListener('pointerenter',()=>clearTimeout(hideTimer));
+ tooltip.addEventListener('pointerleave',deferHide);
+ document.addEventListener('keydown',event=>{if(event.key==='Escape')hideTooltip();});
+ window.addEventListener('resize',hideTooltip);
+ window.addEventListener('blur',hideTooltip);
+ window.StudioShell={hideTooltip};
 })();

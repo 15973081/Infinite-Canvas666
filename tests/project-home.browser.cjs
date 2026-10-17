@@ -62,7 +62,7 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
  await page.reload();await page.locator('.member-home-wallet').waitFor();
  await page.emulateMedia({reducedMotion:'reduce'});
  const home=page.frameLocator('#frame-canvas');await home.locator('.project-new-card').waitFor();
- assert.equal(await page.locator('#sidebarLogoToggle').getAttribute('aria-expanded'),'false');
+ assert.equal(await page.locator('#sidebarLogoToggle').count(),0);
  const shots=path.join(root,'.local/commercial-kickoff');fs.mkdirSync(shots,{recursive:true});
  for(const width of [1920,1440,1024]){
   await page.setViewportSize({width,height:1000});

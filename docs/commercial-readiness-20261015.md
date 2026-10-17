@@ -544,3 +544,13 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 验收：核心目录/创建/导航/回收站/账户浏览器回归 25 项通过；目录删除与 iframe 消息回归 23 项通过；经典封面与目录缩略图回归 2 项通过，共 50 项相关用例通过（接口由测试夹具模拟）。桌面检查 1024/1440/1920px，窄屏提示检查 867/390/320px。JS 语法检查、`git diff --check` 通过。可选真实后端集成用例已更新入口但未运行；完整封面测试中的智能画布用例因找不到既有「画布封面」入口超时，该编辑器入口未在本轮修改，也未计入通过数。
 
 截图：`.local/commercial-kickoff/project-home-1440.png`、`project-home-1920.png`、`project-home-create.png`、`project-home-desktop-required.png`。未推送、未部署。
+
+## 2026-10-17 首页固定图标侧栏
+
+对照 Pixmax 本地构建产物 `index-Bcq66HVs.js` 的 `ZGt` 侧栏：独立图标按钮、选中背景、两种 SVG 状态和右侧名称提示。
+
+- 移除展开按钮、宽度记忆和已停用的移动抽屉代码。侧栏固定 88px，旧 `studio_sidebar_pinned=1` 不再展开；窄屏继续只显示桌面访问提示。
+- 沿用项目已固定版本、MIT 许可的 Tabler SVG。默认灰色描边，悬浮、键盘聚焦和选中时切换到同轮廓的青色双色 SVG；闭合图形增加低透明度填充，提供 160ms 过渡并遵守减少动态效果偏好。无外部图标请求。
+- 名称提示显示在图标右侧，支持鼠标悬浮、键盘聚焦、移动到提示上阅读和 Esc 关闭；导航后及窄屏切换时清理提示。导航保留 `aria-current`，设置和管理入口保留原服务端配置控制。
+- 浏览器验收 21 项通过（接口模拟）：工作台 6、项目首页 3、iframe 消息 10、图标兼容 2。覆盖旧展开偏好、双 SVG、变色、鼠标/键盘提示、导航、设置入口、窄屏恢复及共享图标刷新。微调图标轴线后工作台与图标 8 项复验通过。
+- 实际页面截图：`.local/commercial-kickoff/project-icon-rail.png`。未推送、未部署。
