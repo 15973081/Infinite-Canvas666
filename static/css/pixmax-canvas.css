@@ -256,7 +256,7 @@ body.studio-smart-canvas :is(.member-media-preview,.member-canvas-results) [hidd
   align-items: center;
   gap: 4px;
   width: max-content;
-  max-width: var(--pixmax-toolbar-width, calc(100vw - 24px));
+  max-width: none;
   height: 40px;
   padding: 4px 8px;
   border: 1px solid #313136;

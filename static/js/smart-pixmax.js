@@ -75,18 +75,14 @@ function pixmaxVideoToolbarHtml(node){
 }
 function positionPixmaxVideoToolbars(){
     if(!shell||!world)return;
-    const scale=safeScale(viewport.scale),bounds=shell.getBoundingClientRect();
+    const scale=safeScale(viewport.scale);
     shell.style.setProperty('--pixmax-toolbar-scale',1/scale);
-    shell.style.setProperty('--pixmax-toolbar-width',Math.max(200,bounds.width-24)+'px');
     world.querySelectorAll('.image-node.selected .smart-node-floating-menu').forEach(toolbar=>{
-        const card=toolbar.parentElement.getBoundingClientRect(),center=card.left+card.width/2;
-        const half=toolbar.offsetWidth/2;
-        const x=Math.max(bounds.left+half+12,Math.min(center,bounds.right-half-12));
-        toolbar.style.marginLeft=(x-center)/scale+'px';
-        const below=card.top-60<Math.max(bounds.top,56);
-        toolbar.style.top=below?'auto':-60/scale+'px';
-        toolbar.style.bottom=below?-52/scale+'px':'auto';
-        toolbar.style.transformOrigin=below?'center top':'center bottom';
+        // Stay centered above the owning node, including beyond viewport edges.
+        toolbar.style.marginLeft='0px';
+        toolbar.style.top=-60/scale+'px';
+        toolbar.style.bottom='auto';
+        toolbar.style.transformOrigin='center bottom';
     });
 }
 let pixmaxVideoDepthMenu;
