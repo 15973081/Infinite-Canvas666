@@ -57,11 +57,10 @@
         const card = world.querySelector(`[data-id="${CSS.escape(session.node.id)}"]`);
         if(!card) { session.root.hidden = true; return; }
         session.root.hidden = false;
-        const box = card.getBoundingClientRect(), scale = Math.min(safeScale(viewport.scale), Math.max(.1, (innerWidth - 16) / 720));
-        const height = session.root.offsetHeight * scale;
+        const box = card.getBoundingClientRect(), scale = safeScale(viewport.scale);
         session.root.style.transform = `scale(${scale})`;
-        session.root.style.left = Math.max(8, Math.min(box.left + box.width / 2 - 360 * scale, innerWidth - 720 * scale - 8)) + 'px';
-        session.root.style.top = Math.max(8, Math.min(box.bottom + 16 * scale, innerHeight - height - 8)) + 'px';
+        session.root.style.left = (box.left + box.width / 2 - 360 * scale) + 'px';
+        session.root.style.top = (box.bottom + 16 * scale) + 'px';
     }
     function formData(session) {
         const node = session.node, value = config(node), options = modelOptions(), chosen = JSON.stringify([value.providerId, value.model]);

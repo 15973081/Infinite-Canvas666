@@ -97,9 +97,13 @@ test('native text reference picker connects canvas text and sends resolved refer
  await submit(page).click();await page.waitForFunction(()=>nodes[0].text==='已生成的新正文');assert.match(task.calls[0].message,/主角是一名摄影师/);assert.doesNotMatch(task.calls[0].message,/%\%@/);assert.deepEqual(errors,[]);
 });
 
-test('text panel stays within desktop and mobile viewports and captures the upgraded layout',async t=>{
- const {page,errors}=await setup(t);await editor(page).fill('很多事情');fs.mkdirSync('.local/commercial-kickoff',{recursive:true});
- for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>PixmaxTextGeneration.position());const box=await page.locator('.pixmax-text-generation').boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width+1&&box.y>=0&&box.y+box.height<=1001,JSON.stringify(box));await page.screenshot({path:'.local/commercial-kickoff/text-generation-'+width+'.png'});}
+test('text panel remains centered below its node at screen edges and canvas zoom',async t=>{
+ const {page,errors}=await setup(t);
+ for(const view of [{x:-500,y:600,scale:1},{x:1100,y:-300,scale:.75},{x:0,y:0,scale:1.5}]){
+  await page.evaluate(view=>{Object.assign(viewport,view);applyViewport();PixmaxTextGeneration.position();},view);
+  const geometry=await page.evaluate(()=>{const card=world.querySelector(`[data-id="${nodes[0].id}"]`).getBoundingClientRect(),panel=document.querySelector('.pixmax-text-generation').getBoundingClientRect();return {dx:panel.left+panel.width/2-card.left-card.width/2,dy:panel.top-card.bottom,width:panel.width,scale:viewport.scale};});
+  assert.ok(Math.abs(geometry.dx)<1);assert.ok(Math.abs(geometry.dy-16*geometry.scale)<1);assert.ok(Math.abs(geometry.width-720*geometry.scale)<1);
+ }
  assert.deepEqual(errors,[]);
 });
 

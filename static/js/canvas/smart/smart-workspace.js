@@ -2844,30 +2844,13 @@ function positionComposerForNode(node){
     if(node.type==='smart-prompt')return window.PixmaxTextGeneration?.position();
     const rect = nodeRect(node);
     const gap = 16;
-    const scale=safeScale(viewport.scale),bounds=smartViewportBounds();
-    const rail=shell.querySelector('.pixmax-rail'),shellRect=shell.getBoundingClientRect();
-    const left=Math.max(bounds.x||0,rail&&!rail.hidden?rail.getBoundingClientRect().right-shellRect.left+12:0);
-    const minX=(left+16-viewport.x)/scale;
-    const available=Math.max(240,(bounds.x+bounds.width-left-32)/scale);
-    const cardW = Math.min(720,available);
+    // The composer belongs to the node's world position, not the screen edges.
+    const cardW = 720;
     composer.style.width = `${cardW}px`;
-    const x=Math.max(minX,Math.min(rect.x+rect.width/2-cardW/2,minX+available-cardW));
-    composer.style.left = `${x}px`;
-    let top=16,bottom=shell.clientHeight-16;
+    composer.style.left = `${rect.x+rect.width/2-cardW/2}px`;
+    composer.style.top = `${rect.y+rect.height+gap}px`;
     const card=composer.querySelector('.pixmax-native-generation-form [data-native-generation-surface]')||composer.querySelector('.composer-card');
     if(card){card.style.maxHeight='';card.style.overflowY='';}
-    if(composer.classList.contains('pixmax-native-references-active')||composer.classList.contains('pixmax-native-form-active')){
-        const screenLeft=shellRect.left+viewport.x+x*scale,screenRight=screenLeft+cardW*scale;
-        for(const overlay of shell.querySelectorAll('.pixmax-topbar,.pixmax-bottom-controls,.smart-minimap')){
-            if(overlay.hidden)continue;const box=overlay.getBoundingClientRect();
-            if(!box.width||!box.height||box.right<=screenLeft||box.left>=screenRight)continue;
-            if(overlay.classList.contains('pixmax-topbar'))top=Math.max(top,box.bottom-shellRect.top+12);
-            else bottom=Math.min(bottom,box.top-shellRect.top-12);
-        }
-        if(card){const maximum=Math.max(160,(bottom-top)/scale),natural=card.scrollHeight;card.style.maxHeight=maximum+'px';card.style.overflowY=natural>maximum?'auto':'visible';}
-    }
-    const minY=(top-viewport.y)/scale,maxY=(bottom-viewport.y)/scale-composer.offsetHeight;
-    composer.style.top = `${Math.max(minY,Math.min(rect.y+rect.height+gap,Math.max(minY,maxY)))}px`;
 }
 
 function renderInputPromptPreview(node){
