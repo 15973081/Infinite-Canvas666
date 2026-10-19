@@ -667,3 +667,10 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 - 新增浏览器回归，覆盖图片、视频节点保持挂载及服务端新增、修改、删除同步。相关锁、导演台往返、增量保存共 44 项通过。
 - 扩展模块测试有一项既有失败：智能画布小地图测试仍期待移动视角触发云端保存；在 HEAD 原始代码上复现相同失败，本次未修改该行为。
 
+
+
+## 2026-10-19 视频详情灯箱复用
+
+对照本地 Pixmax 镜像 `C:/project/skill-clone/output/pixmax/mirror/app.pixmax.cn/assets/index-DKTODaUF.js` 的 `J0` 媒体详情布局及侧栏字段。智能画布视频预览改用既有独立详情面板，并挂载已接入的原版 `aV` 播放器（`mountCanvasPlayer`）；保留播放、进度、静音、全屏，显示真实文件元数据，缺失信息显示破折号。节点双击、预览入口及旧编辑器视频入口复用同一组件。移除旧灯箱导出首帧/当前帧/尾帧按钮与仅由这些按钮使用的上传插入代码。
+
+浏览器验证覆盖只读打开、播放、关闭/Esc 释放、失败重试和会话暂停清理；截图 `.local/commercial-kickoff/video-detail-preview.png` 已核对。图片详情及生成历史回归另行检查。

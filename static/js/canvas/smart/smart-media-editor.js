@@ -1216,7 +1216,6 @@ function createSmartImageEditor(){
         const previewDownloadBtn = element('previewDownloadBtn');
         const previewDownloadAllBtn = element('previewDownloadAllBtn');
         const modeBar = imageEditModal?.querySelector('.image-edit-mode');
-        const videoFrameTools = element('videoFrameTools');
         const zoomLabel = element('imageEditZoomLabel');
         const cancelBtn = element('imageEditCancelBtn');
         const isPreview = imageEditMode === 'preview';
@@ -1227,7 +1226,6 @@ function createSmartImageEditor(){
         if(previewDownloadBtn) previewDownloadBtn.style.display = isPreview ? 'inline-flex' : 'none';
         if(previewDownloadAllBtn) previewDownloadAllBtn.style.display = isPreview && !isVideoPreview && previewDownloadGroupItems().length > 1 ? 'inline-flex' : 'none';
         if(modeBar) modeBar.style.display = isVideoPreview ? 'none' : '';
-        if(videoFrameTools) videoFrameTools.style.display = isVideoPreview && isPreview ? 'flex' : 'none';
         if(zoomLabel) zoomLabel.style.display = isVideoPreview ? 'none' : '';
         if(cancelBtn){
             cancelBtn.style.display = '';
@@ -2059,6 +2057,9 @@ function createSmartImageEditor(){
         if(!image?.url) return;
 
         const kind = mediaKindForItem(image);
+        if(kind==='video')return detachedNode
+            ? window.PixmaxImagePreview.open({item:node.images[imageIndex],label:node.label})
+            : window.PixmaxImagePreview.openNode(node,imageIndex);
         if(kind !== 'image' && kind !== 'video'){
             downloadPreviewFile(image);
             return;

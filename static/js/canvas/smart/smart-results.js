@@ -984,77 +984,6 @@ function seekPreviewVideoFrames(direction){
     return true;
 }
 
-function waitForVideoEvent(video, eventName, timeout=1500){
-    return new Promise(resolve => {
-        let done = false;
-        const finish = () => {
-            if(done) return;
-            done = true;
-            clearTimeout(timer);
-            video.removeEventListener(eventName, finish);
-            resolve();
-        };
-        const timer = setTimeout(finish, timeout);
-        video.addEventListener(eventName, finish, {once:true});
-    });
-}
-
-async function seekVideoForFrame(video, time){
-    if(Math.abs(Number(video.currentTime || 0) - time) <= 0.002) return;
-    video.currentTime = time;
-    await waitForVideoEvent(video, 'seeked', 2200);
-}
-
-async function exportVideoFrame(which='current'){
-    const video = currentPreviewVideo();
-    if(!video){ toast('没有可导出的视频帧'); return; }
-    if(video.readyState < 2) await waitForVideoEvent(video, 'loadeddata', 2200);
-    if(!video.videoWidth || !video.videoHeight){ toast('视频还没有加载完成'); return; }
-    const originalTime = Number(video.currentTime || 0);
-    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
-    const step = videoFrameStep();
-    const target = which === 'first'
-        ? 0
-        : which === 'last'
-            ? Math.max(0, duration - step / 2)
-            : originalTime;
-    const suffix = which === 'first' ? 'first-frame' : which === 'last' ? 'last-frame' : 'current-frame';
-    try {
-        video.pause?.();
-        await seekVideoForFrame(video, target);
-        const canvasEl = document.createElement('canvas');
-        canvasEl.width = video.videoWidth;
-        canvasEl.height = video.videoHeight;
-        const ctx = canvasEl.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvasEl.width, canvasEl.height);
-        const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
-        if(!blob) throw new Error('导出帧失败');
-        const editing = currentEditImage();
-        const rawName = editing.image?.name || fileNameFromUrl(editing.image?.url || '') || 'video';
-        const base = String(rawName).replace(/\.[a-z0-9]{2,8}$/i, '') || 'video';
-        const filename = safeExportFileName(`${base}-${suffix}.png`, `${suffix}.png`);
-        const uploaded = await uploadFiles([new File([blob], filename, {type:'image/png'})]);
-        const frame = uploaded[0];
-        if(!frame?.url) throw new Error('导出到画布失败');
-        frame.kind = 'image';
-        frame.natural_w = video.videoWidth;
-        frame.natural_h = video.videoHeight;
-        const rect = editing.node ? nodeRect(editing.node) : null;
-        const point = rect
-            ? {x:rect.x + rect.width + 240, y:rect.y + rect.height / 2}
-            : viewportCenter();
-        pushUndo();
-        const newNode = createImageNodeAt(point, [frame], {select:true, skipUndo:true});
-        smartSelection.createdMedia(newNode.id);
-        render();
-        scheduleSave();
-        toast('已导出到画布');
-        if(which !== 'current') await seekVideoForFrame(video, originalTime);
-    } catch(e) {
-        toast((e.message || '导出帧失败').slice(0, 120));
-    }
-}
-
 function updatePreviewNavButtons(){
     const node = nodes.find(n => n.id === smartImageEditor.state.nodeId);
     const count = Math.max(0, (node?.images || []).filter(img => img?.url).length);
@@ -1070,7 +999,7 @@ function openImagePreview(nodeId, imageIndex=0){
     const image = node?.images?.[Math.max(0, Number(imageIndex) || 0)];
     if(!node||!image?.url)return;
     if(mediaKindForItem(image || {}) === 'audio') return openSmartAudioLightbox(nodeId, imageIndex);
-    if(mediaKindForItem(image || {}) === 'image')return window.PixmaxImagePreview.openNode(node,Math.max(0,Number(imageIndex)||0));
+    if(['image','video'].includes(mediaKindForItem(image || {})))return window.PixmaxImagePreview.openNode(node,Math.max(0,Number(imageIndex)||0));
     openImageEditor(nodeId, imageIndex);
     setImageEditMode('preview');
 }
