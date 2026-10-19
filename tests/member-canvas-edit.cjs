@@ -413,9 +413,9 @@ test('canvas roster renders trusted names as text and expires without changing t
         {id:'member_222222',display_name:'同名',activity:'viewing',is_self:false}]}});
     await f.timers.get(entry.reportTimer)();
     assert.equal(entry.presenceSummary.textContent,'2 人在线');
-    assert.equal(entry.presenceList.children[0].textContent,'<img src=x onerror=alert(1)> · 111111（你） · 编辑中');
+    assert.equal(entry.presenceList.children[0].textContent,'<img src=x onerror=alert(1)>（你） · 编辑中');
     assert.equal(entry.presenceList.children[0].children.length,0);
-    assert.equal(entry.presenceList.children[1].textContent,'同名 · 222222 · 查看中');
+    assert.equal(entry.presenceList.children[1].textContent,'同名 · 查看中');
     assert.equal(entry.lease.canSave,false);
     entry.presenceReceivedAt=0;entry.lease.emit();
     assert.equal(entry.presenceSummary.textContent,'在线名单暂不可用');

@@ -362,8 +362,10 @@
         entry.presenceSummary.setAttribute('data-presence', fresh ? 'fresh' : 'stale');
         entry.presenceList.replaceChildren();
         if(fresh) for(const member of entry.presence.members) {
-            const name=String(member.display_name || '成员')+' · '+String(member.id).slice(-6)+(member.is_self ? '（你）' : '');
-            entry.presenceList.append(element('li',name+' · '+(member.activity==='editing' ? '编辑中' : '查看中')));
+            const name=String(member.display_name || '成员')+(member.is_self ? '（你）' : '');
+            const row=element('li',name+' · '+(member.activity==='editing' ? '编辑中' : '查看中'));
+            row.className='member-presence-person';row.title=row.textContent;
+            entry.presenceList.append(row);
         }
         if(!fresh || entry.reportFailed){
             const message=element('li',fresh?'名单更新稍有延迟，正在重试。':'暂时无法获取在线名单，正在重试。');
@@ -410,6 +412,12 @@
         active.force.disabled=cannotStart;
         end.hidden=!lease.canSave; end.disabled=lease.finishing;
         save.hidden=!lease.canSave; save.disabled=lease.finishing;
+        // Keep dynamic actions (start/take over/finish) named for hover and
+        // keyboard users even when the smart canvas renders icons only.
+        for(const control of active.layout?.querySelectorAll('button[data-canvas-action]') || []){
+            control.setAttribute('aria-label',control.textContent);
+            control.setAttribute('data-tooltip',control.textContent);
+        }
         notice.textContent=[...new Set([lease.message,active.feedback,active.stateError,active.streamMessage,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
         bar.setAttribute('data-state', lease.canSave ? 'editing' : 'view');
         notice.setAttribute('data-tone', lease.state==='paused' || ['draining','read_only','offline','recovering'].includes(lease.maintenance) || active.feedback || active.stateError || active.streamMessage || active.reportMessage ? 'warning' : 'quiet');
