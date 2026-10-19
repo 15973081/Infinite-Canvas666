@@ -998,6 +998,9 @@ function openImagePreview(nodeId, imageIndex=0){
     const node = nodes.find(n => n.id === nodeId);
     const image = node?.images?.[Math.max(0, Number(imageIndex) || 0)];
     if(!node||!image?.url)return;
+    if(mediaKindForItem(image)==='video' && !window.MemberCanvasEdit?.canEdit && window.MemberCanvasEdit?.active?.mediaPreview){
+        return window.MemberCanvasEdit.active.mediaPreview.open({nodeId:node.id,index:Math.max(0,Number(imageIndex)||0),url:image.url});
+    }
     if(mediaKindForItem(image || {}) === 'audio') return openSmartAudioLightbox(nodeId, imageIndex);
     if(['image','video'].includes(mediaKindForItem(image || {})))return window.PixmaxImagePreview.openNode(node,Math.max(0,Number(imageIndex)||0));
     openImageEditor(nodeId, imageIndex);

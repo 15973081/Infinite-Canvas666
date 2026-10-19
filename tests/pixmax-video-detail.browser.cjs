@@ -1,6 +1,30 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {fixture}=require('./helpers/canvas-browser.cjs');
 
+test('readonly video double click opens gallery; editing opens Pixmax detail',async t=>{
+ const {page,errors,writes}=await fixture(t,'smart',true,{permissions:['canvas.read','asset.read','canvas.export'],record:{nodes:[{id:'video',type:'smart-image',x:100,y:100,images:[{url:'/clip.webm',name:'片段.webm',kind:'video'}]}]}});
+ await page.route('**/clip.webm',route=>route.fulfill({contentType:'video/webm',body:fs.readFileSync('tests/fixtures/smart-video-trim.webm')}));
+ await page.addScriptTag({url:'/static/js/member-media-preview.js'});
+ await page.evaluate(()=>{
+   MemberMediaUrl=url=>new URL(url,location.href).href;
+   MemberCanvasEdit.active.options=MemberCanvasEdit.options;
+   MemberCanvasEdit.active.mediaPreview=MemberMediaPreview.create({entry:MemberCanvasEdit.active,valid:()=>true});
+   MemberCanvasEdit.setEditable(false);
+ });
+ const player=page.locator('.image-node[data-id="video"] .pixmax-player-mount');await player.locator('video').waitFor();
+ await player.dblclick({position:{x:60,y:30}});
+ const gallery=page.getByRole('dialog',{name:'画布素材预览',exact:true});await gallery.waitFor();
+ assert.equal(await page.locator('.pixmax-image-preview').count(),0);
+ assert.equal(await gallery.locator('.member-preview-counter').innerText(),'1 / 1');
+ await gallery.getByRole('link',{name:'下载原件',exact:true}).waitFor();
+ await page.keyboard.press('Escape');
+ await page.evaluate(()=>MemberCanvasEdit.setEditable(true));
+ await player.dblclick({position:{x:60,y:30}});
+ await page.getByRole('dialog',{name:'视频预览',exact:true}).waitFor();
+ assert.equal(await gallery.isVisible(),false);
+ assert.equal(writes.length,0);assert.deepEqual(errors,[]);
+});
+
 test('video preview reuses Pixmax player and detail panel and releases playback on close',async t=>{
  const {page,errors,writes}=await fixture(t,'smart',true,{record:{nodes:[{id:'video',type:'smart-image',x:100,y:100,images:[{url:'/clip.webm',name:'片段.webm',kind:'video',size_bytes:10240}]}]}});
  await page.route('**/clip.webm',route=>route.fulfill({contentType:'video/webm',body:fs.readFileSync('tests/fixtures/smart-video-trim.webm')}));
