@@ -4601,6 +4601,7 @@ function createSmartWorkspaceView(){
             if(fresh){
                 releaseSmartGroupPreviews(el);
                 el.replaceWith(fresh);
+                smartRenderedNodes.set(fresh,{node,html:freshHtml});
                 bindSmartNodeEvents(fresh, node);
                 if(placeholder){
                     restoreSmartNodeScroll(fresh, node);
@@ -4792,9 +4793,10 @@ function createSmartWorkspaceView(){
             if(!node) return;
             if(!current){
                 const tpl=document.createElement('template');
-                tpl.innerHTML=isSmartNodeInViewport(node,400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+                const html=isSmartNodeInViewport(node,400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+                tpl.innerHTML=html;
                 const fresh=tpl.content.firstElementChild;
-                if(fresh){world.appendChild(fresh);bindNodeEvents([fresh]);bindSmartPreviewImageFallbacks(fresh);measureSmartNodeImages(fresh);}
+                if(fresh){world.appendChild(fresh);smartRenderedNodes.set(fresh,{node,html});bindNodeEvents([fresh]);bindSmartPreviewImageFallbacks(fresh);measureSmartNodeImages(fresh);}
                 return;
             }
             if(current.contains(document.activeElement) && !forceIds.includes(id)){
@@ -4803,12 +4805,14 @@ function createSmartWorkspaceView(){
             }
             const scroll = current.querySelector('[data-thumb-scroll]')?.scrollTop ?? smartViewportScrolls.get(node) ?? 0;
             const tpl = document.createElement('template');
-            tpl.innerHTML = isSmartNodeInViewport(node, 400)||current.querySelector('.pixmax-audio-mount[data-playing="true"]') ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            const html = isSmartNodeInViewport(node, 400)||current.querySelector('.pixmax-audio-mount[data-playing="true"]') ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            tpl.innerHTML = html;
             const fresh = tpl.content.firstElementChild;
             if(!fresh) return;
             releaseSmartGroupPreviews(current);
             transplantSmartMediaElements(current, fresh);
             current.replaceWith(fresh);
+            smartRenderedNodes.set(fresh,{node,html});
             bindNodeEvents([fresh]);
             const scroller = fresh.querySelector('[data-thumb-scroll]');
             if(scroller) scroller.scrollTop = scroll;

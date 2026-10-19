@@ -286,8 +286,13 @@ async function loadCanvas(options={}){
         if(canvasId!==requestedId || data.canvas.id!==requestedId) return;
         if(options.observe && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh ||
             !Number.isSafeInteger(data.canvas.revision) || data.canvas.revision<=Number(canvas?.revision || 0))) return canvas;
+        // Acquiring a lease still fetches and validates the authoritative document.
+        // Keep unchanged node identities/caches so that this check does not detach
+        // every media element. Changed nodes must receive fresh event closures.
+        const reusableNodes=options.preserveNodes && canvas?.id===data.canvas.id
+            ? new Map(nodes.map(node=>[node.id,node])) : null;
         smartSelection.documentReplacing();
-        smartWorkspaceView.reset();
+        if(!reusableNodes) smartWorkspaceView.reset();
         smartMinimap.reset();
         smartAudioPreview.reset();
         if(!options.observe || canvas?.id !== data.canvas.id){
@@ -322,6 +327,15 @@ async function loadCanvas(options={}){
         });
         canvas.connections = Array.isArray(canvas.connections) ? canvas.connections : [];
         const cleanedDetachedInputs = cleanupDetachedRunInputRefs();
+        if(reusableNodes){
+            const comparable=value=>JSON.stringify(value,(_key,item)=>
+                item && typeof item==='object' && !Array.isArray(item)
+                    ? Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])) : item);
+            nodes=nodes.map(node=>{
+                const previous=reusableNodes.get(node.id);
+                return previous && comparable(previous)===comparable(node) ? previous : node;
+            });
+        }
         /* 不从服务端合并视野 —— 每台电脑保持各自的视角 */
         const savedViewport=smartLocalViewportForCanvas(canvasId, canvas.viewport || {});
         viewport={x:Number.isFinite(savedViewport.x)?savedViewport.x:0,y:Number.isFinite(savedViewport.y)?savedViewport.y:0,scale:Math.min(2,Math.max(.1,safeScale(savedViewport.scale||1)))};
@@ -343,7 +357,7 @@ async function loadCanvas(options={}){
                 snapshot:() => ({...canvas,nodes:JSON.parse(JSON.stringify(nodes)),settings:settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings)}),
                 refresh:()=>loadCanvas({observe:true}),restore:restoreSmartMemberDraft,busy:() => Boolean(smartSaveInFlight) || smartSaveAgain || smartCascadeAnyRunning() || nodes.some(smartNodeInFlight),
                 openCopy:async copy => window.CanvasNavigation.go(window.CanvasNavigation.canvasUrl(copy.id)),
-                reload:async () => { const loaded=await loadCanvas(); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
+                reload:async () => { const loaded=await loadCanvas({preserveNodes:true}); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 flush:async () => {
                     clearTimeout(saveTimer); saveTimer=null;
                     if(smartCanvasDirty || smartSaveInFlight) await saveCanvas({force:true});
