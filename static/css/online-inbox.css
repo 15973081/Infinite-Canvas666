@@ -24,7 +24,8 @@
 .inbox-badge{position:absolute;right:12px;top:12px;background:var(--studio-panel);color:var(--studio-text-muted);padding:3px 8px;border:1px solid var(--studio-border);font-size:11px;border-radius:6px;pointer-events:none}
 .inbox-card-body{padding:12px}.inbox-card h3{margin:0 0 6px;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-meta{color:var(--studio-text-muted);font-size:11px;overflow-wrap:anywhere}
 .inbox-card-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.inbox-card-actions button{min-height:32px;font-size:11px;padding:5px 8px}
-.inbox-status{padding:16px 0;color:var(--studio-text-muted);white-space:pre-line}.inbox-status.error{color:var(--studio-error)}
+.inbox-status{box-sizing:border-box;min-height:52px;padding:16px 0;color:var(--studio-text-muted);white-space:pre-line}.inbox-status.error{color:var(--studio-error)}
+.inbox-grid{min-height:148px;align-content:start}
 .inbox-empty{padding:56px 20px;text-align:center;border:1px dashed var(--studio-border);grid-column:1/-1;color:var(--studio-text-muted)}
 .inbox-more:not([hidden]){display:block;margin:24px auto}.inbox-footnote{margin-top:16px}
 .inbox-dialog{width:min(480px,calc(100vw - 32px));padding:24px;border:1px solid var(--studio-border-strong);border-radius:16px;background:var(--studio-panel);color:var(--studio-text);box-shadow:0 24px 80px var(--studio-shadow);font:13px/1.5 var(--studio-font)}

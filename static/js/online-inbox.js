@@ -10,14 +10,14 @@
     }
     function attach(host,{preview}={}){
         host.replaceChildren();host.className='online-inbox';host.id='onlineInbox';
-        let state='inbox',cursor=null,hasMore=false,rows=[],selected=new Set(),sequence=0,busy=false,readController,searchTimer;
+        let state='inbox',cursor=null,hasMore=false,rows=[],selected=new Set(),sequence=0,busy=false,loading=false,readController,searchTimer;
         const heading=node('header',undefined,'inbox-heading'),title=node('div');
         title.append(node('h2','作品收件箱'),node('p','整理每一次灵感。保留喜欢的作品，回收不再需要的尝试。'));
         const summary=node('div','正在统计…','inbox-summary');heading.append(title,summary);
         const tools=node('div',undefined,'inbox-tools'),tabs=node('div',undefined,'inbox-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','作品状态');
         const tabButtons=new Map();
         for(const [key,label] of [['inbox','未整理'],['saved','已保留'],['trash','回收站']]){
-            const el=button(label,()=>{if(busy)return;state=key;syncTabs();void load();});el.setAttribute('role','tab');el.setAttribute('aria-controls','inboxGrid');tabs.append(el);tabButtons.set(key,el);
+            const el=button(label,()=>{if(busy||state===key)return;state=key;syncTabs();void load();});el.setAttribute('role','tab');el.setAttribute('aria-controls','inboxGrid');tabs.append(el);tabButtons.set(key,el);
             el.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const keys=[...tabButtons.keys()];let i=keys.indexOf(state);i=e.key==='Home'?0:e.key==='End'?2:(i+(e.key==='ArrowLeft'?-1:1)+3)%3;tabButtons.get(keys[i]).click();tabButtons.get(keys[i]).focus();});
         }
         function syncTabs(){for(const [key,el] of tabButtons){el.setAttribute('aria-selected',String(key===state));el.tabIndex=key===state?0:-1;}}
@@ -44,26 +44,30 @@
         function picked(){return rows.filter(row=>selected.has(row.id));}
         function sync(){
             count.textContent=`已选 ${selected.size} 张`;const empty=!selected.size;
-            for(const el of [retain,editFolder,canvas,library,trash,restore,purge])el.disabled=empty||busy;
+            for(const el of [retain,editFolder,canvas,library,trash,restore,purge])el.disabled=empty||busy||loading;
             for(const el of [retain,editFolder,canvas,library,trash])el.hidden=state==='trash';
-            restore.hidden=purge.hidden=state!=='trash';all.disabled=busy||!rows.some(r=>r.can_manage);more.disabled=busy;
+            restore.hidden=purge.hidden=state!=='trash';all.disabled=busy||loading||!rows.some(r=>r.can_manage);more.disabled=busy||loading;
             for(const el of [search,owner,folder,model,references,refresh,...tabButtons.values()])el.disabled=busy;
         }
         function updateFacets(control,values,label){const value=control.value;control.replaceChildren();for(const item of ['',...values]){const op=node('option',item||label);op.value=item;control.append(op);}control.value=values.includes(value)?value:'';}
         async function load(append=false){
             if(busy)return;if(append&&!hasMore)return;
             const token=++sequence;readController?.abort();readController=new AbortController();
-            if(!append){cursor=null;selected.clear();rows=[];grid.replaceChildren();}
+            if(!append){selected.clear();}
+            // Keep the old view mounted until its replacement is ready. Removing it
+            // early clamps the document scroll position, especially near the footer.
+            grid.style.minHeight=Math.max(148,grid.getBoundingClientRect().height)+'px';
+            loading=true;grid.inert=true;sync();
             grid.setAttribute('aria-busy','true');message('加载作品中…');more.disabled=true;
-            const query=new URLSearchParams({state,q:search.value,owner:owner.value,folder:folder.value,model:model.value,references:references.value,limit:'30'});if(cursor)query.set('cursor',cursor);
+            const query=new URLSearchParams({state,q:search.value,owner:owner.value,folder:folder.value,model:model.value,references:references.value,limit:'30'});if(append&&cursor)query.set('cursor',cursor);
             try{
                 const data=await json('/api/online-works?'+query,{signal:readController.signal});if(token!==sequence)return;
-                rows.push(...data.items);cursor=data.next_cursor;hasMore=Boolean(cursor);more.hidden=!hasMore;
+                rows=append?[...rows,...data.items]:data.items;cursor=data.next_cursor;hasMore=Boolean(cursor);more.hidden=!hasMore;
                 const stats=data.summary,counts=stats.counts||{};
                 summary.textContent=`未整理 ${counts.inbox||0} · 已保留 ${counts.saved||0} · 回收站 ${(counts.trash||0)+(counts.purging||0)} ｜在线原件 ${bytes(Object.values(stats.bytes||{}).reduce((a,b)=>a+Number(b),0))}`;
                 updateFacets(folder,data.folders||[],'全部文件夹');updateFacets(model,data.models||[],'全部模型');render();message('');
-            }catch(error){if(token===sequence&&error.name!=='AbortError'){message(error.message+'，点击刷新重试',true);render();}}
-            finally{if(token===sequence){grid.setAttribute('aria-busy','false');sync();}}
+            }catch(error){if(token===sequence&&error.name!=='AbortError'){message(error.message+'，点击刷新重试',true);if(!append){rows=[];cursor=null;hasMore=false;more.hidden=true;render();}}}
+            finally{if(token===sequence){loading=false;grid.inert=false;grid.style.minHeight='';grid.setAttribute('aria-busy','false');sync();}}
         }
         function render(){
             grid.replaceChildren();
@@ -97,7 +101,7 @@
             sync();
         }
         async function perform(action,targets=picked(),metadata={},confirmPermanent=false){
-            if(!targets.length||busy)return;
+            if(!targets.length||busy||loading)return;
             busy=true;++sequence;readController?.abort();sync();host.querySelectorAll('.inbox-card button,.inbox-card input').forEach(el=>el.disabled=true);message(action==='purge'?'正在清理文件…':'正在保存…');
             try{
                 let result;
