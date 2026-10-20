@@ -28,12 +28,19 @@
   }
   async function create({api, canGift, memberId}) {
     const root = el('div', undefined, 'credit-gifts');
+    const tabs=el('div',undefined,'management-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','积分管理');root.append(tabs);
+    let activeTab=canGift?'grant':'history';
+    function showTab(key){activeTab=key;root.querySelectorAll('[data-credit-panel]').forEach(p=>p.hidden=p.dataset.creditPanel!==key);tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.panel===key)));}
+    for(const [key,title] of [...(canGift?[['grant','发放积分']]:[]),['history','发放记录']]){const tab=button(title,()=>showTab(key));tab.dataset.panel=key;tab.setAttribute('role','tab');tabs.append(tab);}
     root.append(el('p', '来源依据由管理员填报并留档，系统不自动核验外部凭证。此处仅处理人工赠送积分。', 'muted'));
     const storageKey = 'management-credit-gift-pending:' + memberId;
     const post = (route, data) => api('/api/credits/gifts/' + route, {method:'POST', body:JSON.stringify(data)});
     let reloadHistory;
     if (canGift) {
       const card = el('section', undefined, 'card'), form = el('form'), fields = el('fieldset');
+      card.dataset.creditPanel='grant';card.setAttribute('role','tabpanel');
+      const steps=el('ol',undefined,'credit-steps');['填写发放信息','核对账号与来源','确认入账'].forEach(name=>steps.append(el('li',name)));card.append(steps);
+      const setStep=index=>Array.from(steps.children).forEach((step,i)=>{step.classList.toggle('current',i===index);if(i===index)step.setAttribute('aria-current','step');else step.removeAttribute('aria-current');});setStep(0);
       fields.append(el('legend', '新增管理员赠送'));
       const controls = [input('收款登录账号', 'username', 64), input('赠送积分数（正整数）', 'amount', 19),
         input('赠送原因（管理端留档）', 'reason', 1000, true), input('来源依据（工单、审批或活动编号）', 'evidence_ref', 500, true)];
@@ -50,13 +57,13 @@
         if (saved && JSON.parse(saved).request_id === id) sessionStorage.removeItem(storageKey);
       };
       const edit = () => {
-        ready = null; fields.disabled = false; preview.hidden = false;
+        setStep(0);ready = null; fields.disabled = false; preview.hidden = false;
         confirm.hidden = true; revise.hidden = true; previewBox.replaceChildren();
       };
       const finish = receipt => {
         // A confirmed receipt can be shown even if storage cleanup is unavailable.
         try { clearPending(receipt.request_id); } catch (_) { /* A retained request is safe to replay. */ }
-        pending = null; ready = null; fields.disabled = true; preview.hidden = confirm.hidden = revise.hidden = true;
+        setStep(2);pending = null; ready = null; fields.disabled = true; preview.hidden = confirm.hidden = revise.hidden = true;
         form.dataset.dirty = 'false';
         previewBox.replaceChildren(facts(receipt)); next.hidden = false;
         message.textContent = '已入账。以下编号可用于核对来源记录与操作审计。';
@@ -88,7 +95,7 @@
       const next = button('新建赠送', () => {
         requestId = crypto.randomUUID(); uncertain = false; form.reset(); edit(); next.hidden = true; message.textContent = '';
       });
-      confirm.hidden = revise.hidden = next.hidden = true;
+      preview.classList.add('primary');confirm.classList.add('primary');confirm.hidden = revise.hidden = next.hidden = true;
       actions.append(preview, confirm, revise, next); form.append(fields, previewBox, message, actions); card.append(form); root.append(card);
       form.onsubmit = async event => {
         event.preventDefault();
@@ -98,7 +105,7 @@
         try {
           const result = await post('preview', data);
           if (result.applied) { finish(result); await reloadHistory(); return; }
-          ready = {...data, preview_token:result.preview_token};
+          setStep(1);ready = {...data, preview_token:result.preview_token};
           previewBox.replaceChildren(facts(result));
           preview.hidden = true; confirm.hidden = revise.hidden = false; confirm.textContent = `确认赠送 ${result.amount} 积分`;
           message.textContent = '请核对收款账号、积分数和来源依据，确认后入账。';
@@ -119,7 +126,8 @@
       }
     }
     const history = el('section', undefined, 'card'), filters = el('form', undefined, 'toolbar');
-    history.append(el('h2', '赠送来源记录'));
+    history.dataset.creditPanel='history';history.setAttribute('role','tabpanel');history.append(el('h2', '赠送来源记录'));
+    const metrics=el('div',undefined,'management-kpis');history.append(metrics);
     const username = input('收款账号（精确筛选）', 'username', 64), request = input('请求编号（精确筛选）', 'request_id', 36);
     username.node.required = request.node.required = false;
     const search = el('button', '查询记录'); search.type = 'submit';
@@ -136,10 +144,12 @@
       try {
         const result = await api('/api/credits/gifts?' + params);
         if (serial !== generation) return;
-        nextCursor = result.next; older.hidden = !nextCursor; rows.replaceChildren();
+        nextCursor = result.next; older.hidden = !nextCursor; rows.replaceChildren();metrics.replaceChildren();
+        for(const [label,value] of [['本页发放笔数',result.entries.length],['本页发放积分',result.entries.reduce((n,e)=>n+BigInt(e.amount),0n).toString()],['本页收款账号',new Set(result.entries.map(e=>e.target.id)).size]]){const metric=el('div');metric.append(el('span',label),el('strong',String(value)));metrics.append(metric);}
+        const table=el('table'),head=el('thead'),headRow=el('tr'),tbody=el('tbody');['收款账号','发放积分','发放时间','来源与凭证'].forEach(name=>headRow.append(el('th',name)));head.append(headRow);table.append(head,tbody);const scroll=el('div',undefined,'table-wrap');scroll.append(table);rows.append(scroll);
         for (const entry of result.entries) {
           const details = el('details'), summary = el('summary', `${entry.target.username} · +${entry.amount} 积分 · ${new Date(entry.created_at).toLocaleString()}`);
-          details.append(summary, facts(entry)); rows.append(details);
+          details.append(summary, facts(entry));const tr=el('tr');for(const value of [entry.target.display_name+' / '+entry.target.username,'+'+entry.amount,new Date(entry.created_at).toLocaleString(),details]){const td=el('td');td.append(value instanceof Node?value:document.createTextNode(value));tr.append(td);}tbody.append(tr);
         }
         status.textContent = result.entries.length ? '以下为管理员填报的来源记录，可按请求编号关联操作审计。' : '暂无符合条件的赠送记录。';
       } catch (error) { if (serial === generation) status.textContent = error.message + ' 当前记录未更新。'; }
@@ -153,7 +163,7 @@
     };
     filters.append(username.label, request.label, search, latest, older); history.append(filters, status, rows); root.append(history);
     reloadHistory = () => { cursor = null; return load(); };
-    await load(); return root;
+    await load();showTab(activeTab); return root;
   }
   window.ManagementCreditGifts = {create};
 })();

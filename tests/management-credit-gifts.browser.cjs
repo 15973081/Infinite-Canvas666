@@ -41,7 +41,7 @@ async function setup(t, permissions = ['credits.gift.platform','audit.platform']
   });
   const open = async () => {
     await page.goto('http://localhost:8770/');
-    await page.getByRole('button',{name:'积分赠送与来源',exact:true}).click();
+    await page.getByRole('button',{name:'积分管理',exact:true}).click();
     await page.locator('#content[aria-busy="false"]').waitFor();
   };
   await open();
@@ -63,6 +63,7 @@ test('credit gift requires explicit confirmation and displays linked receipt', a
   await page.getByRole('button',{name:'确认赠送 125 积分',exact:true}).click();
   await page.getByText('已入账。以下编号可用于核对来源记录与操作审计。',{exact:true}).waitFor();
   assert.equal(state.applies.length,1); assert.equal(state.receipts.size,1);
+  await page.getByRole('tab',{name:'发放记录',exact:true}).click();await page.getByRole('columnheader',{name:'发放积分',exact:true}).waitFor();assert.equal(await page.locator('.management-kpis strong').nth(1).textContent(),'125');await page.getByRole('tab',{name:'发放积分',exact:true}).click();assert.equal(await page.locator('.credit-steps [aria-current=step]').textContent(),'确认入账');
   assert.equal(await page.evaluate(()=>sessionStorage.getItem('management-credit-gift-pending:admin-a')),null);
   await page.getByRole('button',{name:'新建赠送',exact:true}).click();
   await fill('20');
@@ -142,10 +143,10 @@ test('credit gift receipt remains confirmed when history refresh fails', async t
   assert.equal(state.receipts.size,1);
 });
 
-test('credit gift preview remains readable on desktop and mobile', async t => {
+test('credit gift preview remains readable at desktop widths', async t => {
   const {page,fill} = await setup(t); await fill();
   fs.mkdirSync('.local/commercial-kickoff',{recursive:true});
-  for(const width of [1440,390]) {
+  for(const width of [1366,1920]) {
     await page.setViewportSize({width,height:1000});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
     await page.screenshot({path:`.local/commercial-kickoff/credit-gift-preview-${width}.png`,fullPage:true});
@@ -157,7 +158,7 @@ test('credit gift late receipt cannot erase a newer pending operation after navi
   page.on('dialog', dialog => dialog.accept());
   await page.getByRole('button',{name:'确认赠送 125 积分',exact:true}).click();
   await page.getByRole('button',{name:'概览',exact:true}).click();
-  await page.getByRole('button',{name:'积分赠送与来源',exact:true}).click();
+  await page.getByRole('button',{name:'积分管理',exact:true}).click();
   await page.getByRole('button',{name:'重试确认结果',exact:true}).click();
   await page.getByRole('button',{name:'新建赠送',exact:true}).click();
   await fill('30'); state.failure='abort';

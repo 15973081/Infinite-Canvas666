@@ -41,7 +41,7 @@ test('member filters, provider sections, dirty guards and error recovery work to
  await page.locator('.row-more summary').click();assert.equal(await page.getByRole('button',{name:'重置密码',exact:true}).isVisible(),true);
  failMembers=true;await page.getByRole('button',{name:'刷新',exact:true}).click();await page.getByRole('heading',{name:'成员与分配加载失败'}).waitFor();failMembers=false;
  await page.getByRole('button',{name:'重新加载'}).click();await page.getByText('alice',{exact:true}).waitFor();
- await page.getByRole('button',{name:'供应商与分配',exact:true}).click();await page.getByRole('tab',{name:'连接',exact:true}).waitFor();
+ await page.getByRole('button',{name:'供应商与分配',exact:true}).click();await page.getByLabel('查找供应商').fill('missing-vendor');await page.getByText('没有匹配的供应商。',{exact:true}).waitFor();await page.getByLabel('查找供应商').fill('');await page.getByRole('button',{name:'配置详情',exact:true}).first().click();await page.getByRole('tab',{name:'连接',exact:true}).waitFor();
  assert.equal(await page.getByLabel(/^API Key/).isVisible(),false);
  await page.getByLabel('平台名称').fill('Changed');await page.getByRole('tab',{name:'凭证',exact:true}).click();await page.getByLabel(/^API Key/).fill('test-key');
  await page.getByRole('tab',{name:'模型',exact:true}).click();await page.getByRole('tab',{name:'高级配置',exact:true}).click();await page.getByLabel(/^代理地址/).fill('https://proxy.example.com');

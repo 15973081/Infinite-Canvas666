@@ -2,7 +2,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
-  const names = {creditGifts:'积分赠送与来源',imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
+  const names = {creditGifts:'积分管理',imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   let memberSearch = '', memberStatus = '';
   let identityPaused = false;
   let permissionPaused = false, accessCheck = null;
@@ -181,6 +181,8 @@
     }
     $('#login').hidden = $('#unavailable').hidden = true; $('#shell').hidden = false;
     $('#identity').textContent = me.member.display_name;
+    $('#console-account').textContent = me.member.display_name;
+    $('#console-avatar').textContent = Array.from(me.member.display_name || 'S')[0].toUpperCase();
     const select = $('#scope'); select.replaceChildren();
     if (me.permissions.length) { const o = el('option', '全平台'); o.value = ''; select.append(o); }
     me.workspaces.forEach(w => { const o = el('option', w.name + (w.status === 'archived' ? '（已归档）' : '')); o.value = w.id; select.append(o); });
@@ -190,6 +192,7 @@
   async function render() {
     const requestSerial = ++serial, content = $('#content');
     $('#title').textContent = names[view];
+    content.dataset.currentView = view;
     document.querySelectorAll('[data-view]').forEach(b => {
       const active = b.dataset.view === view;
       b.classList.toggle('active', active);
@@ -263,6 +266,7 @@
       : [];
     return [...hint, await window.CanvasBillingUI.create({
       assignmentApi,
+      management:true,
       fetchReport: params => api('/api/billing?' + new URLSearchParams({
         ...params,
         ...(scope ? {workspace:scope} : {})
@@ -299,7 +303,7 @@
     if ((data.workspace?.id || '') !== scope) throw new Error('概览范围已变化，请刷新后重试。');
     const toolbar = el('div', undefined, 'toolbar');
     toolbar.append(button('刷新概览', refresh), el('span', '更新于 ' + new Date(data.observed_at).toLocaleString(), 'muted'));
-    const summary = el('section', undefined, 'card');
+    const summary = el('section', undefined, 'card overview-banner');
     summary.append(el('h2', data.workspace?.name || '平台概览'), el('p', scope ? '查看当前空间的资源和运行状态。各项数据按你的权限展示。' : '选择具体空间查看画布、素材容量与任务统计。'));
     if (data.workspace?.status === 'archived') {
       summary.append(el('p', '此空间已归档，资源统计暂停展示。已有数据仍保留。', 'muted'));
@@ -348,7 +352,13 @@
       backup.append(button('查看备份记录', () => { view='backups'; backupAfter=''; return render(); }));
       if (latest?.status === 'failed') backup.append(button('检查最近失败备份', () => { view='backups'; backupAfter=''; return render(); }, 'danger'));
     } else backup.append(el('p', '未授权，需要当前范围的备份读取权限。', 'muted'));
-    return [toolbar, summary, cards, maintenance, backup];
+    const layout = el('div', undefined, 'overview-layout');
+    const primary = el('div', undefined, 'overview-primary');
+    const secondary = el('div', undefined, 'overview-secondary');
+    primary.append(summary, cards, maintenance);
+    secondary.append(backup);
+    layout.append(primary, secondary);
+    return [toolbar, layout];
   }
   async function memberView() {
     if (!(workspace ? allowed('space.members.manage') || me.permissions.includes('space.assign') : allowed('member.manage'))) return denied();
@@ -535,7 +545,7 @@
       return call('/api/providers/'+encodeURIComponent(row.id),'PUT',{expected_version:row.version,config:next,reason:form.get('reason')});
     },'保存规格价格',true);
   }
-  let providerSelection='', providerDraft=null, providerDirty=false;
+  let providerSelection='', providerDraft=null, providerDirty=false, providerPanel='catalog';
   function leaveProviderEditor() {
     if(document.querySelector('#content form[data-saving="true"], #dialog[open] form[data-saving="true"]')){notice('正在保存，请等待完成后再切换。');return false;}
     const forms=document.querySelectorAll('#content form[data-dirty="true"], #dialog[open] form[data-dirty="true"]');
@@ -544,7 +554,7 @@
   }
   function editProvider(row) {
     if(!leaveProviderEditor())return;
-    providerDraft=row && !row.version?row:null;providerSelection=row?.id || '__new__';return render();
+    providerPanel='detail';providerDraft=row && !row.version?row:null;providerSelection=row?.id || '__new__';return render();
   }
   const probeMessages = {
     models_available: '模型列表接口可用。请核对分类，勾选需要追加的模型。', models_empty: '模型列表接口已响应，但没有可导入的模型；请检查配置或手动填写模型。',
@@ -712,11 +722,15 @@
     let selected=providerDraft || rows.find(r=>r.id===providerSelection);
     if(providerSelection==='__new__')selected={config:{},version:0,configured_secrets:[]};
     if(!selected)selected=rows[0]||{config:{},version:0,configured_secrets:[]};providerSelection=selected.id||'__new__';
-    const layout=el('div',undefined,'provider-layout'),sidebar=el('section',undefined,'provider-sidebar');sidebar.append(el('h2','平台列表'));
-    rows.forEach(row=>{const b=button('',()=>editProvider(row),'provider-choice'+(row.id===selected.id?' selected':''));
-      b.append(el('strong',row.config.name),el('small',row.builtin?'内置平台':'自定义平台'),el('span',!row.version?'待配置':row.config.enabled?'已启用':'已停用','badge'));
-      if(scope)b.append(el('small',assigned.provider_ids.includes(row.id)?assigned.primary_provider_id===row.id?'本空间默认':'已分配本空间':'未分配本空间'));
-      sidebar.append(b);});layout.append(sidebar);
+    const layout=el('div',undefined,'provider-layout provider-workspace');
+    const catalog=el('section',undefined,'provider-catalog');const stats=el('div',undefined,'management-kpis');
+    for(const [label,value] of [['已保存供应商',data.providers.length],['已启用',data.providers.filter(r=>r.config.enabled).length],['待配置预设',rows.filter(r=>!r.version).length]]){const metric=el('div');metric.append(el('span',label),el('strong',String(value)));stats.append(metric);}
+    const filter=el('label','查找供应商'),search=el('input');search.type='search';search.placeholder='搜索名称或接口协议';filter.append(search);catalog.append(filter);
+    const catalogTable=table(['供应商','协议','状态','凭证','模型数量',...(scope?['空间分配']:[]),'操作'],rows.map(row=>{
+      const config=row.config,models=new Set(['chat_models','image_models','video_models'].flatMap(k=>config[k]||[]));
+      return [labelText(config.name,row.id),config.protocol||'未设置',!row.version?'待配置':config.enabled?'已启用':'已停用',row.configured_secrets?.length?'已配置':'未配置',models.size,...(scope?[assigned.provider_ids.includes(row.id)?assigned.primary_provider_id===row.id?'默认供应商':'已分配':'未分配']:[]),button('配置详情',async()=>{await editProvider(row);document.querySelector('.provider-editor')?.scrollIntoView({behavior:'auto',block:'start'});})];
+    }));catalog.append(catalogTable);const empty=el('p','没有匹配的供应商。','empty');empty.hidden=true;catalog.append(empty);search.oninput=()=>{let visible=0;catalogTable.querySelectorAll('tbody tr').forEach((tr,index)=>{const row=rows[index];tr.hidden=!(row.config.name+' '+row.config.protocol).toLowerCase().includes(search.value.trim().toLowerCase());if(!tr.hidden)visible++;});empty.hidden=visible>0;};
+    if(providerPanel==='catalog')return [el('p','统一管理供应商、模型与空间分配。凭证已配置不代表连接已验证，可在配置详情中测试。','muted'),stats,toolbar,catalog];
     const editor=window.ManagementProviderEditor.create({row:selected,current:()=>serial===stamp&&me?.member.id===memberId&&workspace===scope,
       onDirty:value=>{providerDirty=value;},save:async value=>{
         if(serial!==stamp||me?.member.id!==memberId)throw new Error('页面身份已变化，请重新打开配置。');
@@ -724,8 +738,8 @@
         if(serial!==stamp||me?.member.id!==memberId||workspace!==scope)return;
         providerDirty=false;providerDraft=null;providerSelection=value.id;await refresh();notice('供应商配置已保存');
       },probe:()=>probeProvider(selected),diagnose:()=>diagnoseProvider(selected),prices:()=>editVideoPrices(selected)});
-    layout.append(editor);
-    return [el('p','平台配置统一维护，按空间分配使用。火山引擎默认保留；地址、凭证、模型与高级选项分组管理。','muted'),toolbar,layout];
+    layout.append(button('返回供应商列表',()=>{if(!leaveProviderEditor())return;providerPanel='catalog';providerDraft=null;return render();}),editor);
+    return [layout];
   }
   const backupStates = {queued:'等待备份执行器',running:'正在备份',succeeded:'已完成并校验',failed:'备份失败',cancelled:'权限变化，已取消'};
   const backupFailures = {backup_export_failed:'导出或校验失败，请运维检查备份目录、对象存储和磁盘空间。',backup_interrupted:'执行器中断，未完成的文件已保留。请检查后重新发起。',backup_authorization_changed:'发起者会话或权限已变化，请重新登录并核实授权。'};
@@ -995,6 +1009,19 @@
   $('#scope').onchange = () => execute(() => { if(!leaveProviderEditor()){$('#scope').value=workspace;return;} workspace = $('#scope').value; occupancyAfter = ''; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
   document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => execute(() => { if(!leaveProviderEditor())return; closeNavigation(); view = b.dataset.view; occupancyAfter = ''; pageAfter = auditBefore = ''; return render(); }, b));
   $('#open-navigation').onclick = openNavigation;
+  $('#navigation-search').addEventListener('input', event => {
+    const query = event.target.value.trim().toLocaleLowerCase();
+    let matches = 0;
+    document.querySelectorAll('#admin-navigation [data-view]').forEach(item => {
+      item.hidden = !item.textContent.toLocaleLowerCase().includes(query);
+      if (!item.hidden) matches++;
+    });
+    document.querySelectorAll('.nav-group').forEach(group => {
+      group.hidden = !Array.from(group.querySelectorAll('[data-view]')).some(item => !item.hidden);
+      if (query && !group.hidden) group.open = true;
+    });
+    $('#navigation-empty').hidden = matches > 0;
+  });
   $('#close-navigation').onclick = () => closeNavigation();
   $('#navigation-backdrop').onclick = () => closeNavigation();
   const mobileNavigation = window.matchMedia('(max-width: 760px)');
@@ -1003,7 +1030,7 @@
     if (!$('#shell').classList.contains('navigation-open')) return;
     if (event.key === 'Escape') { event.preventDefault(); closeNavigation(); }
     if (event.key === 'Tab') {
-      const controls = Array.from($('#admin-navigation').querySelectorAll('button,summary,a[href]')).filter(e => e.getClientRects().length && !e.disabled);
+      const controls = Array.from($('#admin-navigation').querySelectorAll('button,input,summary,a[href]')).filter(e => e.getClientRects().length && !e.disabled);
       const first = controls[0], last = controls[controls.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
