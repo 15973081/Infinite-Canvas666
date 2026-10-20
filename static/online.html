@@ -65,26 +65,25 @@
     <link rel="stylesheet" href="/static/css/online-imports.css">
     <link rel="stylesheet" href="/static/css/online-inbox.css">
     <link rel="stylesheet" href="/static/css/studio-workspace-palette.css?v=2026.10.20.1">
-    <link rel="stylesheet" href="/static/css/image-workspace-design.css?v=2026.10.20.1">
+    <link rel="stylesheet" href="/static/css/image-workspace-design.css?v=2026.10.20.2">
 </head>
 <body class="studio-skin studio-content studio-online">
     <div class="container-box min-h-screen flex flex-col">
         <header class="flex justify-between items-end mb-16">
             <div class="space-y-1">
                 <h1 class="text-4xl font-extrabold tracking-tighter italic">图片工作台</h1>
-                <p class="image-workspace-subtitle">从画面构想到成品，集中管理每一次创作。</p>
+                <p class="image-workspace-subtitle">图片生成与编辑</p>
             </div>
             <nav class="hidden md:flex gap-8 text-[11px] font-bold uppercase tracking-widest text-gray-400">
-                <a class="image-archive-link" href="#imageWorksAnchor">浏览作品收件箱 <span aria-hidden="true">↗</span></a>
+                <a class="image-archive-link" href="#imageWorksAnchor" onclick="document.querySelector('.image-records').open = true">作品记录 <span aria-hidden="true">↗</span></a>
             </nav>
         </header>
 
         <main class="image-workspace-layout grid grid-cols-1 lg:grid-cols-12 gap-12">
             <div class="image-workspace-controls lg:col-span-5 space-y-8">
-                <div class="image-settings-heading"><h2>创作设置</h2><span>描述 · 参考 · 输出</span></div>
+                <div class="image-settings-heading"><h2>生成设置</h2><span>图片</span></div>
                 <section class="space-y-4">
                     <div class="flex items-center gap-2 text-gray-400">
-                        <span class="image-step" aria-hidden="true">01</span>
                         <label for="promptInput">画面描述</label>
                     </div>
                     <textarea id="promptInput" rows="5" class="nano-input w-full p-6 rounded-3xl text-sm outline-none resize-none placeholder-gray-300" placeholder="输入想生成或编辑的画面..."></textarea>
@@ -92,7 +91,6 @@
 
                 <section class="space-y-4">
                     <div class="flex items-center gap-2 text-gray-400">
-                        <span class="image-step" aria-hidden="true">02</span>
                         <span class="text-[10px] font-black uppercase tracking-widest">参考图片</span>
                     </div>
                     <div class="grid grid-cols-4 gap-4">
@@ -121,7 +119,6 @@
 
                 <div class="tool-panel">
                     <div class="control-label">
-                        <span class="image-step" aria-hidden="true">03</span>
                         <span>模型与输出</span>
                     </div>
                     <div class="size-row">
@@ -190,7 +187,7 @@
 
                 <button id="genBtn" onclick="submitImage()" class="glass-btn w-full py-5 text-white rounded-3xl font-bold flex items-center justify-center gap-3 shadow-lg">
                     <i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i>
-                    <span class="tracking-[0.3em] text-[11px] uppercase">生成</span>
+                    <span class="tracking-[0.3em] text-[11px] uppercase">生成图片</span>
                 </button>
             </div>
 
@@ -198,10 +195,9 @@
                 <div class="image-preview-heading"><h2>结果预览</h2><span>生成后可放大、下载或保存</span></div>
                 <div id="resultBox" class="result-frame min-h-[500px] lg:h-full flex items-center justify-center relative overflow-hidden">
                     <div id="placeholder" class="image-preview-empty">
-                        <svg class="image-preview-symbol" width="96" height="80" viewBox="0 0 96 80" fill="none" aria-hidden="true"><path d="M18 16h52v48H18z" stroke="currentColor"/><path d="M28 8h50v48M18 49l16-15 13 12 10-8 13 11" stroke="currentColor"/><circle cx="56" cy="29" r="4" stroke="currentColor"/><path d="M8 28v-12h10M68 72h12V60" stroke="var(--studio-accent-label)" stroke-width="2"/></svg>
-                        <strong>让想法成为画面</strong>
-                        <p>在右侧描述你想要的效果，也可以添加参考图。</p>
-                        <span>生成结果将在这里展示</span>
+                        <strong>暂无生成结果</strong>
+                        <p>在左侧输入画面描述，选择模型后生成。<br>编辑已有图片时，可先添加参考图。</p>
+                        <a class="image-empty-history" href="#imageWorksAnchor" onclick="document.querySelector('.image-records').open = true">查看作品记录</a>
                     </div>
                     <img id="outputImg" class="hidden w-full h-full object-contain p-8 cursor-zoom-in" onclick="zoomImage()">
                     <a id="downloadBtn" href="#" download class="hidden absolute top-8 right-8 w-12 h-12 bg-white/90 shadow-2xl rounded-2xl flex items-center justify-center hover:bg-black hover:text-white"><i data-lucide="download" class="w-4 h-4"></i></a>
@@ -211,11 +207,14 @@
         </main>
 
         <div id="imageWorksAnchor"></div>
+        <details class="image-records">
+        <summary>作品记录 <span>查看、筛选和整理生成作品</span></summary>
         <section id="onlineWorksSection" class="mt-32">
             <div class="flex items-center gap-6 mb-12"><h2 class="text-[11px] font-black uppercase tracking-[0.5em]">归档</h2><div class="h-px flex-1 bg-gray-100"></div></div>
             <div id="masonry" class="masonry-grid"></div>
             <div id="loadMoreTrigger" class="py-20 text-center text-gray-300 text-[10px] font-bold uppercase tracking-widest cursor-pointer hover:text-black">Load More Archive</div>
         </section>
+        </details>
     </div>
 
     <div id="lightbox" onclick="handleOutsideClick(event)" class="hidden gallery-lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">

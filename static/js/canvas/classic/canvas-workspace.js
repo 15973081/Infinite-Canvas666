@@ -1315,16 +1315,8 @@ function renderNode(node){
         }
     }
     if(node.type === 'prompt') {
-        const templateActive = classicPromptPanel.state.open && classicPromptPanel.state.nodeId === node.id;
-        el.querySelector('.node-head-actions').insertAdjacentHTML('afterbegin', `<button class="prompt-template-btn ${templateActive ? 'active' : ''}" type="button" data-prompt-template-open data-prompt-template-node-id="${escapeAttr(node.id)}" aria-pressed="${templateActive ? 'true' : 'false'}" title="${escapeAttr('提示词模板库')}"><i data-lucide="library"></i><span>${escapeHtml('模板库')}</span></button>`);
         body.innerHTML = `<div class="prompt-editor"><textarea aria-label="提示词" placeholder="输入提示词...">${escapeHtml(node.text || '')}</textarea>${promptCounterHtml(node.text || '')}</div>`;
         const textarea = body.querySelector('textarea');
-        const templateBtn = el.querySelector('[data-prompt-template-open]');
-        templateBtn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            openPromptTemplateModal(node.id);
-        };
         bindScrollableText(textarea);
         textarea.oninput = e => {
             node.text = e.target.value;

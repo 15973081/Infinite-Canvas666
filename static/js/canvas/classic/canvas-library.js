@@ -1344,7 +1344,7 @@ function createClassicPromptPanel(){
     }
 
     async function implOpenPromptTemplateModal(nodeId){
-        if(!alive()) return;
+        if(!alive() || !promptTemplateModal) return;
         templateVersion++; opening = true;
         targetCanvasId = canvas?.id || '';
         promptTemplateNodeId = nodeId || '';

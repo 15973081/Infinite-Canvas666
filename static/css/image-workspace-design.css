@@ -1,42 +1,47 @@
-/* Image workspace: preview stage and a separate, sequential creation desk. */
-body.studio-online .container-box {max-width:1600px;padding:28px 32px 48px}
-body.studio-online .container-box>header {margin:0 0 24px;padding:0;border:0;align-items:center}
-html body.studio-online .container-box h1 {font-size:26px}
-body.studio-online .container-box>header .image-workspace-subtitle {font:12px/1.7 var(--studio-font);letter-spacing:0;margin-top:8px}
+/* Desktop image production desk. Keep controls stable while reviewing results. */
+body.studio-online .container-box {max-width:none;padding:20px 24px 32px}
+body.studio-online .container-box>header {margin:0 0 16px;padding:0 0 16px;border-bottom:1px solid var(--studio-border);align-items:center}
+html body.studio-online .container-box h1 {font-size:20px;font-style:normal;letter-spacing:0}
+body.studio-online .image-workspace-subtitle {font-size:12px;color:var(--studio-text-muted);margin-top:4px}
 body.studio-online .container-box>header nav {display:flex}
-.image-archive-link {display:flex;gap:18px;padding:10px 14px;border:1px solid var(--studio-border);border-radius:8px;color:var(--studio-text-muted);font:12px var(--studio-font);text-decoration:none}
-.image-archive-link:hover {background:var(--studio-selected);color:var(--studio-text)}
-body.studio-online .image-workspace-layout {display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:24px;align-items:stretch}
-body.studio-online .image-workspace-controls {grid-column:2;grid-row:1;min-width:0;padding:20px;border:1px solid var(--studio-border);border-radius:14px;background:var(--studio-panel)}
-body.studio-online .image-workspace-preview {grid-column:1;grid-row:1;min-width:0;display:flex;flex-direction:column;border:1px solid var(--studio-border);border-radius:14px;background:var(--studio-panel);overflow:hidden}
+.image-archive-link,.image-empty-history {font:12px var(--studio-font);color:var(--studio-text-muted);text-decoration:none}
+.image-archive-link {padding:8px 12px;border:1px solid var(--studio-border);border-radius:4px}
+.image-archive-link:hover,.image-empty-history:hover {color:var(--studio-text)}
+body.studio-online .image-workspace-layout {display:grid;grid-template-columns:348px minmax(0,1fr);gap:0;align-items:stretch;border:1px solid var(--studio-border);border-radius:4px;overflow:hidden}
+body.studio-online .image-workspace-controls {grid-column:1;grid-row:1;min-width:0;padding:16px;border-right:1px solid var(--studio-border);background:var(--studio-panel)}
+body.studio-online .image-workspace-preview {grid-column:2;grid-row:1;min-width:0;margin:0!important;display:flex;flex-direction:column;background:var(--studio-page);overflow:hidden}
 .image-settings-heading,.image-preview-heading {display:flex;align-items:center;justify-content:space-between;gap:12px}
-.image-settings-heading h2,.image-preview-heading h2 {font-size:14px;font-weight:600;margin:0}
+.image-settings-heading h2,.image-preview-heading h2 {font-size:13px;font-weight:600;margin:0}
 .image-settings-heading>span,.image-preview-heading>span {font-size:11px;color:var(--studio-text-muted)}
-.image-settings-heading {padding-bottom:16px;border-bottom:1px solid var(--studio-border)}
-.image-preview-heading {padding:18px 20px;border-bottom:1px solid var(--studio-border)}
-body.studio-online .image-workspace-controls>*+* {margin-top:18px!important}
-.image-step {display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:var(--studio-selected);color:var(--studio-accent-label);font:10px var(--studio-font-mono);border-radius:5px}
+.image-settings-heading {padding-bottom:12px;border-bottom:1px solid var(--studio-border)}
+.image-preview-heading {padding:14px 18px;border-bottom:1px solid var(--studio-border);background:var(--studio-panel)}
+body.studio-online .image-workspace-controls>*+* {margin-top:14px!important}
 body.studio-online .image-workspace-controls section>div:first-child {font-size:12px;font-weight:500}
-html body.studio-online .image-workspace-controls .nano-input {height:144px;min-height:144px;padding:12px 14px;border-radius:8px;background:var(--studio-page);font-size:13px;resize:vertical}
-body.studio-online .image-workspace-controls section>div.grid {gap:8px}
-body.studio-online .image-workspace-controls .upload-item {height:76px;aspect-ratio:auto;border-radius:8px;background:var(--studio-page);border-color:var(--studio-border-strong)}
+body.studio-online .image-workspace-controls section>*+* {margin-top:8px}
+html body.studio-online .image-workspace-controls .nano-input {height:132px;min-height:100px;padding:10px;border-radius:4px;background:var(--studio-page);font-size:13px;line-height:1.6;resize:vertical}
+body.studio-online .image-workspace-controls section>div.grid {gap:6px}
+body.studio-online .image-workspace-controls .upload-item {height:64px;aspect-ratio:auto;border-radius:4px;background:var(--studio-page);border-color:var(--studio-border-strong)}
 body.studio-online .image-workspace-controls .upload-item span {font-size:10px;font-weight:400}
 body.studio-online .image-workspace-controls .upload-item:hover {border-color:var(--studio-focus);box-shadow:none}
-html body.studio-online .image-workspace-controls .tool-panel {padding:16px 0 0;border:0;border-top:1px solid var(--studio-border);border-radius:0;background:transparent;gap:10px}
+html body.studio-online .image-workspace-controls .tool-panel {padding:14px 0 0;border:0;border-top:1px solid var(--studio-border);border-radius:0;background:transparent;gap:8px}
 body.studio-online .image-workspace-controls .control-label {font-size:12px;letter-spacing:0}
-html body.studio-online .image-workspace-controls :is(.size-select,.size-custom,.studio-select-trigger) {border-radius:7px}
-html body.studio-online .image-workspace-controls #genBtn {border-radius:8px;min-height:44px;padding:12px;box-shadow:none}
-body.studio-online #genBtn span {font-size:13px;letter-spacing:1px}
-html body.studio-online .image-workspace-preview #resultBox {flex:1;height:auto;min-height:500px;border:0;border-radius:0;background:var(--studio-page);box-shadow:none}
-body.studio-online #placeholder {padding:32px;max-width:460px;text-align:center;opacity:1}
-.image-preview-symbol {display:block;margin:0 auto 24px;color:var(--studio-border-strong)}
-.image-preview-empty strong {display:block;color:var(--studio-text);font-size:20px;font-weight:500;letter-spacing:1px}
-.image-preview-empty p {margin:12px 0 20px;font-size:12px;line-height:1.8;color:var(--studio-text-muted)}
-.image-preview-empty>span {font:10px var(--studio-font);color:var(--studio-text-faint);padding:7px 12px;border:1px solid var(--studio-border);border-radius:20px}
-body.studio-online :is(#onlineWorksSection,.online-inbox) {margin-top:32px;padding-top:24px;border-top:1px solid var(--studio-border);scroll-margin-top:24px}
-body.studio-online #imageWorksAnchor {scroll-margin-top:24px}
-body.studio-online .inbox-heading {margin-bottom:16px}
-body.studio-online .inbox-heading h2 {font-size:18px}
-body.studio-online .inbox-tools {border-radius:10px 10px 0 0;padding:14px;background:var(--studio-panel)}
-body.studio-online .inbox-tabs button {border-radius:6px}
-body.studio-online :is(button,a,textarea):focus-visible {outline:2px solid var(--studio-focus);outline-offset:3px}
+html body.studio-online .image-workspace-controls :is(.size-select,.size-custom,.studio-select-trigger) {border-radius:4px;min-height:34px;font-size:12px}
+html body.studio-online .image-workspace-controls #genBtn {border-radius:4px;min-height:38px;padding:10px;box-shadow:none}
+body.studio-online #genBtn span {font-size:13px;letter-spacing:0}
+html body.studio-online .image-workspace-preview #resultBox {flex:1;height:auto;min-height:420px;border:0;border-radius:0;background:var(--studio-page);box-shadow:none}
+body.studio-online #outputImg {position:absolute;inset:0;padding:20px}
+body.studio-online #downloadBtn {width:34px;height:34px;top:12px;right:12px;border-radius:4px;box-shadow:none}
+body.studio-online #placeholder {padding:24px;max-width:380px;text-align:center;opacity:1}
+.image-preview-empty strong {display:block;color:var(--studio-text-muted);font-size:14px;font-weight:500;letter-spacing:0}
+.image-preview-empty p {margin:10px 0 16px;font-size:12px;line-height:1.8;color:var(--studio-text-faint)}
+.image-empty-history {border-bottom:1px solid var(--studio-border-strong);padding-bottom:3px}
+.image-records {margin-top:16px;border:1px solid var(--studio-border);border-radius:4px}
+.image-records>summary {padding:14px 16px;background:var(--studio-panel);cursor:pointer;font-size:13px;font-weight:600}
+.image-records>summary span {margin-left:16px;font-size:12px;font-weight:400;color:var(--studio-text-muted)}
+body.studio-online :is(#onlineWorksSection,.online-inbox) {margin:0;padding:16px;border-top:1px solid var(--studio-border)}
+body.studio-online #imageWorksAnchor {scroll-margin-top:16px}
+body.studio-online .inbox-heading {margin-bottom:12px}
+body.studio-online .inbox-heading h2 {font-size:14px}
+body.studio-online .inbox-tools {border-radius:4px;padding:10px;background:var(--studio-panel)}
+body.studio-online .inbox-tabs button {border-radius:4px}
+body.studio-online :is(button,a,textarea,summary):focus-visible {outline:2px solid var(--studio-focus);outline-offset:2px}
