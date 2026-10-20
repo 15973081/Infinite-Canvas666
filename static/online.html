@@ -65,53 +65,55 @@
     <link rel="stylesheet" href="/static/css/online-imports.css">
     <link rel="stylesheet" href="/static/css/online-inbox.css">
     <link rel="stylesheet" href="/static/css/studio-workspace-palette.css?v=2026.10.20.1">
+    <link rel="stylesheet" href="/static/css/image-workspace-design.css?v=2026.10.20.1">
 </head>
 <body class="studio-skin studio-content studio-online">
     <div class="container-box min-h-screen flex flex-col">
         <header class="flex justify-between items-end mb-16">
             <div class="space-y-1">
                 <h1 class="text-4xl font-extrabold tracking-tighter italic">图片工作台</h1>
-                <p class="text-[10px] font-bold uppercase tracking-[0.4em] text-gray-400">GPT / NANO BANANA IMAGE STUDIO</p>
+                <p class="image-workspace-subtitle">从画面构想到成品，集中管理每一次创作。</p>
             </div>
             <nav class="hidden md:flex gap-8 text-[11px] font-bold uppercase tracking-widest text-gray-400">
-                <span class="text-black border-b-2 border-black pb-1">创建</span>
+                <a class="image-archive-link" href="#imageWorksAnchor">浏览作品收件箱 <span aria-hidden="true">↗</span></a>
             </nav>
         </header>
 
-        <main class="grid grid-cols-1 lg:grid-cols-12 gap-12">
-            <div class="lg:col-span-5 space-y-8">
+        <main class="image-workspace-layout grid grid-cols-1 lg:grid-cols-12 gap-12">
+            <div class="image-workspace-controls lg:col-span-5 space-y-8">
+                <div class="image-settings-heading"><h2>创作设置</h2><span>描述 · 参考 · 输出</span></div>
                 <section class="space-y-4">
                     <div class="flex items-center gap-2 text-gray-400">
-                        <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
-                        <span class="text-[10px] font-black uppercase tracking-widest">Prompt</span>
+                        <span class="image-step" aria-hidden="true">01</span>
+                        <label for="promptInput">画面描述</label>
                     </div>
                     <textarea id="promptInput" rows="5" class="nano-input w-full p-6 rounded-3xl text-sm outline-none resize-none placeholder-gray-300" placeholder="输入想生成或编辑的画面..."></textarea>
                 </section>
 
                 <section class="space-y-4">
                     <div class="flex items-center gap-2 text-gray-400">
-                        <i data-lucide="images" class="w-3.5 h-3.5"></i>
+                        <span class="image-step" aria-hidden="true">02</span>
                         <span class="text-[10px] font-black uppercase tracking-widest">参考图片</span>
                     </div>
                     <div class="grid grid-cols-4 gap-4">
                         <div id="drop-zone-1" onclick="document.getElementById('file1').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file1" accept="image/*" class="hidden" onchange="handleFile(this.files[0],1)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Main</span>
+                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">主参考</span>
                             <img id="prev1" class="preview-img hidden"><button id="del1" onclick="clearSlot(1,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                         <div id="drop-zone-2" onclick="document.getElementById('file2').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file2" accept="image/*" class="hidden" onchange="handleFile(this.files[0],2)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Aux A</span>
+                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">参考 02</span>
                             <img id="prev2" class="preview-img hidden"><button id="del2" onclick="clearSlot(2,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                         <div id="drop-zone-3" onclick="document.getElementById('file3').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file3" accept="image/*" class="hidden" onchange="handleFile(this.files[0],3)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Aux B</span>
+                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">参考 03</span>
                             <img id="prev3" class="preview-img hidden"><button id="del3" onclick="clearSlot(3,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                         <div id="drop-zone-4" onclick="document.getElementById('file4').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file4" accept="image/*" class="hidden" onchange="handleFile(this.files[0],4)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Aux C</span>
+                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">参考 04</span>
                             <img id="prev4" class="preview-img hidden"><button id="del4" onclick="clearSlot(4,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                     </div>
@@ -119,8 +121,8 @@
 
                 <div class="tool-panel">
                     <div class="control-label">
-                        <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
-                        <span>模型</span>
+                        <span class="image-step" aria-hidden="true">03</span>
+                        <span>模型与输出</span>
                     </div>
                     <div class="size-row">
                         <div class="size-field">
@@ -192,9 +194,15 @@
                 </button>
             </div>
 
-            <div class="lg:col-span-7">
+            <div class="image-workspace-preview lg:col-span-7">
+                <div class="image-preview-heading"><h2>结果预览</h2><span>生成后可放大、下载或保存</span></div>
                 <div id="resultBox" class="result-frame min-h-[500px] lg:h-full flex items-center justify-center relative overflow-hidden">
-                    <div id="placeholder" class="text-center space-y-4 opacity-20"><i data-lucide="layout" class="w-12 h-12 mx-auto stroke-[1px]"></i><p class="text-[10px] font-black tracking-[0.5em] uppercase">画布就绪</p></div>
+                    <div id="placeholder" class="image-preview-empty">
+                        <svg class="image-preview-symbol" width="96" height="80" viewBox="0 0 96 80" fill="none" aria-hidden="true"><path d="M18 16h52v48H18z" stroke="currentColor"/><path d="M28 8h50v48M18 49l16-15 13 12 10-8 13 11" stroke="currentColor"/><circle cx="56" cy="29" r="4" stroke="currentColor"/><path d="M8 28v-12h10M68 72h12V60" stroke="var(--studio-accent-label)" stroke-width="2"/></svg>
+                        <strong>让想法成为画面</strong>
+                        <p>在右侧描述你想要的效果，也可以添加参考图。</p>
+                        <span>生成结果将在这里展示</span>
+                    </div>
                     <img id="outputImg" class="hidden w-full h-full object-contain p-8 cursor-zoom-in" onclick="zoomImage()">
                     <a id="downloadBtn" href="#" download class="hidden absolute top-8 right-8 w-12 h-12 bg-white/90 shadow-2xl rounded-2xl flex items-center justify-center hover:bg-black hover:text-white"><i data-lucide="download" class="w-4 h-4"></i></a>
                     <div id="resultActions" hidden></div>
@@ -202,6 +210,7 @@
             </div>
         </main>
 
+        <div id="imageWorksAnchor"></div>
         <section id="onlineWorksSection" class="mt-32">
             <div class="flex items-center gap-6 mb-12"><h2 class="text-[11px] font-black uppercase tracking-[0.5em]">归档</h2><div class="h-px flex-1 bg-gray-100"></div></div>
             <div id="masonry" class="masonry-grid"></div>

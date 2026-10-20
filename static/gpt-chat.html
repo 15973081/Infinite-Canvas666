@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="/static/css/chat-cost.css">
     <link rel="stylesheet" href="/static/css/chat-attachments.css">
     <link rel="stylesheet" href="/static/css/studio-workspace-palette.css?v=2026.10.20.1">
+    <link rel="stylesheet" href="/static/css/chat-workspace-design.css?v=2026.10.20.1">
 </head>
 <body class="studio-skin studio-content studio-chat">
     <div class="chat-shell">
@@ -26,6 +27,7 @@
             <header class="topbar">
                 <div class="topbar-inner">
                     <div class="title-block">
+                        <span class="chat-workspace-label">创作对话</span>
                         <h1 id="chatTitle">新对话</h1>
                     </div>
                     <div class="top-actions">
@@ -51,8 +53,9 @@
 
             <div class="composer-wrap">
                 <div class="composer">
+                    <div class="chat-compose-heading"><label for="messageInput">你的想法</label><span>Enter 发送 · Shift + Enter 换行</span></div>
                     <div id="composerBody" class="composer-body">
-                        <textarea id="messageInput" rows="4" placeholder="输入消息，Enter 发送..." oninput="autoGrow(this)" onkeydown="handleKey(event)"></textarea>
+                        <textarea id="messageInput" rows="3" placeholder="描述问题，或把尚未成形的想法写下来…" oninput="autoGrow(this)" onkeydown="handleKey(event)"></textarea>
                         <div id="refStrip" class="ref-strip"></div>
                         <div id="chatSkillSelection" class="chat-skill-selection" aria-label="本次对话选择的 Skill"></div>
                         <div id="chatSkillPicker" class="chat-skill-picker" hidden>
@@ -69,9 +72,11 @@
                                     <input id="attachmentInput" class="file-input" type="file" multiple onchange="uploadFiles(this.files); this.value='';">
                                     <button type="button" class="upload-btn" onclick="document.getElementById('attachmentInput')?.click()" title="上传附件" aria-label="上传附件">
                                         <i data-lucide="paperclip"></i>
+                                        <span>附件</span>
                                     </button>
                                     <button id="chatSkillButton" type="button" class="upload-btn" title="选择提示词 Skill" aria-label="选择提示词 Skill" aria-haspopup="listbox" aria-expanded="false" aria-controls="chatSkillOptions">
                                         <svg class="studio-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg>
+                                        <span>Skill</span>
                                     </button>
                                     <div id="modelPicker" class="model-picker">
                                         <button id="modelPickerBtn" class="model-picker-button" onclick="event.stopPropagation();toggleModelPicker()" title="选择平台和模型">
@@ -683,11 +688,31 @@
             return (SIZE_OPTIONS[key] || SIZE_OPTIONS.square).find(([, label]) => label === targetLabel)?.[0] || fallbackSize;
         }
 
+        function useChatStarter(index){
+            const starters=[
+                '请帮我梳理下面的想法，先找出目标、受众与需要补充的信息：\n',
+                '请帮我改写下面的内容，保留原意，让表达更清楚自然：\n',
+                '请帮我将下面的画面构想整理为提示词，包含主体、构图、光线和风格：\n'
+            ];
+            const input=document.getElementById('messageInput');
+            if(!starters[index])return;
+            input.value+=(input.value.trim()?'\n\n':'')+starters[index];
+            input.dispatchEvent(new Event('input',{bubbles:true}));
+            input.focus();input.setSelectionRange(input.value.length,input.value.length);
+        }
+
         function renderMessages(messages){
             const box = document.getElementById('messages');
             box.innerHTML = '';
             if(!messages.length){
-                box.innerHTML = `<div class="empty-state"><i data-lucide="messages-square"></i><div class="empty-state-text">${tr('chat.ready')}</div></div>`;
+                box.innerHTML = `<div class="empty-state chat-start">
+                    <div class="chat-start-intro"><svg class="chat-start-symbol" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M10 12h32v28H25L14 49V40h-4z M48 22h6v30H38l-8 7v-7h-7" stroke="currentColor" stroke-width="1.5"/><path d="M18 22h16M18 29h10" stroke="var(--studio-accent-label)" stroke-width="2"/></svg><span class="chat-start-eyebrow">从一个想法开始</span><h2>把灵感聊得更具体</h2><p>整理思路、打磨表达，或为下一幅画面准备提示词。</p></div>
+                    <div class="chat-starters">
+                        <button type="button" onclick="useChatStarter(0)"><span class="chat-starter-index">01 / 思路</span><strong>理清一个想法 <span aria-hidden="true">↗</span></strong><small>从目标、受众到行动方向</small></button>
+                        <button type="button" onclick="useChatStarter(1)"><span class="chat-starter-index">02 / 表达</span><strong>打磨一段文字 <span aria-hidden="true">↗</span></strong><small>让文字清楚、自然、有重点</small></button>
+                        <button type="button" onclick="useChatStarter(2)"><span class="chat-starter-index">03 / 画面</span><strong>构思视觉提示词 <span aria-hidden="true">↗</span></strong><small>补全主体、构图与光线细节</small></button>
+                    </div><p class="chat-start-note">选择方向会填入草稿，你可以修改后再发送。</p>
+                </div>`;
                 lucide.createIcons();
                 return;
             }

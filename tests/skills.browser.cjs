@@ -53,7 +53,7 @@ test('skill library search, install, enable, preview, retry and responsive dark 
  await page.locator('.skill-card').first().getByRole('button',{name:'查看详情'}).click();await page.getByRole('dialog').getByText('先确认目标，再优化提示词。',{exact:true}).waitFor();
  await page.keyboard.press('Escape');assert.equal(await page.getByRole('dialog').count(),0);
  await page.locator('#skillFile').setInputFiles({name:'SKILL.md',mimeType:'text/markdown',buffer:Buffer.from('sample')});const dialog=page.getByRole('dialog');await dialog.getByRole('combobox').selectOption('shared');await dialog.getByRole('button',{name:'确认导入并安装'}).click();await dialog.waitFor({state:'detached'});assert.ok(calls.some(c=>c.path==='/api/skills/import'&&c.body.includes('shared')));
- for(const theme of ['dark']){assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(9, 11, 9)');await page.screenshot({path:path.join(out,'library-'+theme+'.png')});}
+ for(const theme of ['dark']){assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(8, 9, 11)');await page.screenshot({path:path.join(out,'library-'+theme+'.png')});}
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(out,'library-mobile.png')});
  setFail(true);await page.getByRole('button',{name:'刷新',exact:true}).click();await page.getByRole('button',{name:'加载失败，点击重试'}).waitFor();setFail(false);await page.getByRole('button',{name:'加载失败，点击重试'}).click();await page.locator('.skill-card').first().waitFor();assert.deepEqual(errors,[]);
 });

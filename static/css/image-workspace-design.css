@@ -1,0 +1,42 @@
+/* Image workspace: preview stage and a separate, sequential creation desk. */
+body.studio-online .container-box {max-width:1600px;padding:28px 32px 48px}
+body.studio-online .container-box>header {margin:0 0 24px;padding:0;border:0;align-items:center}
+html body.studio-online .container-box h1 {font-size:26px}
+body.studio-online .container-box>header .image-workspace-subtitle {font:12px/1.7 var(--studio-font);letter-spacing:0;margin-top:8px}
+body.studio-online .container-box>header nav {display:flex}
+.image-archive-link {display:flex;gap:18px;padding:10px 14px;border:1px solid var(--studio-border);border-radius:8px;color:var(--studio-text-muted);font:12px var(--studio-font);text-decoration:none}
+.image-archive-link:hover {background:var(--studio-selected);color:var(--studio-text)}
+body.studio-online .image-workspace-layout {display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:24px;align-items:stretch}
+body.studio-online .image-workspace-controls {grid-column:2;grid-row:1;min-width:0;padding:20px;border:1px solid var(--studio-border);border-radius:14px;background:var(--studio-panel)}
+body.studio-online .image-workspace-preview {grid-column:1;grid-row:1;min-width:0;display:flex;flex-direction:column;border:1px solid var(--studio-border);border-radius:14px;background:var(--studio-panel);overflow:hidden}
+.image-settings-heading,.image-preview-heading {display:flex;align-items:center;justify-content:space-between;gap:12px}
+.image-settings-heading h2,.image-preview-heading h2 {font-size:14px;font-weight:600;margin:0}
+.image-settings-heading>span,.image-preview-heading>span {font-size:11px;color:var(--studio-text-muted)}
+.image-settings-heading {padding-bottom:16px;border-bottom:1px solid var(--studio-border)}
+.image-preview-heading {padding:18px 20px;border-bottom:1px solid var(--studio-border)}
+body.studio-online .image-workspace-controls>*+* {margin-top:18px!important}
+.image-step {display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:var(--studio-selected);color:var(--studio-accent-label);font:10px var(--studio-font-mono);border-radius:5px}
+body.studio-online .image-workspace-controls section>div:first-child {font-size:12px;font-weight:500}
+html body.studio-online .image-workspace-controls .nano-input {height:144px;min-height:144px;padding:12px 14px;border-radius:8px;background:var(--studio-page);font-size:13px;resize:vertical}
+body.studio-online .image-workspace-controls section>div.grid {gap:8px}
+body.studio-online .image-workspace-controls .upload-item {height:76px;aspect-ratio:auto;border-radius:8px;background:var(--studio-page);border-color:var(--studio-border-strong)}
+body.studio-online .image-workspace-controls .upload-item span {font-size:10px;font-weight:400}
+body.studio-online .image-workspace-controls .upload-item:hover {border-color:var(--studio-focus);box-shadow:none}
+html body.studio-online .image-workspace-controls .tool-panel {padding:16px 0 0;border:0;border-top:1px solid var(--studio-border);border-radius:0;background:transparent;gap:10px}
+body.studio-online .image-workspace-controls .control-label {font-size:12px;letter-spacing:0}
+html body.studio-online .image-workspace-controls :is(.size-select,.size-custom,.studio-select-trigger) {border-radius:7px}
+html body.studio-online .image-workspace-controls #genBtn {border-radius:8px;min-height:44px;padding:12px;box-shadow:none}
+body.studio-online #genBtn span {font-size:13px;letter-spacing:1px}
+html body.studio-online .image-workspace-preview #resultBox {flex:1;height:auto;min-height:500px;border:0;border-radius:0;background:var(--studio-page);box-shadow:none}
+body.studio-online #placeholder {padding:32px;max-width:460px;text-align:center;opacity:1}
+.image-preview-symbol {display:block;margin:0 auto 24px;color:var(--studio-border-strong)}
+.image-preview-empty strong {display:block;color:var(--studio-text);font-size:20px;font-weight:500;letter-spacing:1px}
+.image-preview-empty p {margin:12px 0 20px;font-size:12px;line-height:1.8;color:var(--studio-text-muted)}
+.image-preview-empty>span {font:10px var(--studio-font);color:var(--studio-text-faint);padding:7px 12px;border:1px solid var(--studio-border);border-radius:20px}
+body.studio-online :is(#onlineWorksSection,.online-inbox) {margin-top:32px;padding-top:24px;border-top:1px solid var(--studio-border);scroll-margin-top:24px}
+body.studio-online #imageWorksAnchor {scroll-margin-top:24px}
+body.studio-online .inbox-heading {margin-bottom:16px}
+body.studio-online .inbox-heading h2 {font-size:18px}
+body.studio-online .inbox-tools {border-radius:10px 10px 0 0;padding:14px;background:var(--studio-panel)}
+body.studio-online .inbox-tabs button {border-radius:6px}
+body.studio-online :is(button,a,textarea):focus-visible {outline:2px solid var(--studio-focus);outline-offset:3px}
