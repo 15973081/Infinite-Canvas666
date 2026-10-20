@@ -1,0 +1,21 @@
+/* Classic editor uses the workspace palette with a subtle, visible board grid. */
+html:has(body.studio-canvas),
+body.studio-canvas {
+    --studio-grid: #ffffff06;
+    --studio-glow: #4ce2f31a;
+}
+body.studio-canvas #shell .node .node-head {
+    background: var(--studio-panel);
+    border-color: var(--studio-border);
+}
+body.studio-canvas #shell .node.selected .node-title {
+    color: var(--studio-text) !important;
+}
+body.studio-canvas #shell .minimap-viewport {
+    border-color: var(--studio-focus);
+    background: #4ce2f312 !important;
+}
+body.studio-canvas #shell :is(input,textarea,select,button):focus-visible {
+    outline: 2px solid var(--studio-focus);
+    outline-offset: 2px;
+}
