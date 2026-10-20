@@ -136,3 +136,39 @@ def test_tenant_billing_excludes_other_enterprises(enterprise_admin):
     result=account_billing.report(owners[0][1],tenant=companies[0]['id'])
     assert result['totals'][0]['amount_micros']=='1000000'
     denied(lambda:account_billing.report(owners[0][1],tenant=companies[1]['id']),'tenant_forbidden')
+
+def test_tenant_console_admission_and_platform_boundaries(enterprise_admin,monkeypatch,tmp_path):
+    from app.services import tenants
+    from app.management.application import create_app
+    from fastapi.testclient import TestClient
+    from tools.build_management import build
+    owner,actor=user(enterprise_admin);other,other_actor=user(enterprise_admin)
+    own=tenants.create(enterprise_admin,'控制台企业',owner['username'])
+    second=tenants.create(enterprise_admin,'第二企业',owner['username'])
+    foreign=tenants.create(enterprise_admin,'其他企业',other['username'])
+    monkeypatch.setenv('MANAGEMENT_BASE_URL','http://localhost:8766')
+    with TestClient(create_app(build(tmp_path/'console')),base_url='http://localhost:8766',headers={'Origin':'http://localhost:8766'}) as client:
+        result=client.post('/api/auth/login',json={'username':owner['username'],'password':PASSWORD})
+        assert result.status_code==200,result.text
+        assert result.json()['console_mode']=='enterprise'
+        for tid in (own['id'],second['id']):
+            assert client.get('/api/tenants/'+tid).status_code==200
+            assert client.get('/api/tenants/'+tid+'/billing').status_code==200
+        assert client.get('/api/tenants/'+foreign['id']).status_code==403
+        for path in ('/api/providers','/api/members','/api/maintenance','/api/backups','/api/billing','/api/overview'):
+            assert client.get(path).status_code==403,path
+        assert client.post('/api/tenants',json={'name':'非法企业','administrator':owner['username']}).status_code==403
+        assert client.put('/api/tenants/'+own['id']+'/models',json={'models':[]}).status_code==403
+        assert client.get('/api/account/email').status_code==200
+        assert client.post('/api/auth/logout').status_code==200
+
+def test_tenant_member_candidates_never_search_other_enterprises(enterprise_admin):
+    from app.services import tenants
+    from app.management import queries
+    a,actor=user(enterprise_admin);b,other=user(enterprise_admin)
+    tenant=tenants.create(enterprise_admin,'候选成员企业',a['username'])
+    tenants.create(enterprise_admin,'其他企业',b['username'])
+    space=tenants.create_space(actor,tenant['id'],'候选成员空间',a['id'])
+    assert [m['id'] for m in queries.member_candidates(actor,workspace=space['id'])['members']]==[a['id']]
+    assert queries.member_candidates(actor,b['username'],space['id'])['members']==[]
+    denied(lambda:queries.member_candidates(other,workspace=space['id']),'tenant_forbidden')

@@ -28,7 +28,8 @@ def snapshot(actor):
         tenant_rows=conn.execute('SELECT t.id,t.name,t.status,tm.role FROM tenants t JOIN tenant_members tm ON tm.tenant_id=t.id WHERE tm.member_id=%s',(actor.member_id,)).fetchall()
         if not platform and not spaces and not any(t['role']=='admin' and t['status']=='active' for t in tenant_rows):
             az.fail('management_permission_required')
-        return {'member': members.profile(member), 'permissions': sorted(platform), 'workspaces': spaces, 'tenants':tenant_rows}
+        return {'member': members.profile(member), 'permissions': sorted(platform), 'workspaces': spaces, 'tenants':tenant_rows,
+                'console_mode':'enterprise' if not platform and any(t['role']=='admin' and t['status']=='active' for t in tenant_rows) else 'platform'}
 
 
 def require_assignment(conn, actor, workspace):
@@ -47,18 +48,18 @@ def directory(actor, *, workspace=None, search='', after='', limit=50, status=''
     with az.policy_transaction() as conn:
         if workspace:
             require_assignment(conn, actor, workspace)
-            rows = conn.execute('''SELECT m.id,m.username,m.display_name,m.avatar,m.status,m.auth_version
+            rows = conn.execute('''SELECT m.id,m.username,m.display_name,m.avatar,m.status,m.auth_version,m.email
                 FROM members m JOIN workspace_members w ON w.member_id=m.id
                 WHERE w.workspace_id=%s AND m.id>%s
-                AND (m.username ILIKE %s OR m.display_name ILIKE %s)
+                AND (m.username ILIKE %s OR m.display_name ILIKE %s OR m.email ILIKE %s)
                 AND (%s='' OR m.status=%s) ORDER BY m.id LIMIT %s''',
-                (workspace, after, pattern, pattern, status, status, limit + 1)).fetchall()
+                (workspace, after, pattern, pattern, pattern, status, status, limit + 1)).fetchall()
         else:
             az.require(conn, actor, 'member.manage')
-            rows = conn.execute('''SELECT id,username,display_name,avatar,status,auth_version FROM members
-                WHERE id>%s AND (username ILIKE %s OR display_name ILIKE %s)
+            rows = conn.execute('''SELECT id,username,display_name,avatar,status,auth_version,email FROM members
+                WHERE id>%s AND (username ILIKE %s OR display_name ILIKE %s OR email ILIKE %s)
                 AND (%s='' OR status=%s) ORDER BY id LIMIT %s''',
-                (after, pattern, pattern, status, status, limit + 1)).fetchall()
+                (after, pattern, pattern, pattern, status, status, limit + 1)).fetchall()
         result = []
         for row in rows[:limit]:
             if workspace:
@@ -66,7 +67,9 @@ def directory(actor, *, workspace=None, search='', after='', limit=50, status=''
                                       (workspace, row['id']))
             else:
                 grants = conn.execute('SELECT role_id FROM platform_member_roles WHERE member_id=%s', (row['id'],))
-            result.append({**row, 'role_ids': sorted(r['role_id'] for r in grants)})
+            role_ids=sorted(r['role_id'] for r in grants)
+            role_names=[r['name'] for r in conn.execute('SELECT name FROM roles WHERE id=ANY(%s) ORDER BY name',(role_ids,))]
+            result.append({**row, 'role_ids':role_ids,'role_names':role_names})
         return {'members': result, 'next': rows[limit - 1]['id'] if len(rows) > limit else None}
 
 
@@ -74,7 +77,7 @@ def lookup(actor, username, workspace=None):
     """Space delegates can resolve one known account, not browse global members."""
     with az.policy_transaction() as conn:
         require_assignment(conn, actor, workspace)
-        row = conn.execute('''SELECT id,username,display_name,avatar,status,auth_version
+        row = conn.execute('''SELECT id,username,display_name,avatar,status,auth_version,email
             FROM members WHERE lower(username)=lower(%s) AND status<>'disabled' ''', (username,)).fetchone()
         if row and workspace and not az.superadmin(conn,actor.member_id) and 'member.manage' not in az.effective_permissions(conn,actor.member_id):
             if not conn.execute('SELECT 1 FROM tenant_members tm JOIN workspaces w ON w.tenant_id=tm.tenant_id WHERE w.id=%s AND tm.member_id=%s',(workspace,row['id'])).fetchone():
@@ -175,3 +178,25 @@ def remove(actor, member_id, workspace, expected_version):
         if row['auth_version'] != expected_version:
             az.fail('member_version_conflict', 409)
         members.remove_workspace_member(actor, member_id, workspace)
+
+
+def member_candidates(actor, search='', workspace=None, after='', limit=20):
+    """Search assignable identities within the administrator's authorized directory."""
+    with az.policy_transaction() as conn:
+        require_assignment(conn,actor,workspace)
+        if not workspace:
+            az.require(conn,actor,'member.manage')
+        pattern='%'+search.strip().replace('\\','\\\\').replace('%','\\%').replace('_','\\_')+'%'
+        rows=conn.execute("""SELECT m.id,m.username,m.display_name,m.email,m.status,m.auth_version
+          FROM members m WHERE m.status<>'disabled' AND m.id>%s
+          AND (m.username ILIKE %s OR m.display_name ILIKE %s OR m.email ILIKE %s)
+          AND (%s::text IS NULL OR EXISTS(SELECT 1 FROM tenant_members tm JOIN workspaces w ON w.tenant_id=tm.tenant_id WHERE w.id=%s AND tm.member_id=m.id))
+          ORDER BY m.id LIMIT %s""",(after,pattern,pattern,pattern,workspace,workspace,limit+1)).fetchall()
+        items=[]
+        for row in rows[:limit]:
+            if workspace:
+                grants=conn.execute('SELECT r.id,r.name FROM roles r JOIN workspace_member_roles g ON g.role_id=r.id WHERE g.workspace_id=%s AND g.member_id=%s',(workspace,row['id'])).fetchall()
+            else:
+                grants=conn.execute('SELECT r.id,r.name FROM roles r JOIN platform_member_roles g ON g.role_id=r.id WHERE g.member_id=%s',(row['id'],)).fetchall()
+            items.append({**row,'role_ids':[r['id'] for r in grants],'role_names':[r['name'] for r in grants]})
+        return {'members':items,'next':rows[limit-1]['id'] if len(rows)>limit else None}

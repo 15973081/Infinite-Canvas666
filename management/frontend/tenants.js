@@ -4,28 +4,30 @@ const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefine
 const field=(title,name,type='text')=>{const l=el('label',title),i=el('input');i.name=name;i.type=type;i.required=true;i.maxLength=type==='email'?254:256;l.append(i);return l;};
 const select=(title,name,rows)=>{const l=el('label',title),s=el('select');s.name=name;for(const [value,label] of rows)s.append(new Option(label,value));l.append(s);return l;};
 let selected='';
-async function create({api,dialog,table,button,refresh}){
+async function create({api,dialog,table,button,refresh,tenantId,section}){
+ const enterprise=Boolean(tenantId);
+ if(enterprise)selected=tenantId;
  const root=el('div',undefined,'tenant-console'),data=await api('/api/tenants');
  const post=(path,body,method='POST')=>api(path,{method,body:JSON.stringify(body)});
  const bar=el('div',undefined,'toolbar');bar.append(button('刷新企业',refresh));
  bar.append(button('接受企业邀请',()=>invitation(api,refresh,true)));
  if(data.can_create)bar.prepend(button('创建企业',()=>dialog('创建企业',[field('企业名称','name'),field('管理员登录账号','administrator')],f=>post('/api/tenants',Object.fromEntries(f))),'primary'));
- root.append(bar);
- const tenant=data.tenants.find(t=>t.id===selected);
+ if(!enterprise)root.append(bar);
+ const tenant=data.tenants.find(t=>t.id===(tenantId||selected));
  if(!tenant){
   root.append(el('p','企业是数据与权限边界，空间用于分配协作成员和资源。企业费用按空间归集，暂不启用积分扣费。','muted'));
   root.append(table(['企业','状态','成员','空间','角色','操作'],data.tenants.map(t=>[t.name,t.status==='active'?'已启用':'已停用',t.members,t.spaces,data.can_create?'平台管理':t.role==='admin'?'企业管理员':'成员',data.can_create||t.role==='admin'?button('管理企业',()=>{selected=t.id;return refresh();}):'请由企业管理员分配空间'])));
   if(!data.tenants.length)root.append(el('p','尚未加入企业。请接受邮箱邀请，或由平台管理员创建企业。','empty'));
   return root;
  }
- bar.prepend(button('返回企业列表',()=>{selected='';return refresh();}));
- const detail=await api('/api/tenants/'+selected),tid=selected,base='/api/tenants/'+encodeURIComponent(tid),company=detail.tenant;
- const heading=el('section',undefined,'card overview-banner');heading.append(el('h2',company.name),el('p','企业状态：'+(company.status==='active'?'已启用':'已停用')+' · '+detail.members.length+' 位成员 · '+detail.spaces.length+' 个空间'));root.append(heading);
+ if(!enterprise)bar.prepend(button('返回企业列表',()=>{selected='';return refresh();}));
+ const detail=await api('/api/tenants/'+tenant.id),tid=tenant.id,base='/api/tenants/'+encodeURIComponent(tid),company=detail.tenant;
+ const heading=el('section',undefined,'card overview-banner');heading.append(el('h2',company.name),el('p','企业状态：'+(company.status==='active'?'已启用':'已停用')+' · '+detail.members.length+' 位成员 · '+detail.spaces.length+' 个空间'));if(!enterprise || section==='summary')root.append(heading);
  const nameField=field('企业名称','name');nameField.querySelector('input').value=company.name;
  bar.append(button('企业设置',()=>dialog('企业设置',[nameField,select('状态','status',detail.can_suspend?[['active','启用'],['disabled','停用']]:[[company.status,company.status==='active'?'启用':'停用']])],f=>post(base,{name:f.get('name'),status:f.get('status'),version:company.version},'PUT'))));
  const tabs=el('div',undefined,'management-tabs');tabs.setAttribute('role','tablist');const panels=[];
  const activate=index=>{panels.forEach((p,i)=>p.hidden=i!==index);Array.from(tabs.children).forEach((b,i)=>b.setAttribute('aria-selected',String(i===index)));};
- root.append(tabs);for(const title of ['企业成员','空间分配','模型授权','企业费用']){const index=panels.length,panel=el('section');panel.setAttribute('role','tabpanel');panels.push(panel);const b=button(title,()=>activate(index));b.setAttribute('role','tab');tabs.append(b);root.append(panel);}activate(0);
+ if(!enterprise)root.append(tabs);for(const title of ['企业成员','空间分配','模型授权','企业费用']){const index=panels.length,panel=el('section');panel.setAttribute('role','tabpanel');panels.push(panel);const b=button(title,()=>activate(index));b.setAttribute('role','tab');tabs.append(b);root.append(panel);}activate(0);
  const people=panels[0],inviteBar=el('div',undefined,'toolbar');
  const invite=button('邀请成员',()=>dialog('发送企业邀请',[field('受邀邮箱','email','email'),select('企业角色','role',[['member','普通成员'],['admin','企业管理员']])],f=>post(base+'/invitations',Object.fromEntries(f))),'primary');invite.disabled=!data.delivery_configured;inviteBar.append(invite);people.append(inviteBar);
  if(!data.delivery_configured)people.append(el('p','邮件发送服务尚未配置，暂不能发送邀请。请配置 SMTP 后使用。','muted'));
@@ -51,7 +53,26 @@ async function create({api,dialog,table,button,refresh}){
   panels[2].append(table(['空间','模型分配'],detail.spaces.map(w=>[w.name,button('选择模型',()=>editor(w.id))])));
  }
  panels[3].append(el('p','仅统计本企业所属空间。个人积分与历史个人资产不转入企业，不启用积分扣费。','muted'));
- panels[3].append(await window.CanvasBillingUI.create({management:true,fetchReport:p=>api(base+'/billing?'+new URLSearchParams(p))}));
+ if(!enterprise || section==='costs')panels[3].append(await window.CanvasBillingUI.create({management:true,fetchReport:p=>api(base+'/billing?'+new URLSearchParams(p))}));
+ if(enterprise){
+  const sections={people:0,workspaces:1,models:2,costs:3};
+  panels.forEach((panel,i)=>panel.hidden=i!==sections[section]);
+  if(section==='settings'){
+   const settings=el('section',undefined,'card');settings.append(el('h2','企业设置'),el('p','企业名称：'+company.name),el('p','企业状态：'+(company.status==='active'?'已启用':'已停用')));
+   settings.append(button('修改企业名称',()=>dialog('修改企业名称',[nameField],f=>post(base,{name:f.get('name'),status:company.status,version:company.version},'PUT'))));root.append(settings);
+  }
+  if(section==='summary'){
+   const metrics=el('div',undefined,'metrics');
+   for(const [title,value] of [['企业成员',detail.members.length],['协作空间',detail.spaces.length],['已授权模型',models.grants.length]]){const card=el('section',undefined,'card');card.append(el('p',title,'muted'),el('strong',value,'metric'));metrics.append(card);}root.append(metrics);
+   root.append(el('h2','本月费用'));
+   const now=new Date(),from=new Date(now.getFullYear(),now.getMonth(),1).getTime();
+   const bill=await api(base+'/billing?from_ms='+from);
+   const costs=el('section',undefined,'card');
+   for(const total of bill.totals)costs.append(el('p',total.currency+' '+(Number(total.amount_micros)/1000000).toLocaleString('zh-CN',{maximumFractionDigits:6})+' · '+total.records+' 条账单'));
+   if(!bill.totals.length)costs.append(el('p','本月暂无费用记录。','muted'));
+   costs.append(el('p','费用按企业空间归集，暂不启用积分扣费。未定价费用请在企业费用中核对。','muted'));root.append(costs);
+  }
+ }
  return root;
 }
 async function account({api}){

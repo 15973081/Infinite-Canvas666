@@ -4,6 +4,20 @@
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
   const names = {tenants:'企业租户',account:'邮箱与登录',creditGifts:'积分管理',imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   let memberSearch = '', memberStatus = '';
+  let enterpriseId='';
+  const enterpriseViews={enterpriseSummary:'企业概览',enterprisePeople:'成员管理',enterpriseWorkspaces:'空间管理',enterpriseModels:'可用模型',enterpriseCosts:'企业费用',enterpriseSettings:'企业设置'};
+  Object.assign(names,enterpriseViews);
+  const enterpriseMode=()=>me?.console_mode==='enterprise';
+  const enterpriseNav=el('nav');enterpriseNav.id='enterprise-navigation';enterpriseNav.hidden=true;enterpriseNav.setAttribute('aria-label','企业管理导航');
+  for(const [key,title] of Object.entries(enterpriseViews)){const b=el('button');const source={enterpriseSummary:'overview',enterprisePeople:'members',enterpriseWorkspaces:'spaces',enterpriseModels:'modelBilling',enterpriseCosts:'billing',enterpriseSettings:'roles'}[key];const icon=document.querySelector('[data-view="'+source+'"] svg');if(icon)b.append(icon.cloneNode(true));b.append(document.createTextNode(title));b.dataset.view=key;enterpriseNav.append(b);}
+  $('#admin-navigation nav').after(enterpriseNav);
+  function filterNavigation(){
+    const query=$('#navigation-search').value.trim().toLocaleLowerCase();let matches=0;
+    document.querySelectorAll('#admin-navigation [data-view]').forEach(item=>{const eligible=item.dataset.view==='account'||(enterpriseMode()?item.dataset.view in enterpriseViews:!(item.dataset.view in enterpriseViews));item.hidden=!eligible||!item.textContent.toLocaleLowerCase().includes(query);if(!item.hidden)matches++;});
+    document.querySelectorAll('.nav-group').forEach(group=>{group.hidden=!Array.from(group.querySelectorAll('[data-view]')).some(item=>!item.hidden);if(query&&!group.hidden)group.open=true;});
+    $('#navigation-empty').hidden=matches>0;
+  }
+
   let identityPaused = false;
   let permissionPaused = false, accessCheck = null;
   const permissionChanged = '管理权限已改变，本页已暂停操作。请保留未提交内容后刷新页面。';
@@ -186,6 +200,20 @@
     $('#console-account').textContent = me.member.display_name;
     $('#console-avatar').textContent = Array.from(me.member.display_name || 'S')[0].toUpperCase();
     const select = $('#scope'); select.replaceChildren();
+    enterpriseNav.hidden=!enterpriseMode();
+    $('#admin-navigation nav:not(#enterprise-navigation)').hidden=enterpriseMode();
+    document.querySelector('.console-brand span').textContent=enterpriseMode()?'企业控制台':'管理控制台';
+    document.querySelector('.scope').firstChild.textContent=enterpriseMode()?'当前企业':'管理范围';
+    filterNavigation();
+    if(enterpriseMode()){
+      const companies=(me.tenants||[]).filter(t=>t.role==='admin'&&t.status==='active');
+      companies.forEach(t=>{const o=el('option',t.name);o.value=t.id;select.append(o);});
+      if(!companies.some(t=>t.id===enterpriseId))enterpriseId=companies[0]?.id||'';
+      select.value=enterpriseId;workspace='';
+      if(!(view in enterpriseViews)&&view!=='account')view='enterpriseSummary';
+      await render();return;
+    }
+    if(view in enterpriseViews)view='overview';
     if (me.permissions.length) { const o = el('option', '全平台'); o.value = ''; select.append(o); }
     me.workspaces.forEach(w => { const o = el('option', w.name + (w.status === 'archived' ? '（已归档）' : '')); o.value = w.id; select.append(o); });
     if (!Array.from(select.options).some(o => o.value === workspace)) workspace = select.options[0]?.value || '';
@@ -202,13 +230,16 @@
         b.setAttribute('aria-current', 'page');
         const group = b.closest('.nav-group');
         if (group) group.open = true;
-        $('#section-label').textContent = group ? group.querySelector('summary').textContent : '工作空间 / OVERVIEW';
+        $('#section-label').textContent = enterpriseMode() ? (me.tenants.find(t=>t.id===enterpriseId)?.name || '企业管理') : group ? group.querySelector('summary').textContent : '工作空间 / OVERVIEW';
       } else b.removeAttribute('aria-current');
     });
     const loading = el('p', '正在加载' + names[view] + '…', 'loading-state');
     loading.setAttribute('role', 'status'); content.setAttribute('aria-busy', 'true'); content.replaceChildren(loading);
     try {
-    const result = await ({
+    const enterpriseSections={enterpriseSummary:'summary',enterprisePeople:'people',enterpriseWorkspaces:'workspaces',enterpriseModels:'models',enterpriseCosts:'costs',enterpriseSettings:'settings'};
+    const result = enterpriseMode() && view in enterpriseSections
+      ? [await window.ManagementTenants.create({api,dialog,table,button,refresh,tenantId:enterpriseId,section:enterpriseSections[view]})]
+      : await ({
       tenants:async()=>[await window.ManagementTenants.create({api,dialog,table,button,refresh})],
       account:async()=>[await window.ManagementTenants.account({api})],
       creditGifts: creditGiftsView,
@@ -368,7 +399,7 @@
     if (!(workspace ? allowed('space.members.manage') || me.permissions.includes('space.assign') : allowed('member.manage'))) return denied();
     const data = await api(scoped('/api/members', {after: pageAfter, search: memberSearch, status: memberStatus}));
     const filters = el('form', undefined, 'toolbar member-filters');
-    const searchLabel = el('label', '账号或名称'), search = el('input'); search.type='search'; search.maxLength=80; search.placeholder='搜索账号或成员名称'; search.value=memberSearch; searchLabel.append(search);
+    const searchLabel = el('label', '搜索成员'), search = el('input'); search.type='search'; search.maxLength=254; search.placeholder='输入账号、姓名或已验证邮箱'; search.value=memberSearch; searchLabel.append(search);
     const statusLabel = el('label', '成员状态'), status = el('select');
     for (const [value, name] of [['','全部状态'],['active','已激活'],['invited','待激活'],['disabled','已停用']]) { const option=el('option',name); option.value=value; status.append(option); }
     status.value=memberStatus; statusLabel.append(status);
@@ -384,12 +415,7 @@
         setTimeout(() => tokenDialog(r.activation_token), 0);
       }, '创建成员');
     }, 'primary'));
-    if (workspace || allowed('role.manage')) toolbar.append(button('按账号分配角色', () => {
-      dialog('查找已有成员', [field('username', '精确登录账号')], async f => {
-        const row = await api(scoped('/api/member-lookup', {username: f.get('username')}));
-        setTimeout(() => execute(() => assignDialog(row)), 0);
-      }, '查找成员');
-    }));
+    if (workspace || (allowed('role.manage') && allowed('member.manage'))) toolbar.append(button('添加成员 / 分配角色', memberPicker));
     toolbar.append(button('刷新', refresh));
     const rows = data.members.map(m => {
       const ops = [];
@@ -402,11 +428,41 @@
         more.append(button('撤销会话', () => dialog('撤销成员会话', [el('p', `${m.display_name} 将需要重新登录工作台与管理平台。`)], () => call('/api/members/' + m.id + '/revoke-sessions', 'POST'), '确认撤销')));
         ops.push(more);
       }
-      return [labelText(m.display_name, m.username), {active: '已激活', invited: '待激活', disabled: '已停用'}[m.status], String(m.role_ids.length), actions(...ops)];
+      return [labelText(m.display_name, m.username+(m.email?' · '+m.email:'')), {active: '已激活', invited: '待激活', disabled: '已停用'}[m.status], (m.role_names||[]).join('、') || (m.role_ids.length ? m.role_ids.length+' 个角色' : '未分配角色'), actions(...ops)];
     });
     const pages = el('div', undefined, 'toolbar'); if (pageAfter) pages.append(button('回到首页', () => { pageAfter = ''; return render(); }));
     if (data.next) pages.append(button('下一页', () => { pageAfter = data.next; return render(); }));
-    return [filters, toolbar, rows.length ? table(['成员', '状态', '角色数量', '操作'], rows) : el('div', memberSearch || memberStatus ? '没有符合筛选条件的成员，请调整搜索或重置筛选。' : '当前范围还没有成员。', 'empty'), pages];
+    return [filters, toolbar, rows.length ? table(['成员 / 账号', '状态', '已分配角色', '操作'], rows) : el('div', memberSearch || memberStatus ? '没有符合筛选条件的成员，请调整搜索或重置筛选。' : '当前范围还没有成员。', 'empty'), pages];
+  }
+  function memberPicker(){
+    const scopeName=workspace?me.workspaces.find(w=>w.id===workspace)?.name:'全平台';
+    const wrap=el('section',undefined,'member-picker'),label=el('label','搜索账号、姓名或邮箱'),input=el('input');input.type='search';input.maxLength=254;input.placeholder='输入关键词，自动查找可分配成员';input.autocomplete='off';label.append(input);
+    const feedback=el('p','','muted'),results=el('div',undefined,'member-picker-results'),footer=el('div',undefined,'member-picker-footer'),chosen=el('span','尚未选择成员'),next=button('下一步：配置角色',()=>assignDialog(selected),'primary');next.disabled=true;feedback.setAttribute('role','status');
+    const more=button('加载更多',()=>load(true));more.hidden=true;footer.append(chosen,next);wrap.append(el('p','分配范围：'+scopeName+'。搜索结果仅包含你有权分配的成员。','muted'),label,feedback,results,more,footer);
+    let selected=null,cursor='',request=0,timer,controller;
+    const baseWorkspace=workspace;
+    async function load(append=false){
+      clearTimeout(timer);controller?.abort();controller=new AbortController();const stamp=++request;
+      if(!append){cursor='';selected=null;next.disabled=true;chosen.textContent='尚未选择成员';results.replaceChildren();}
+      feedback.textContent='正在搜索…';more.disabled=true;
+      try{
+        const params=new URLSearchParams({search:input.value.trim(),after:append?cursor:''});if(baseWorkspace)params.set('workspace',baseWorkspace);
+        const data=await api('/api/member-candidates?'+params,{signal:controller.signal});
+        if(stamp!==request||!results.isConnected)return;
+        for(const member of data.members){
+          const row=button('',()=>{selected=member;next.disabled=false;chosen.textContent='已选择：'+member.display_name+'（'+member.username+'）';for(const candidate of results.children)candidate.setAttribute('aria-pressed',String(candidate===row));});
+          row.className='member-picker-row';row.setAttribute('aria-pressed','false');
+          const avatar=el('span',Array.from(member.display_name||member.username)[0],'member-picker-avatar'),identity=el('span',undefined,'member-picker-identity');identity.append(el('strong',member.display_name),el('small',member.username+(member.email?' · '+member.email:'')));
+          row.append(avatar,identity,el('span',member.status==='active'?'已激活':'待激活','member-picker-state'),el('small',member.role_names.join('、')||'尚未分配角色'));results.append(row);
+        }
+        cursor=data.next||'';more.hidden=!cursor;feedback.textContent=results.children.length?'已显示 '+results.children.length+' 位成员'+(cursor?'，可继续加载':''):'没有找到匹配成员，试试其他账号、姓名或邮箱。';
+      }catch(error){if(stamp===request&&error.name!=='AbortError'&&results.isConnected)feedback.textContent=error.message;}
+      finally{if(stamp===request)more.disabled=false;}
+    }
+    input.addEventListener('input',()=>{clearTimeout(timer);controller?.abort();request++;selected=null;next.disabled=true;chosen.textContent='尚未选择成员';results.replaceChildren();more.hidden=true;feedback.textContent='正在搜索…';timer=setTimeout(()=>load(),250);});
+    input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();void load();}});
+    dialog('选择成员并分配角色',[wrap],null,'',true);
+    $('#dialog').addEventListener('close',()=>{clearTimeout(timer);controller?.abort();request++;},{once:true});input.focus();void load();
   }
   async function assignDialog(m) {
     const data = await api(scoped('/api/roles'));
@@ -1010,22 +1066,10 @@
   document.addEventListener('input',event=>{const form=event.target.closest('form');if(form&&(form.closest('#content')||form.id==='dialog-form')&&!form.classList.contains('member-filters'))form.dataset.dirty='true';});
   document.addEventListener('change',event=>{const form=event.target.closest('form');if(form&&(form.closest('#content')||form.id==='dialog-form')&&!form.classList.contains('member-filters'))form.dataset.dirty='true';});
   window.addEventListener('beforeunload',event=>{if(providerDirty||document.querySelector('#content form[data-dirty="true"], #dialog[open] form[data-dirty="true"], form[data-saving="true"]')){event.preventDefault();event.returnValue='';}});
-  $('#scope').onchange = () => execute(() => { if(!leaveProviderEditor()){$('#scope').value=workspace;return;} workspace = $('#scope').value; occupancyAfter = ''; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
+  $('#scope').onchange = () => execute(() => { if(!leaveProviderEditor()){$('#scope').value=workspace;return;} if(enterpriseMode()){enterpriseId=$('#scope').value;return render();} workspace = $('#scope').value; occupancyAfter = ''; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
   document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => execute(() => { if(!leaveProviderEditor())return; closeNavigation(); view = b.dataset.view; occupancyAfter = ''; pageAfter = auditBefore = ''; return render(); }, b));
   $('#open-navigation').onclick = openNavigation;
-  $('#navigation-search').addEventListener('input', event => {
-    const query = event.target.value.trim().toLocaleLowerCase();
-    let matches = 0;
-    document.querySelectorAll('#admin-navigation [data-view]').forEach(item => {
-      item.hidden = !item.textContent.toLocaleLowerCase().includes(query);
-      if (!item.hidden) matches++;
-    });
-    document.querySelectorAll('.nav-group').forEach(group => {
-      group.hidden = !Array.from(group.querySelectorAll('[data-view]')).some(item => !item.hidden);
-      if (query && !group.hidden) group.open = true;
-    });
-    $('#navigation-empty').hidden = matches > 0;
-  });
+  $('#navigation-search').addEventListener('input', filterNavigation);
   $('#close-navigation').onclick = () => closeNavigation();
   $('#navigation-backdrop').onclick = () => closeNavigation();
   const mobileNavigation = window.matchMedia('(max-width: 760px)');

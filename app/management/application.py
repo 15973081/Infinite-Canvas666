@@ -83,7 +83,9 @@ class Admission:
                     az.fail('member_identity_changed', 409)
                 # Logout remains possible after management grants are revoked.
                 if path != '/api/auth/logout':
-                    await asyncio.to_thread(queries.snapshot, principal)
+                    snapshot = await asyncio.to_thread(queries.snapshot, principal)
+                    if snapshot['console_mode']=='enterprise' and not (path in {'/api/me','/api/account/email','/api/account/email/start','/api/account/email/confirm','/api/tenants'} or path.startswith('/api/tenants/')):
+                        az.fail('permission_denied')
                 scope['management_principal'] = principal
             await self.app(scope, receive, secure_send)
         except HTTPException as exc:
@@ -336,10 +338,14 @@ def create_app(static_dir=None):
         return overview(actor(request), workspace)
 
     @app.get('/api/members')
-    def directory_members(request: Request, workspace: str | None = None, search: str = Query('', max_length=80),
+    def directory_members(request: Request, workspace: str | None = None, search: str = Query('', max_length=254),
                           after: str = Query('', max_length=80), limit: int = Query(50, ge=1, le=100),
                           status: str = Query('', pattern=r'^(active|invited|disabled)?$')):
         return queries.directory(actor(request), workspace=workspace, search=search, after=after, limit=limit, status=status)
+
+    @app.get('/api/member-candidates')
+    def member_candidates(request: Request, search: str = Query('',max_length=254), workspace: str | None = None, after: str = Query('',max_length=80)):
+        return queries.member_candidates(actor(request),search,workspace,after)
 
     @app.get('/api/member-lookup')
     def member_lookup(request: Request, username: str = Query(min_length=1, max_length=64), workspace: str | None = None):

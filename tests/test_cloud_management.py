@@ -212,3 +212,27 @@ def test_role_delegation_last_administrator_and_dependency_failure(platform, mon
     response = c.get('/api/me')
     assert response.status_code == 503
     assert 'private database' not in response.text
+
+def test_member_candidates_search_email_and_paginate(platform):
+    from app.services import members
+    from app.storage.database import connection
+    c=platform['client'];prefix='picker-'+uuid.uuid4().hex
+    created=[invite(c,prefix+'设计师') for _ in range(3)]
+    for item in created: members.activate(item['activation_token'],PASSWORD)
+    mid=created[0]['member']['id'];email=prefix+'@example.test'
+    with connection() as conn:
+        conn.execute('UPDATE members SET email=%s,email_verified_at=now() WHERE id=%s',(email,mid))
+    result=c.get('/api/member-candidates',params={'search':email.upper()})
+    assert result.status_code==200,result.text
+    assert [m['id'] for m in result.json()['members']]==[mid]
+    assert result.json()['members'][0]['email']==email
+    listed=c.get('/api/members',params={'search':email}).json()['members']
+    assert listed[0]['email']==email and 'role_names' in listed[0]
+    from app.management import queries
+    first=queries.member_candidates(platform['operator'],prefix,limit=2)
+    last=queries.member_candidates(platform['operator'],prefix,after=first['next'],limit=2)
+    assert len(first['members'])==2 and len(last['members'])==1 and last['next'] is None
+    assert not ({m['id'] for m in first['members']}&{m['id'] for m in last['members']})
+    members.set_member_status(platform['operator'],mid,'disabled')
+    assert c.get('/api/member-candidates',params={'search':email}).json()['members']==[]
+    assert c.get('/api/member-candidates',params={'search':'%'}).json()['members']==[]
