@@ -414,7 +414,26 @@ const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|jfif|webp|gif|bmp|avif|svg|mp4|webm|mov|m
 const ASSET_BATCH_SIZE = 32;
 const ASSET_VIRTUAL_OVERSCAN_ROWS = 3;
 
-function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
+let assetInspectorCollapsed = false;
+function refreshIcons(){
+    const head=root.querySelector('.asset-detail > .panel-head');
+    if(head && !head.querySelector('[data-inspector-toggle]')){
+        const toggle=document.createElement('button');
+        toggle.type='button';toggle.className='asset-btn inspector-toggle';toggle.dataset.inspectorToggle='';
+        const sync=()=>{
+            root.classList.toggle('inspector-collapsed',assetInspectorCollapsed);
+            toggle.textContent=assetInspectorCollapsed?'展开详情':'收起详情';
+            toggle.setAttribute('aria-expanded',String(!assetInspectorCollapsed));
+        };
+        toggle.addEventListener('click',()=>{
+            assetInspectorCollapsed=!assetInspectorCollapsed;sync();
+            requestAnimationFrame(()=>{scheduleAssetVirtualRender();renderManagerVirtualWindow();});
+        });
+        head.append(toggle);sync();
+    }
+    window.AssetLibraryIcons?.render();
+    if(window.lucide) lucide.createIcons();
+}
 function setStatus(text='准备就绪'){ if(statusEl) statusEl.textContent = text || '准备就绪'; }
 function assetViewKey(libraryId=activeAssetLibraryId, categoryId=activeAssetCategoryId, query=assetQuery){
     return JSON.stringify([String(libraryId || ''), String(categoryId || ''), String(query || '').trim().toLowerCase()]);
@@ -1528,7 +1547,7 @@ function renderCanvasAssetCard(item){
 function renderCanvasAssetKindBadge(item){
     const kind = assetKind(item);
     const icon = kind === 'video' ? 'play' : kind === 'audio' ? 'file-audio' : kind === 'text' ? 'file-text' : 'image';
-    return `<span class="asset-kind-badge ${escapeAttr(kind)}" title="${escapeAttr(canvasAssetKindLabel(item))}"><i data-lucide="${icon}"></i></span>`;
+    return `<span class="asset-kind-badge ${escapeAttr(kind)}" title="${escapeAttr(canvasAssetKindLabel(item))}"><i data-lucide="${icon}"></i><span>${escapeHtml(canvasAssetKindLabel(item))}</span></span>`;
 }
 let canvasAssetRequest = null;
 let canvasAssetRequestToken = 0;

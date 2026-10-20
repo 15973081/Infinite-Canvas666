@@ -27,7 +27,4 @@ body.studio-home .stage{min-width:0;margin:0;border:0;border-radius:0;background
 .studio-home .sidebar .nav-text,.studio-home .sidebar .side-pill-text,.studio-home .sidebar .studio-nav-label,.studio-home .sidebar .shadox-wordmark,.studio-home .sidebar .settings-fold-chevron{display:none}
 .studio-home button:focus-visible,.studio-home a:focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
 .studio-home [hidden]{display:none}
-.studio-home .nano-monitor{left:auto;right:16px;bottom:12px;border-radius:var(--studio-radius-control);background:var(--studio-panel);border-color:var(--studio-border);color:var(--studio-text-muted);box-shadow:none;padding:5px 8px;backdrop-filter:none}
-.studio-home .nano-monitor .stat-group{font:10px var(--studio-font-mono)}
-.studio-home .nano-monitor .pulse-dot{border-radius:0;background:var(--studio-accent-label);width:4px;height:4px}
 @media(prefers-reduced-motion:reduce){.studio-home *,.studio-home *:after{transition:none!important;animation:none!important}.studio-home iframe{transform:none;filter:none}}

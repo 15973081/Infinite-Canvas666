@@ -15,13 +15,14 @@
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
     <link rel="stylesheet" href="/static/css/studio-library.css">
     <link rel="stylesheet" href="/static/css/studio-workspace-palette.css?v=2026.10.20.1">
+    <link rel="stylesheet" href="/static/css/asset-library-design.css?v=2026.10.20.1">
 </head>
 <body class="studio-skin studio-content studio-library">
     <div class="asset-page">
         <header class="asset-page-head">
             <div>
                 <div class="asset-title">素材库管理</div>
-                <div class="asset-sub">按库、分组、内容和预览管理素材与工作流。</div>
+                <div class="asset-sub">收集素材，整理流程，追溯每一份创作资产。</div>
             </div>
             <div class="asset-head-actions">
                 <div id="assetStatus" class="asset-status">准备就绪</div>
@@ -30,9 +31,9 @@
         </header>
 
         <div class="asset-tabs">
-            <button id="assetTabAssets" class="active" type="button" data-tab="assets"><i data-lucide="image"></i><span>图片资产</span></button>
-            <button id="assetTabWorkflows" type="button" data-tab="workflows"><i data-lucide="workflow"></i><span>工作流管理</span></button>
-            <button id="assetTabCanvasAssets" type="button" data-tab="canvas-assets"><i data-lucide="layout-dashboard"></i><span>画布资产</span></button>
+            <button id="assetTabAssets" class="active" type="button" data-tab="assets"><i data-lucide="image"></i><span>图片资产<small>收藏与分组</small></span></button>
+            <button id="assetTabWorkflows" type="button" data-tab="workflows"><i data-lucide="workflow"></i><span>工作流管理<small>可复用的创作流程</small></span></button>
+            <button id="assetTabCanvasAssets" type="button" data-tab="canvas-assets"><i data-lucide="layout-dashboard"></i><span>画布资产<small>作品与来源追溯</small></span></button>
         </div>
 
         <main id="assetManagerRoot" class="asset-manager-root"></main>
@@ -41,6 +42,7 @@
     <input id="assetUploadInput" type="file" accept="image/*,video/*,audio/*,.json,.zip,application/json,application/zip" multiple hidden>
     <link rel="stylesheet" href="/static/css/studio-transfer-status.css">
     <script src="/static/js/studio-transfer-status.js"></script>
-    <script src="/static/js/asset-manager.js?v=2026.09.18.2"></script>
+    <script src="/static/js/asset-library-icons.js?v=2026.10.20.1"></script>
+    <script src="/static/js/asset-manager.js?v=2026.10.20.1"></script>
 </body>
 </html>

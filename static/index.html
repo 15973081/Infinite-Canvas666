@@ -136,85 +136,6 @@
             pointer-events: auto;
         }
 
-        /* 左下角监视器 */
-        .nano-monitor {
-            position: absolute;
-            bottom: 24px;
-            left: 24px;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--monitor-bg);
-            backdrop-filter: blur(12px);
-            padding: 6px 14px;
-            border-radius: 16px;
-            border: 1px solid var(--monitor-border);
-            box-shadow: 0 4px 20px var(--monitor-shadow);
-            font-family: monospace;
-            transition: all 0.4s var(--fluid-ease);
-        }
-
-        .nano-monitor.is-busy {
-            background: #000;
-            color: #fff;
-            border-color: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .stat-group {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .nano-monitor.is-busy .stat-group {
-            color: #fff;
-        }
-
-        .divider {
-            width: 1px;
-            height: 12px;
-            background: var(--divider);
-        }
-
-        .is-busy .divider {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .pulse-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: #10b981;
-        }
-
-        .spinner-nano {
-            width: 10px;
-            height: 10px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            display: none;
-        }
-
-        .is-busy .spinner-nano { display: block; }
-        .is-busy .pulse-dot { display: none; }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .label-nano {
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            opacity: 0.5;
-            font-size: 9px;
-        }
         .settings-fold-chevron {
             width: 13px !important;
             height: 13px !important;
@@ -568,14 +489,6 @@
             <iframe id="frame-asset-manager" data-src="/static/asset-manager.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
             <iframe id="frame-skill-library" data-src="/static/skill-library.html" scrolling="yes" title="Skill 库"></iframe>
 
-            <div class="nano-monitor" id="nano-monitor">
-                <div class="stat-group">
-                    <div class="pulse-dot animate-pulse"></div>
-                    <div class="spinner-nano"></div>
-                    <span class="label-nano">ONLINE</span>
-                    <span id="online-val">1</span>
-                </div>
-            </div>
         </main>
     </div>
 
@@ -884,10 +797,6 @@
             if(overlay) overlay.hidden = true;
         }
 
-        function updateStudioOnlineCount(data) {
-            document.getElementById('online-val').innerText = data.online_members ?? data.online_count ?? 0;
-        }
-
         function handleStudioConnected(reconnected) {
             hideServiceDisconnected();
             if(reconnected || !maintenanceState) fetchMaintenanceStatus();
@@ -895,7 +804,6 @@
 
         function handleStudioSocketMessage(data) {
             if(data.type === 'stats') {
-                updateStudioOnlineCount(data);
                 if(window.CanvasSession) window.CanvasSession.observeStatus(data);
             } else if(data.type === 'maintenance_changed') {
                 handleMaintenanceSnapshot(data.data || {});

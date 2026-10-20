@@ -1,0 +1,61 @@
+/* Asset desk: collection navigation, browsing shelf, and a horizontal inspector. */
+body.studio-library .asset-page {padding:20px 28px;gap:14px;height:100vh;min-height:740px}
+body.studio-library .asset-title {font-size:25px;letter-spacing:-.5px}
+body.studio-library .asset-sub {margin-top:8px;font-size:12px}
+body.studio-library .asset-tabs {display:flex;width:100%;align-self:stretch;gap:8px;border:0;border-bottom:1px solid var(--studio-border);padding:0 0 12px;background:none}
+body.studio-library .asset-tabs button {flex:0 0 auto;display:flex;align-items:center;gap:10px;min-height:40px;padding:8px 16px;text-align:left;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--studio-text-muted)}
+body.studio-library .asset-tabs button>svg {width:20px;height:20px;flex:none}
+body.studio-library .asset-tabs button>span {font-size:13px;font-weight:600}
+body.studio-library .asset-tabs small {display:none}
+body.studio-library .asset-tabs button.active {background:var(--studio-selected);color:var(--studio-text);border-color:var(--studio-border-strong);box-shadow:none}
+body.studio-library .asset-tabs button.active>svg {color:var(--studio-accent-label)}
+body.studio-library .asset-manager-root {grid-template-columns:230px minmax(0,1fr);grid-template-rows:minmax(260px,1fr) clamp(210px,24vh,280px);gap:14px}
+body.studio-library .asset-manager-root.inspector-collapsed {grid-template-rows:minmax(260px,1fr) 48px}
+body.studio-library .inspector-collapsed .detail-scroll {display:none}
+body.studio-library .asset-detail .panel-title {margin-right:auto}
+body.studio-library .inspector-toggle {flex-shrink:0}
+body.studio-library .asset-nav {grid-column:1;grid-row:1 / 3;background:transparent;border:0;border-right:1px solid var(--studio-border);border-radius:0;padding-right:14px}
+body.studio-library .asset-content {grid-column:2;grid-row:1;border:1px solid var(--studio-border);border-radius:12px}
+body.studio-library .asset-detail {grid-column:2;grid-row:2;border-radius:12px;min-width:0;min-height:0}
+body.studio-library .panel-head {padding:12px 16px}
+body.studio-library .asset-nav>.panel-head {padding:12px 4px;border-bottom:0}
+body.studio-library .asset-content>.panel-head {align-items:flex-start;flex-direction:column;gap:12px}
+body.studio-library .asset-tools {width:100%;gap:8px}
+body.studio-library .asset-content>.content-toolbar:first-child {display:flex;align-items:stretch;flex-direction:column;padding:16px 20px;gap:14px}
+body.studio-library .content-heading {display:flex;align-items:baseline;gap:14px}
+body.studio-library .content-heading strong {font-size:16px;font-weight:600;flex-shrink:0}
+body.studio-library .content-heading span {margin:0;line-height:1.5;font-weight:400}
+body.studio-library .asset-content>.content-toolbar[aria-label="素材分页"] {padding:8px 20px;min-height:44px;font-size:12px;color:var(--studio-text-muted)}
+body.studio-library .asset-content>.content-toolbar[aria-label="素材分页"]>span {margin-left:auto}
+body.studio-library .asset-search-wrap {max-width:440px;margin-left:auto}
+body.studio-library .asset-search-wrap {flex:1;min-width:180px}
+body.studio-library .asset-btn,body.studio-library .asset-icon-btn {height:32px;border-radius:6px;font-weight:500}
+body.studio-library .asset-detail>.panel-head {min-height:48px;padding:8px 16px}
+body.studio-library .detail-scroll {display:flex;flex-direction:row;align-items:flex-start;gap:20px;padding:14px 16px;overflow:auto}
+body.studio-library .detail-media {flex:0 0 200px;width:200px;border-radius:8px}
+body.studio-library .detail-media-frame {min-height:140px;height:140px;max-height:140px;background:var(--studio-page)}
+body.studio-library .detail-media-frame :is(img,video) {max-height:140px;object-fit:contain}
+body.studio-library .detail-body {flex:1;min-width:0;gap:10px}
+body.studio-library .detail-name {font-size:14px;line-height:1.4;font-weight:600}
+body.studio-library .catalog-detail-actions {display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0}
+body.studio-library .catalog-detail-actions p {margin:0;font-size:11px;color:var(--studio-text-muted)}
+body.studio-library .detail-url {padding:6px 10px;font-size:10px;border-radius:6px}
+body.studio-library .asset-detail-title {font-size:14px;line-height:1.5;font-weight:600;overflow-wrap:anywhere}
+body.studio-library .detail-meta-grid {grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+body.studio-library .detail-meta {border:0;border-left:2px solid var(--studio-border);border-radius:0;background:transparent;padding:4px 10px}
+body.studio-library .detail-meta strong {font-weight:500}
+body.studio-library .detail-empty {min-height:110px;width:100%;flex-direction:row;gap:12px;border:0}
+body.studio-library .content-scroll {padding:20px}
+body.studio-library :is(.asset-grid,.canvas-asset-group-grid) {grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+body.studio-library .asset-card {border-radius:10px;background:var(--studio-surface-soft);border-color:transparent}
+body.studio-library .asset-card:hover {border-color:var(--studio-border-strong);box-shadow:none;transform:none}
+body.studio-library .asset-card.active {border-color:var(--studio-accent-label);box-shadow:inset 0 -3px var(--studio-accent-label)}
+body.studio-library .asset-card.active::after {display:none}
+body.studio-library .asset-card-name {font-weight:500;font-size:12px}
+body.studio-library .asset-card-meta {font-weight:400}
+body.studio-library .asset-kind-badge {top:auto;bottom:8px;right:8px;width:auto;height:24px;gap:5px;padding:0 8px;border-radius:5px;background:var(--studio-panel);color:var(--studio-text);border:1px solid var(--studio-border);box-shadow:none;font-size:10px}
+body.studio-library .tree-row {min-height:36px;border-radius:6px}
+body.studio-library .tree-row.active {box-shadow:inset 2px 0 var(--studio-accent-label);background:var(--studio-selected)}
+body.studio-library .tree-row.active::before {display:none}
+body.studio-library .tree-row-count {background:transparent;color:var(--studio-text-muted);font-family:var(--studio-font-mono)}
+body.studio-library :is(button,input,select):focus-visible {outline:2px solid var(--studio-focus);outline-offset:2px}
