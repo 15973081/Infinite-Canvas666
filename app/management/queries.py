@@ -10,10 +10,10 @@ def snapshot(actor):
         member = az.active_member(conn, actor)
         platform = az.effective_permissions(conn, actor.member_id)
         is_super = az.superadmin(conn, actor.member_id)
-        rows = conn.execute('''SELECT w.id,w.name,w.description,w.status FROM workspaces w
-            WHERE %s OR EXISTS (SELECT 1 FROM workspace_members m
+        rows = conn.execute('''SELECT w.id,w.name,w.description,w.status,w.tenant_id FROM workspaces w
+            WHERE %s OR EXISTS(SELECT 1 FROM tenant_members tm JOIN tenants t ON t.id=tm.tenant_id WHERE tm.tenant_id=w.tenant_id AND tm.member_id=%s AND tm.role='admin' AND t.status='active') OR EXISTS (SELECT 1 FROM workspace_members m
                 WHERE m.workspace_id=w.id AND m.member_id=%s) ORDER BY w.name,w.id''',
-            (bool(platform & {'space.assign', 'space.archive', 'billing.platform', 'billing.assign.platform'}) or is_super, actor.member_id)).fetchall()
+            (bool(platform & {'space.assign', 'space.archive', 'billing.platform', 'billing.assign.platform'}) or is_super, actor.member_id,actor.member_id)).fetchall()
         spaces = []
         for row in rows:
             permissions = az.effective_permissions(conn, actor.member_id, row['id'])
@@ -25,9 +25,10 @@ def snapshot(actor):
                 permissions |= SPACE_MANAGEMENT - {'task.review', 'canvas.lock.takeover'}
             if permissions & SPACE_MANAGEMENT or platform & {'space.assign', 'space.archive'}:
                 spaces.append({**row, 'permissions': sorted(permissions)})
-        if not platform and not spaces:
+        tenant_rows=conn.execute('SELECT t.id,t.name,t.status,tm.role FROM tenants t JOIN tenant_members tm ON tm.tenant_id=t.id WHERE tm.member_id=%s',(actor.member_id,)).fetchall()
+        if not platform and not spaces and not any(t['role']=='admin' and t['status']=='active' for t in tenant_rows):
             az.fail('management_permission_required')
-        return {'member': members.profile(member), 'permissions': sorted(platform), 'workspaces': spaces}
+        return {'member': members.profile(member), 'permissions': sorted(platform), 'workspaces': spaces, 'tenants':tenant_rows}
 
 
 def require_assignment(conn, actor, workspace):
@@ -75,6 +76,9 @@ def lookup(actor, username, workspace=None):
         require_assignment(conn, actor, workspace)
         row = conn.execute('''SELECT id,username,display_name,avatar,status,auth_version
             FROM members WHERE lower(username)=lower(%s) AND status<>'disabled' ''', (username,)).fetchone()
+        if row and workspace and not az.superadmin(conn,actor.member_id) and 'member.manage' not in az.effective_permissions(conn,actor.member_id):
+            if not conn.execute('SELECT 1 FROM tenant_members tm JOIN workspaces w ON w.tenant_id=tm.tenant_id WHERE w.id=%s AND tm.member_id=%s',(workspace,row['id'])).fetchone():
+                row=None
         if not row:
             az.fail('member_not_found', 404)
         if workspace:

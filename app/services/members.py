@@ -88,6 +88,8 @@ def _activation(conn, member_id):
 
 def create_member(actor, username, display_name):
     username, display_name = text(username, 64, 'username'), text(display_name, 80, 'display_name')
+    if '@' in username:
+        az.fail('invalid_username',400)
     try:
         with az.policy_transaction(change=True) as conn:
             az.require(conn, actor, 'member.manage')
@@ -120,7 +122,7 @@ def activate(token, password):
 def login(username, password, *, audience='workbench', source='unknown', remember=False):
     if audience not in {'workbench', 'management'}:
         az.fail('invalid_audience', 400)
-    username = text(username, 64, 'username')
+    username = text(username, 254, 'username')
     # Commit attempt counters even if credentials fail. Keys are hashes, never
     # passwords or raw network addresses. DB time and counters span processes.
     keys = ['account:' + token_hash(username.lower()), 'source:' + token_hash(str(source))]
@@ -138,7 +140,7 @@ def login(username, password, *, audience='workbench', source='unknown', remembe
     if not isinstance(password, str) or not 12 <= len(password) <= 256:
         az.fail('invalid_credentials', 401)
     with az.policy_transaction() as conn:
-        row = conn.execute('SELECT * FROM members WHERE lower(username)=lower(%s)', (username,)).fetchone()
+        row = conn.execute('SELECT * FROM members WHERE lower(username)=lower(%s) OR lower(email)=lower(%s) ORDER BY (lower(username)=lower(%s)) DESC LIMIT 1', (username,username,username)).fetchone()
         salt = row['password_salt'] if row and row['password_salt'] else '00' * 16
         candidate = password_hash(password, salt)[1]
         if not row or row['status'] != 'active' or not hmac.compare_digest(candidate, row['password_digest'] or ''):
@@ -255,9 +257,9 @@ def create_workspace(actor, name, administrator_id, description=''):
 def list_workspaces(actor):
     with az.policy_transaction() as conn:
         az.active_member(conn, actor)
-        rows = conn.execute('''SELECT w.id,w.name,w.description FROM workspaces w
+        rows = conn.execute('''SELECT w.id,w.name,w.description,w.tenant_id,t.name tenant_name FROM workspaces w JOIN tenants t ON t.id=w.tenant_id
             JOIN workspace_members m ON m.workspace_id=w.id
-            WHERE m.member_id=%s AND w.status='active' ORDER BY w.name,w.id''', (actor.member_id,)).fetchall()
+            WHERE m.member_id=%s AND w.status='active' AND t.status='active' AND EXISTS(SELECT 1 FROM tenant_members tm WHERE tm.tenant_id=t.id AND tm.member_id=m.member_id) ORDER BY w.name,w.id''', (actor.member_id,)).fetchall()
         return [{**row, 'permissions': sorted(az.effective_permissions(conn, actor.member_id, row['id']))} for row in rows]
 
 
@@ -301,6 +303,10 @@ def assign_roles(actor, member_id, role_ids, workspace=None):
         from app.storage.deletion_ledger import member_blocked
         if member_blocked(member_id):
             az.fail('member_closed', 409)
+        if workspace:
+            tenant=conn.execute('SELECT tenant_id FROM workspaces WHERE id=%s',(workspace,)).fetchone()
+            if tenant and tenant['tenant_id']!='default' and not conn.execute('SELECT 1 FROM tenant_members WHERE tenant_id=%s AND member_id=%s',(tenant['tenant_id'],member_id)).fetchone():
+                az.fail('tenant_member_required',400)
         if workspace is None:
             _protect_superadmin(conn, actor, member_id)
             old = conn.execute('SELECT role_id FROM platform_member_roles WHERE member_id=%s', (member_id,)).fetchall()

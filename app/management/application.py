@@ -74,7 +74,7 @@ class Admission:
             headers = dict(scope.get('headers', []))
             if scope['method'] not in {'GET', 'HEAD', 'OPTIONS'} and headers.get(b'origin', b'').decode('latin-1') != origin:
                 az.fail('origin_forbidden')
-            if path.startswith('/api/') and path != '/api/auth/login':
+            if path.startswith('/api/') and path not in {'/api/auth/login','/api/auth/password/start','/api/auth/password/confirm','/api/auth/invitations/accept'}:
                 principal = await asyncio.to_thread(session, scope)
                 if not principal:
                     az.fail('authentication_required', 401)
@@ -149,7 +149,7 @@ class StorageProbe(Input):
 
 
 class Login(Input):
-    username: str = Field(max_length=64)
+    username: str = Field(max_length=254)
     password: str = Field(max_length=256)
     remember: bool = False
 
@@ -593,6 +593,9 @@ def create_app(static_dir=None):
     def provider_assign(request: Request, workspace: str, data: ProviderAssignment):
         from app.services.provider_control import assign
         return assign(actor(request), workspace, **data.model_dump())
+
+    from app.management.tenant_routes import router as tenant_router
+    app.include_router(tenant_router)
 
     # Only the management artifact is mounted, never workbench static or data.
     app.mount('/static', StaticFiles(directory=directory, check_dir=False), name='management-static')

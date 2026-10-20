@@ -441,3 +441,4 @@ main>header .scope select{border:0;border-left:1px solid #e5e8ef;border-radius:0
 #content .billing-management .management-tabs button[aria-selected=true]{border-bottom-color:#1664ff;color:#1664ff}
 #content .billing-management .empty{border-style:solid;border-color:#e5e8ef;border-radius:2px;font-size:12px}
 .provider-workspace{margin-top:0}.provider-workspace>button{margin-bottom:20px}
+.tenant-console .table-wrap{margin:16px 0 24px}.tenant-console>.toolbar{margin-bottom:20px}.tenant-console .overview-banner{min-height:100px}.account-email{max-width:720px}.account-email form{max-width:480px}.account-auth-dialog{width:460px;max-width:92vw;border-radius:6px}.account-auth-dialog h2{font-size:18px}.account-auth-dialog>button{margin-top:16px}.account-auth-dialog form>button{margin-top:12px}.account-auth-dialog .muted{font-size:12px}

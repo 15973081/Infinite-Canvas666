@@ -26,12 +26,16 @@ BASE = ''' FROM ledger_entries e
  LEFT JOIN canvas_asset_groups g ON g.workspace_id=e.workspace_id AND g.canvas_id=e.canvas_id'''
 
 
-def report(actor, *, personal=False, workspace=None, member_id='', from_ms=0, to_ms=0,
+def report(actor, *, personal=False, workspace=None, tenant=None, member_id='', from_ms=0, to_ms=0,
            canvas_query='', account_query='', page=1, page_size=50):
     if from_ms < 0 or to_ms < 0 or (to_ms and to_ms <= from_ms) or page < 1 or not 1 <= page_size <= 100:
         raise HTTPException(400, {'code':'invalid_billing_query'})
     with az.policy_transaction() as conn:
-        if personal:
+        if tenant:
+            from app.services.tenants import require
+            if personal or actor.audience!='management': az.fail('permission_denied')
+            require(conn,actor,tenant)
+        elif personal:
             if actor.audience != 'workbench': az.fail('permission_denied')
             az.active_member(conn, actor)
             member_id = actor.member_id  # Never trust a browser-supplied member selector.
@@ -42,6 +46,8 @@ def report(actor, *, personal=False, workspace=None, member_id='', from_ms=0, to
             else:
                 az.require(conn,actor,'billing.read' if workspace else 'billing.platform',workspace)
         clauses, args = ['TRUE'], []
+        if tenant:
+            clauses.append('w.tenant_id=%s');args.append(tenant)
         if workspace:
             clauses.append('e.workspace_id=%s'); args.append(workspace)
         if member_id:

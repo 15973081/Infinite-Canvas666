@@ -27,6 +27,7 @@ ACCOUNT.update({'/api/account/data','/api/account/data/export'})
 ACCOUNT.add('/api/account/data/close')
 ACCOUNT.add('/api/account/credits')
 ACCOUNT.add('/api/account/tasks')
+ACCOUNT.update({'/api/account/email','/api/account/email/start','/api/account/email/confirm','/api/account/invitations/accept'})
 PIXMAX_STAGE_ASSET = re.compile(r'^/static/vendor/pixmax/previs/(?:characters/x-bot\.fbx|animations/catalog\.runtime\.v1\.json|animations/clips/[0-9a-f-]{36}\.anim)$')
 PIXMAX_PARAMETER_SCHEMAS = {'/static/vendor/pixmax/generation-schema.json', '/static/vendor/pixmax/reshoot-schema.json'}
 MANAGEMENT_PREFIXES = ('/api/shared-folders', '/api/comfyui/', '/api/workflows',

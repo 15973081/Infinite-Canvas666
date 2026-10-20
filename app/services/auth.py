@@ -154,7 +154,7 @@ def issue_session(request, info, remember):
 
 
 class LoginInput(BaseModel):
-    username: str = Field(min_length=1, max_length=64)
+    username: str = Field(min_length=1, max_length=254)
     password: str = Field(min_length=1, max_length=256)
     remember: bool = False
 
@@ -175,7 +175,8 @@ def auth_status(request: Request):
             from app.services import authorization as az
             with az.policy_transaction() as conn:
                 info = members.profile(az.active_member(conn, actor))
-        return JSONResponse({"authenticated": bool(actor), "mode": "members", "member": info,
+        from app.services.management_entry import management_url
+        return JSONResponse({"account_management_url":management_url(),"authenticated": bool(actor), "mode": "members", "member": info,
                              "username": info["username"] if info else None,
                              "setup_required": False, "can_setup": False}, headers={"Cache-Control": "no-store"})
     user = session_user(request.scope)
@@ -335,3 +336,39 @@ def workspace_storage():
 def management_entry():
     from app.services.management_entry import management_url
     return JSONResponse({"url": management_url()}, headers={"Cache-Control": "no-store"})
+
+
+class EmailStartInput(BaseModel):
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=256)
+
+class EmailConfirmInput(BaseModel):
+    challenge_id: str = Field(max_length=80)
+    code: str = Field(pattern=r'^\d{6}$')
+
+class InvitationAcceptInput(BaseModel):
+    token: str = Field(min_length=20,max_length=128)
+
+@router.get('/api/account/email')
+def account_email_status(request: Request):
+    if not member_auth_enabled():raise HTTPException(404)
+    from app.services.account_email import status
+    return status(request.scope.get('member_principal'))
+
+@router.post('/api/account/email/start')
+def account_email_start(request: Request, data: EmailStartInput):
+    if not member_auth_enabled():raise HTTPException(404)
+    from app.services.account_email import start
+    return start('bind',data.email,actor=request.scope.get('member_principal'),password=data.password)
+
+@router.post('/api/account/email/confirm')
+def account_email_confirm(request: Request, data: EmailConfirmInput):
+    if not member_auth_enabled():raise HTTPException(404)
+    from app.services.account_email import confirm
+    return confirm('bind',data.challenge_id,data.code,actor=request.scope.get('member_principal'))
+
+@router.post('/api/account/invitations/accept')
+def accept_enterprise_invitation(request: Request, data: InvitationAcceptInput):
+    if not member_auth_enabled():raise HTTPException(404)
+    from app.services.tenants import accept
+    return accept(data.token,actor=request.scope.get('member_principal'))

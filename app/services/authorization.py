@@ -14,6 +14,7 @@ from app.storage.database import connection
 
 AUTH_LOCK = 642193004
 PLATFORM_PERMISSIONS = {
+    'tenant.manage': '管理企业租户',
     'credits.gift.platform': '赠送并查看平台赠送积分',
     'billing.platform': '查看平台账号费用',
     'billing.assign.platform': '调整平台费用归属',
@@ -95,7 +96,17 @@ def superadmin(conn, member_id):
         WHERE g.member_id=%s AND r.builtin_key='superadmin' AND r.active''', (member_id,)).fetchone())
 
 
+def tenant_admin(conn, member_id, workspace):
+    return bool(conn.execute("""SELECT 1 FROM workspaces w JOIN tenants t ON t.id=w.tenant_id
+        JOIN tenant_members tm ON tm.tenant_id=t.id WHERE w.id=%s AND t.status='active'
+        AND tm.member_id=%s AND tm.role='admin'""",(workspace,member_id)).fetchone())
+
+TENANT_SPACE_MANAGEMENT = {'space.members.manage','space.roles.manage','billing.read','audit.read'}
+
+
 def effective_permissions(conn, member_id, workspace=None):
+    if workspace is not None and not conn.execute("SELECT 1 FROM workspaces w JOIN tenants t ON t.id=w.tenant_id JOIN tenant_members tm ON tm.tenant_id=t.id WHERE w.id=%s AND t.status='active' AND tm.member_id=%s",(workspace,member_id)).fetchone():
+        return set()
     if workspace is None:
         rows = conn.execute('''SELECT DISTINCT p.permission_id FROM platform_member_roles g
             JOIN roles r ON r.id=g.role_id AND r.active JOIN role_permissions p ON p.role_id=r.id
@@ -104,7 +115,10 @@ def effective_permissions(conn, member_id, workspace=None):
         rows = conn.execute('''SELECT DISTINCT p.permission_id FROM workspace_member_roles g
             JOIN roles r ON r.id=g.role_id AND r.active JOIN role_permissions p ON p.role_id=r.id
             WHERE g.member_id=%s AND g.workspace_id=%s''', (member_id, workspace))
-    return {r['permission_id'] for r in rows}
+    result={r['permission_id'] for r in rows}
+    if workspace is not None and tenant_admin(conn,member_id,workspace):
+        result |= TENANT_SPACE_MANAGEMENT
+    return result
 
 
 def require(conn, principal, action, workspace=None):
@@ -113,14 +127,18 @@ def require(conn, principal, action, workspace=None):
     if action not in catalog:
         fail('unknown_permission', 400)
     if workspace is not None:
-        row = conn.execute('SELECT status FROM workspaces WHERE id=%s', (workspace,)).fetchone()
-        if not row or row['status'] != 'active':
+        row = conn.execute('SELECT w.status,t.status tenant_status,w.tenant_id FROM workspaces w JOIN tenants t ON t.id=w.tenant_id WHERE w.id=%s', (workspace,)).fetchone()
+        if not row or row['status'] != 'active' or row['tenant_status']!='active':
             fail('workspace_unavailable')
         # Cross-space management is explicit; superadmin is not blanket access
         # to every member's canvas, private conversation, or media contents.
         management = action in {'space.members.manage', 'space.roles.manage', 'maintenance.space', 'audit.read', 'backup.read', 'backup.request', 'billing.read', 'billing.assign'}
+        if action in TENANT_SPACE_MANAGEMENT and tenant_admin(conn,principal.member_id,workspace):
+            return member
         if management and superadmin(conn, principal.member_id):
             return member
+        if not conn.execute('SELECT 1 FROM tenant_members WHERE tenant_id=%s AND member_id=%s',(row['tenant_id'],principal.member_id)).fetchone():
+            fail('tenant_forbidden')
         if not conn.execute('SELECT 1 FROM workspace_members WHERE workspace_id=%s AND member_id=%s',
                             (workspace, principal.member_id)).fetchone():
             fail('workspace_forbidden')
@@ -166,6 +184,10 @@ def assert_administrators(conn):
     spaces={row['workspace_id'] for row in candidates}
     protected={row['workspace_id'] for row in candidates if usable(row['member_id'])}
     if spaces-protected: fail('last_workspace_administrator',409)
+    enterprise_admins=conn.execute("SELECT t.id,tm.member_id FROM tenants t LEFT JOIN tenant_members tm ON tm.tenant_id=t.id AND tm.role='admin' LEFT JOIN members m ON m.id=tm.member_id AND m.status='active' WHERE t.id<>'default' AND t.status='active' AND (m.id IS NOT NULL OR tm.member_id IS NULL)").fetchall()
+    active_tenants={r['id'] for r in conn.execute("SELECT id FROM tenants WHERE id<>'default' AND status='active'")}
+    covered={r['id'] for r in enterprise_admins if r['member_id'] and usable(r['member_id'])}
+    if active_tenants-covered:fail('last_tenant_administrator',409)
 
 
 def validate_permissions(conn, principal, permission_ids, workspace=None):
@@ -173,6 +195,6 @@ def validate_permissions(conn, principal, permission_ids, workspace=None):
     catalog = PLATFORM_PERMISSIONS if workspace is None else WORKSPACE_PERMISSIONS
     if not values <= catalog.keys():
         fail('invalid_role_permissions', 400)
-    if not superadmin(conn, principal.member_id) and not values <= effective_permissions(conn, principal.member_id, workspace):
+    if not superadmin(conn, principal.member_id) and not (workspace and tenant_admin(conn,principal.member_id,workspace)) and not values <= effective_permissions(conn, principal.member_id, workspace):
         fail('cannot_delegate_permission')
     return values

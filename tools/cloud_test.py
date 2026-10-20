@@ -88,6 +88,7 @@ def main(argv=None):
             suites.append("test_cloud_subject_library.py")
             suites.append("test_cloud_camera_motions.py")
             suites.extend(["test_credit_wallet.py", "test_cloud_credit_wallet.py", "test_cloud_credit_gifts.py", "test_cloud_account_tasks.py"])
+            suites.append("test_cloud_tenants.py")
             return pytest.main([*(str(ROOT / "tests" / name) for name in suites), "-q", *(argv or [])])
         finally:
             try:

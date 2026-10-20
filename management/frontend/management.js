@@ -2,7 +2,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
-  const names = {creditGifts:'积分管理',imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
+  const names = {tenants:'企业租户',account:'邮箱与登录',creditGifts:'积分管理',imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   let memberSearch = '', memberStatus = '';
   let identityPaused = false;
   let permissionPaused = false, accessCheck = null;
@@ -33,6 +33,8 @@
     $('#close-navigation').focus();
   }
   const errors = {
+    email_not_configured:'邮件服务尚未配置，请联系管理员设置 SMTP。',email_delivery_failed:'邮件发送失败，请稍后重试或联系管理员。',email_rate_limited:'发送或验证请求过于频繁，请稍后重试。',invalid_email:'请填写有效邮箱地址。',email_unavailable:'该邮箱暂不可绑定，请使用其他邮箱。',invalid_email_code:'验证码无效、已过期或尝试次数已达上限，请重新发送。',
+    tenant_unavailable:'企业不存在或已停用。',tenant_forbidden:'你没有此企业的管理权限。',tenant_changed:'企业设置已更新，请刷新后重试。',tenant_member_required:'请选择本企业的有效成员。',last_tenant_administrator:'企业必须保留至少一位有效管理员。',invalid_invitation:'邀请已使用、过期或失效。',invitation_email_mismatch:'请先绑定并验证邀请指定的邮箱。',invitation_login_required:'账号或邮箱已存在，请登录现有账号后接受邀请。',legacy_tenant_models:'默认企业沿用现有供应商分配。',model_not_available:'只能分配已授权的模型，请刷新。',password_length:'密码长度需为 12–256 位。',invalid_username:'账号不能包含 @，请使用邮箱登录或填写其他账号名。',
     invalid_credit_gift:'请填写有效账号、正整数积分、赠送原因和来源依据。',
     credit_gift_target_unavailable:'收款账号不存在、未激活或已停用。',
     credit_gift_preview_changed:'收款账号或赠送内容已变化，请重新预览。',
@@ -207,6 +209,8 @@
     loading.setAttribute('role', 'status'); content.setAttribute('aria-busy', 'true'); content.replaceChildren(loading);
     try {
     const result = await ({
+      tenants:async()=>[await window.ManagementTenants.create({api,dialog,table,button,refresh})],
+      account:async()=>[await window.ManagementTenants.account({api})],
       creditGifts: creditGiftsView,
       imageTools: imageToolsView,
       modelBilling: modelBillingView,
@@ -1038,6 +1042,8 @@
   });
   $('#logout').onclick = () => execute(async () => { if(!leaveProviderEditor())return; await call('/api/auth/logout', 'POST'); showLogin(); });
   $('#unavailable-logout').onclick = $('#logout').onclick;
+  $('#recover-password').onclick=()=>window.ManagementTenants.reset(api);
+  $('#accept-invitation').onclick=()=>window.ManagementTenants.invitation(api,refresh,false);
   $('#retry').onclick = () => execute(refresh);
   $('#login-form').onsubmit = e => { e.preventDefault(); execute(async () => {
     const f = new FormData(e.target); await call('/api/auth/login', 'POST', {username: f.get('username'), password: f.get('password'), remember: f.has('remember')});
@@ -1047,7 +1053,7 @@
     if (!me || identityPaused || permissionPaused) return;
     if (accessCheck) return accessCheck;
     const bound = me;
-    const grants = snapshot => JSON.stringify({permissions:[...new Set(snapshot.permissions)].sort(),
+    const grants = snapshot => JSON.stringify({permissions:[...new Set(snapshot.permissions)].sort(),tenants:(snapshot.tenants||[]).map(t=>[t.id,t.status,t.role]).sort((a,b)=>a[0].localeCompare(b[0])),
       workspaces:snapshot.workspaces.map(space => [space.id,space.status,[...new Set(space.permissions)].sort()]).sort((a,b)=>a[0].localeCompare(b[0]))});
     const pause = () => { permissionPaused = true; serial++; notice(permissionChanged, true); };
     accessCheck = (async () => {
@@ -1062,5 +1068,6 @@
   }
   window.addEventListener('focus', checkAdminAccess);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) void checkAdminAccess(); });
+  if(new URLSearchParams(location.search).get('action')==='reset')window.ManagementTenants.reset(api);
   refresh().catch(e => { if (e.status !== 401) notice(e.message, true); });
 })();

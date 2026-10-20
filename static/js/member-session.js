@@ -14,6 +14,7 @@
     accountPaths.add('/api/account/data/close');
     accountPaths.add('/api/account/credits');
     accountPaths.add('/api/account/tasks');
+    for (const path of ['/api/account/email','/api/account/email/start','/api/account/email/confirm','/api/account/invitations/accept']) accountPaths.add(path);
     const element = (tag, text, className) => {
         const node = document.createElement(tag);
         if (text !== undefined) node.textContent = text;
@@ -142,7 +143,7 @@
         if (!spaces.length) card.append(element('p', '暂未分配任何空间，请联系管理员。'));
         return new Promise(resolve => {
             for (const space of spaces) {
-                const item = button(space.name, async () => {
+                const item = button((space.tenant_name?space.tenant_name+' / ':'')+space.name, async () => {
                     item.disabled = true;
                     try {
                         if (!initial && !await flushPages()) throw new Error('当前画布保存尚未完成，请处理后再切换空间。');
@@ -162,6 +163,10 @@
                 choices.append(item);
             }
             actions.append(button('刷新空间列表', () => location.reload()));
+            actions.append(button('邮箱与企业邀请', async () => {
+                try { await import('/static/js/account-email.js'); await window.CanvasAccountEmail.show(member.id); }
+                catch (error) { message.textContent = error.message; }
+            }));
             if (!initial) card.append(button('取消', () => { panel.remove(); panel = null; resolve(null); }));
             actions.append(button('退出登录', async () => {
                 try { if (initial) { await json('/api/auth/logout', {method:'POST', headers:{'X-Member-ID':member.id}}); location.assign('/login'); } else await logout(); }
@@ -282,7 +287,7 @@
                     item.className='member-space-option';
                     item.setAttribute('aria-current',current ? 'true' : 'false');
                     const copy=element('span',undefined,'member-space-copy');
-                    copy.append(element('span',workspace.name));
+                    copy.append(element('span',(workspace.tenant_name?workspace.tenant_name+' / ':'')+workspace.name));
                     const description=workspace.description || (workspace.permissions.includes('canvas.edit') ? '可编辑' : '查看空间');
                     const detail=element('small',description);detail.title=description;copy.append(detail);
                     item.append(copy);
@@ -339,7 +344,7 @@
         };
         const balance = button('积分余额 · 查看明细',()=>openAccount('credits'));
         balance.className='member-account-balance';
-        menu.append(balance,button('账户管理',()=>openAccount('profile')),
+        menu.append(balance,button('账户管理',()=>openAccount('profile')),button('邮箱与企业邀请',async()=>{account.open=false;try{await import('/static/js/account-email.js');await window.CanvasAccountEmail.show();}catch(error){window.alert(error.message);}}),
             button('偏好管理',async()=>{account.open=false;try{await import('/static/js/canvas-preferences.js');window.CanvasPreferences.show();}catch(error){window.alert(error.message);}}),
             button('个人数据',async()=>{account.open=false;try{await import('/static/js/account-data.js');await window.CanvasAccountData.show();}catch(error){window.alert(error.message);}}),
             button('退出登录',async()=>{account.open=false;try{await logout();}catch(error){window.alert(error.message);}}));

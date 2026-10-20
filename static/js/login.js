@@ -13,6 +13,7 @@
     let busy = false;
     let members = false;
     let activating = false;
+    let accountManagementUrl=null;
     const activationToken = document.getElementById('activation-token');
     const activationButton = document.getElementById('activation-button');
     function mode() {
@@ -68,6 +69,7 @@
             }
             setup = status.setup_required;
             members = status.mode === 'members';
+            accountManagementUrl = status.account_management_url || null;
             activationButton.hidden = !members;
             if (members) {
                 document.getElementById('help-message').textContent = '请联系管理员重置账号。你将收到一次性激活凭证，用于自行设置新密码。';
@@ -93,6 +95,7 @@
         event.currentTarget.setAttribute('aria-pressed', String(visible));
     });
     document.getElementById('help-button').addEventListener('click', () => {
+        if(members && accountManagementUrl){window.location.assign(accountManagementUrl+'?action=reset');return;}
         const help = document.getElementById('help-message');
         help.hidden = !help.hidden;
     });

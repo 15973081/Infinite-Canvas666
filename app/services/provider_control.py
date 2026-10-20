@@ -215,8 +215,11 @@ def assign(actor, workspace, provider_ids, primary_provider_id, expected_version
 def workspace_providers():
     from app.services.media import avatar_platform_for_provider, provider_supports_avatar
 
-    def project(row, primary=False):
-        config = row['config']
+    def project(row, primary=False, recovery=False):
+        from app.services.tenants import filter_models
+        from app.storage.database import connection
+        with connection() as model_conn:
+            config = row['config'] if recovery else filter_models(model_conn,row['config'],row['config']['id'],current_workspace())
         fields = set(row['secret_fields'] or [])
         platform = avatar_platform_for_provider(config)
         supported = provider_supports_avatar(config)
@@ -226,14 +229,14 @@ def workspace_providers():
                                         'credentials_configured': supported and required <= fields}}
 
     with az.policy_transaction() as conn:
+        recovery = recovery_provider(conn)
+        if recovery:
+            # An already submitted task must still collect its upstream result.
+            return [{**project(recovery, recovery=True), 'enabled': True}]
         rows = conn.execute('''SELECT p.config,p.secret_fields,(s.primary_provider_id=p.id) AS primary FROM managed_providers p
             JOIN workspace_provider_grants g ON g.provider_id=p.id JOIN workspace_provider_sets s ON s.workspace_id=g.workspace_id
             WHERE g.workspace_id=%s AND p.config->>'enabled'='true' ORDER BY p.id''', (current_workspace(),))
         result = [project(row, bool(row['primary'])) for row in rows if not retired(row['config'].get('id'))]
-        recovery = recovery_provider(conn)
-        if recovery:
-            result = [p for p in result if p['id'] != recovery['id']]
-            result.append({**project(recovery), 'enabled': True})
         return result
 
 
@@ -279,7 +282,8 @@ def configured(conn, provider_id):
         WHERE g.workspace_id=%s AND p.id=%s AND p.config->>'enabled'='true' ''', (current_workspace(), provider_id)).fetchone()
     if not row:
         az.fail('provider_not_assigned', 403)
-    return row
+    from app.services.tenants import filter_models
+    return {**row,'config':filter_models(conn,row['config'],provider_id,current_workspace())}
 
 
 def credential(provider_id, field='api_key'):
