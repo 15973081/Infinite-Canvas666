@@ -1,0 +1,40 @@
+/* Shared workspace chrome. Loaded by the home and resource pages, not canvas editors. */
+:root,
+body.studio-skin {
+    color-scheme: dark;
+    --studio-page: #08090b;
+    --studio-nav: #08090b;
+    --studio-panel: #131417;
+    --studio-surface: #131417;
+    --studio-surface-soft: #191a1f;
+    --studio-surface-muted: #25262c;
+    --studio-border: #2b2c33;
+    --studio-border-strong: #4b4e58;
+    --studio-text: #f1f1f4;
+    --studio-text-muted: #9b9da9;
+    --studio-text-faint: #858894;
+    --studio-accent: #f4f4f7;
+    --studio-accent-text: #17181c;
+    --studio-accent-label: #4ce2f3;
+    --studio-focus: #4ce2f3;
+    --studio-selected: #27282e;
+    --studio-strong: #f4f4f7;
+    --studio-strong-text: #17181c;
+    --studio-success: #81d8b0;
+    --studio-warning: #e5c174;
+    --studio-error: #fa9990;
+    --studio-danger-surface: #301d22;
+    --studio-grid: transparent;
+    --studio-glow: #4ce2f314;
+    --studio-overlay: #08090bbf;
+    --studio-shadow: #00000040;
+}
+
+body.studio-content {
+    background-image: none;
+    accent-color: var(--studio-focus);
+}
+body.studio-content ::selection {
+    background: var(--studio-selected);
+    color: var(--studio-accent-label);
+}

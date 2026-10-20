@@ -1,9 +1,6 @@
+@import url('/static/css/studio-workspace-palette.css');
 /* Project-first homepage. Palette and overrides stay out of editor documents. */
 html:has(body.studio-home),html:has(body.studio-canvas-home),body.studio-home,body.studio-canvas-home{
- --studio-page:#08090b;--studio-nav:#08090b;--studio-panel:#131417;--studio-surface-muted:#25262c;
- --studio-text:#f1f1f4;--studio-text-muted:#9b9da9;--studio-border:#2b2c33;--studio-border-strong:#4b4e58;
- --studio-accent:#f4f4f7;--studio-accent-text:#17181c;--studio-accent-label:#4ce2f3;
- --studio-focus:#4ce2f3;--studio-selected:#27282e;--studio-glow:transparent;
  --project-motion:150ms;--project-ease:cubic-bezier(.4,0,.2,1);
  --studio-grid:transparent;--studio-radius-control:8px;--studio-radius-card:16px;--studio-radius-dialog:16px;
 }
