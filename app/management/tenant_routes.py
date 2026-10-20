@@ -84,3 +84,24 @@ class ModelAssignments(Input):
 def models(request:Request,tid:str): return tenants.models(actor(request),tid)
 @router.put('/api/tenants/{tid}/models')
 def set_models(request:Request,tid:str,data:ModelAssignments): return tenants.set_models(actor(request),tid,[row.model_dump() for row in data.models],data.workspace)
+class DefaultModels(Input):
+    models:list[ModelGrant]=Field(max_length=5)
+    version:int=Field(ge=0)
+@router.put('/api/tenants/{tid}/spaces/{wid}/model-defaults')
+def model_defaults(request:Request,tid:str,wid:str,data:DefaultModels):
+    return tenants.set_defaults(actor(request),tid,wid,[row.model_dump() for row in data.models],data.version)
+class EnterpriseRules(Input):
+    invite_members:bool
+    create_spaces:bool
+    manage_members:bool
+    assign_models:bool
+class RuleUpdate(Input):
+    rules:EnterpriseRules
+    version:int=Field(ge=0)
+    platform_limits:bool=False
+@router.get('/api/tenants/{tid}/rules')
+def rules(request:Request,tid:str):return tenants.rules(actor(request),tid)
+@router.put('/api/tenants/{tid}/rules')
+def rules_update(request:Request,tid:str,data:RuleUpdate):return tenants.update_rules(actor(request),tid,data.rules.model_dump(),data.version,data.platform_limits)
+@router.get('/api/tenants/{tid}/events')
+def events(request:Request,tid:str,before:int|None=Query(None,ge=1)):return tenants.events(actor(request),tid,before)

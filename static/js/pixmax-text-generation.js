@@ -7,14 +7,14 @@
     const scope = () => JSON.stringify([window.CanvasSession?.context?.member?.id, window.CanvasSession?.context?.workspace?.id]);
     const busy = node => ['submitting', 'queued', 'running'].includes(jobs.get(node)?.status);
     function config(node) {
-        const saved = node.textGeneration || {}, provider = pixmaxChatProviders()[0];
+        const saved = node.textGeneration || {}, preferred=CanvasCore.workspaceModelDefault(pixmaxChatProviders(),'chat'), provider = pixmaxChatProviders().find(p=>p.id===preferred?.provider_id)||pixmaxChatProviders()[0];
         return {...saved, input:saved.input || '', systemPrompt:saved.systemPrompt || '',
-            providerId:saved.providerId ?? provider?.id ?? '', model:saved.model ?? provider?.chat_models?.[0] ?? ''};
+            providerId:saved.providerId ?? provider?.id ?? '', model:saved.model ?? (saved.providerId?undefined:preferred?.model) ?? provider?.chat_models?.[0] ?? ''};
     }
     function modelOptions() {
         return pixmaxChatProviders().flatMap(provider => provider.chat_models.map(model => {
             const policy = provider.model_policies?.['chat:' + model];
-            return {value:JSON.stringify([provider.id, model]), text:model, subtitle:provider.name || provider.id,
+            return {value:JSON.stringify([provider.id, model]), text:model, subtitle:(provider.name || provider.id)+(provider.workspace_defaults?.chat===model?' · 空间默认':''),
                 disabled:policy?.enabled === false, tooltip:policy?.enabled === false ? '此模型已停用' : ''};
         }).filter(option => provider.model_policies?.['chat:' + JSON.parse(option.value)[1]]?.visible !== false));
     }
@@ -85,7 +85,7 @@
         session.handle?.setDisabled(!editable(session) || busy(session.node));
         for(const root of [session.root, ...session.roots]) for(const editor of root.querySelectorAll('[role="textbox"][contenteditable]')) editor.contentEditable = String(editable(session) && !busy(session.node));
         const status = jobs.get(session.node);
-        session.status.textContent = status?.message || (!modelOptions().some(option => !option.disabled) ? '请先配置可用的文本模型' : '');
+        session.status.textContent = status?.message || (!modelOptions().some(option => !option.disabled) ? CanvasCore.modelUnavailableMessage() : '');
         position();
     }
     function changed(session, value) {
@@ -134,6 +134,9 @@
         const root = document.createElement('section'); root.className = 'pixmax-text-generation'; root.setAttribute('aria-label', '文本生成面板');
         const target = document.createElement('div'); target.className = 'pixmax-native-generation-form';
         const message = document.createElement('p'); message.className = 'pixmax-text-generation-status'; message.setAttribute('role', 'status');
+        const choose=document.createElement('button');choose.type='button';choose.textContent='搜索 / 切换模型';
+        choose.onclick=()=>{const session=active;if(!session||!editable(session)||busy(node))return;const c=config(node);const picker=CanvasCore.openModelPicker({providers:()=>pixmaxChatProviders(),kind:'chat',value:{provider_id:c.providerId,model:c.model},valid:()=>editable(session)&&!busy(node),onSelect:value=>changed(session,{model:JSON.stringify([value.provider_id,value.model]),prompt:config(node).input})});session.roots.add(picker);picker.addEventListener('close',()=>session.roots.delete(picker),{once:true});};
+        root.append(choose);
         root.append(target, message); document.body.append(root);
         const session = {node, canvas, epoch, scope:scope(), guard:canvasTaskWriteGuard(node), root, status:message, roots:new Set(), closed:false}; active = session;
         for(const type of ['pointerdown','mousedown','click','dblclick','keydown','wheel','contextmenu']) root.addEventListener(type, event => event.stopPropagation());

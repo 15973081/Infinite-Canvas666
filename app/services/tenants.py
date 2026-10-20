@@ -69,13 +69,14 @@ def detail(actor, tid):
             JOIN members m ON m.id=tm.member_id WHERE tm.tenant_id=%s ORDER BY m.created_at''',(tid,)).fetchall()
         spaces=conn.execute('SELECT id,name,status FROM workspaces WHERE tenant_id=%s ORDER BY created_at,id',(tid,)).fetchall()
         invites=conn.execute('SELECT id,email,role,expires_at,consumed_at FROM tenant_invitations WHERE tenant_id=%s ORDER BY created_at DESC LIMIT 50',(tid,)).fetchall()
-        return {'tenant':tenant,'members':people,'spaces':spaces,'invitations':invites,'can_suspend':platform(conn,actor)}
+        return {'tenant':tenant,'members':people,'spaces':spaces,'invitations':invites,'can_suspend':platform(conn,actor),'rules':effective_rules(tenant)}
 
 
 def create_space(actor,tid,name,administrator):
     name=members.text(name,80,'workspace_name')
     with az.policy_transaction(change=True) as conn:
         tenant=require(conn,actor,tid)
+        require_rule(conn,actor,tenant,'create_spaces')
         if tenant['status']!='active':
             az.fail('tenant_unavailable',409)
         if not conn.execute("SELECT 1 FROM tenant_members tm JOIN members m ON m.id=tm.member_id WHERE tm.tenant_id=%s AND tm.member_id=%s AND m.status='active'",(tid,administrator)).fetchone():
@@ -93,7 +94,8 @@ def assign_space(actor,tid,wid,member_id,role):
     if role not in {'admin','editor','viewer','remove'}:
         az.fail('invalid_request',400)
     with az.policy_transaction(change=True) as conn:
-        require(conn,actor,tid)
+        tenant=require(conn,actor,tid)
+        require_rule(conn,actor,tenant,'manage_members')
         if not conn.execute('SELECT 1 FROM workspaces WHERE id=%s AND tenant_id=%s',(wid,tid)).fetchone():
             az.fail('workspace_forbidden')
         if not conn.execute("SELECT 1 FROM tenant_members tm JOIN members m ON m.id=tm.member_id WHERE tm.tenant_id=%s AND tm.member_id=%s AND m.status='active'",(tid,member_id)).fetchone():
@@ -117,7 +119,8 @@ def change_member(actor,tid,mid,role):
     if role not in {'admin','member','remove'}:
         az.fail('invalid_request',400)
     with az.policy_transaction(change=True) as conn:
-        require(conn,actor,tid)
+        tenant=require(conn,actor,tid)
+        require_rule(conn,actor,tenant,'manage_members')
         if not conn.execute('SELECT 1 FROM tenant_members WHERE tenant_id=%s AND member_id=%s',(tid,mid)).fetchone():
             az.fail('tenant_member_required',404)
         if role=='remove':
@@ -141,11 +144,13 @@ def invite(actor,tid,email,role):
     if not email_delivery.configured():
         az.fail('email_not_configured',503)
     with az.policy_transaction() as conn:
-        require(conn,actor,tid)
+        tenant=require(conn,actor,tid)
+        require_rule(conn,actor,tenant,'invite_members')
     account_email.throttle('invite:'+actor.member_id+':'+email)
     token=secrets.token_urlsafe(32)
     with az.policy_transaction(change=True) as conn:
         tenant=require(conn,actor,tid)
+        require_rule(conn,actor,tenant,'invite_members')
         conn.execute('UPDATE tenant_invitations SET consumed_at=now() WHERE tenant_id=%s AND email=%s AND consumed_at IS NULL',(tid,email))
         iid=members.identifier('invite')
         conn.execute("INSERT INTO tenant_invitations(id,tenant_id,email,role,token_hash,actor_id,expires_at) VALUES(%s,%s,%s,%s,%s,%s,now()+interval '48 hours')",(iid,tid,email,role,members.token_hash(token),actor.member_id))
@@ -166,6 +171,9 @@ def accept(token, *, actor=None, username='', display_name='', password=''):
         authorized=conn.execute("SELECT 1 FROM tenant_members WHERE tenant_id=%s AND member_id=%s AND role='admin'",(invitation['tenant_id'],invitation['actor_id'])).fetchone()
         from app.storage.deletion_ledger import member_blocked
         if not inviter or member_blocked(invitation['actor_id']) or (not authorized and 'tenant.manage' not in az.effective_permissions(conn,invitation['actor_id'])):
+            az.fail('invalid_invitation',400)
+        tenant=conn.execute('SELECT * FROM tenants WHERE id=%s',(invitation['tenant_id'],)).fetchone()
+        if not effective_rules(tenant)['invite_members'] and 'tenant.manage' not in az.effective_permissions(conn,invitation['actor_id']):
             az.fail('invalid_invitation',400)
         if actor:
             az.active_member(conn,actor)
@@ -199,7 +207,17 @@ def models(actor,tid):
                     if can_grant or item in grants:
                         catalog.append({**item,'provider_name':provider['config'].get('name',provider['id'])})
         space_grants=conn.execute('SELECT workspace_id,provider_id,kind,model FROM tenant_space_models WHERE tenant_id=%s',(tid,)).fetchall()
-        return {'catalog':catalog,'grants':grants,'space_grants':space_grants,'can_grant':can_grant,'legacy':tid=='default'}
+        defaults=conn.execute('SELECT d.* FROM workspace_model_defaults d JOIN workspaces w ON w.id=d.workspace_id WHERE w.tenant_id=%s',(tid,)).fetchall()
+        versions=conn.execute('SELECT d.* FROM workspace_model_default_versions d JOIN workspaces w ON w.id=d.workspace_id WHERE w.tenant_id=%s',(tid,)).fetchall()
+        default_choices=[]
+        for row in conn.execute("SELECT w.id,p.id provider_id,p.config FROM workspaces w JOIN workspace_provider_grants g ON g.workspace_id=w.id JOIN managed_providers p ON p.id=g.provider_id WHERE w.tenant_id=%s AND w.status='active' AND EXISTS(SELECT 1 FROM tenants t WHERE t.id=w.tenant_id AND t.status='active') AND p.config->>'enabled'='true'",(tid,)).fetchall():
+            config=filter_models(conn,row['config'],row['provider_id'],row['id'])
+            for kind in ('image','video','chat','audio','model'):
+                for model in config.get(kind+'_models',[]):
+                    rule=config.get('model_policies',{}).get(kind+':'+model,{})
+                    if rule.get('enabled') is not False and rule.get('visible') is not False:
+                        default_choices.append({'workspace_id':row['id'],'provider_id':row['provider_id'],'provider_name':config.get('name',row['provider_id']),'kind':kind,'model':model})
+        return {'default_choices':default_choices,'defaults':defaults,'default_versions':versions,'catalog':catalog,'grants':grants,'space_grants':space_grants,'can_grant':can_grant,'legacy':tid=='default'}
 
 
 def set_models(actor,tid,items,workspace=None):
@@ -215,6 +233,7 @@ def set_models(actor,tid,items,workspace=None):
     with az.policy_transaction(change=True) as conn:
         require(conn,actor,tid)
         if workspace:
+            require_rule(conn,actor,require(conn,actor,tid),'assign_models')
             if not conn.execute("SELECT 1 FROM workspaces WHERE id=%s AND tenant_id=%s AND status='active'",(workspace,tid)).fetchone():
                 az.fail('workspace_forbidden')
             allowed={(r['provider_id'],r['kind'],r['model']) for r in conn.execute('SELECT * FROM tenant_models WHERE tenant_id=%s',(tid,))}
@@ -259,3 +278,71 @@ def filter_models(conn,config,provider_id,workspace):
     for kind in ('image','video','chat','audio','model'):
         result[kind+'_models']=[m for m in result.get(kind+'_models',[]) if (kind,m) in allowed]
     return result
+
+def set_defaults(actor,tid,workspace,items,version):
+    with az.policy_transaction(change=True) as conn:
+        tenant=require(conn,actor,tid)
+        require_rule(conn,actor,tenant,'assign_models')
+        if not conn.execute("SELECT 1 FROM workspaces WHERE id=%s AND tenant_id=%s AND status='active'",(workspace,tid)).fetchone():
+            az.fail('workspace_forbidden')
+        existing=conn.execute('SELECT version FROM workspace_model_default_versions WHERE workspace_id=%s',(workspace,)).fetchone()
+        if (existing['version'] if existing else 0)!=version:az.fail('tenant_changed',409)
+        if len({i['kind'] for i in items})!=len(items):az.fail('invalid_request',400)
+        for item in items:
+            row=conn.execute("SELECT p.config FROM managed_providers p JOIN workspace_provider_grants g ON g.provider_id=p.id WHERE g.workspace_id=%s AND p.id=%s AND p.config->>'enabled'='true'",(workspace,item['provider_id'])).fetchone()
+            config=filter_models(conn,row['config'],item['provider_id'],workspace) if row else {}
+            rule=config.get('model_policies',{}).get(item['kind']+':'+item['model'],{})
+            if item['model'] not in config.get(item['kind']+'_models',[]) or rule.get('enabled') is False or rule.get('visible') is False:
+                az.fail('model_not_available')
+        conn.execute('DELETE FROM workspace_model_defaults WHERE workspace_id=%s',(workspace,))
+        for item in items:
+            conn.execute('INSERT INTO workspace_model_defaults VALUES(%s,%s,%s,%s)',(workspace,item['kind'],item['provider_id'],item['model']))
+        conn.execute('INSERT INTO workspace_model_default_versions VALUES(%s,1) ON CONFLICT(workspace_id) DO UPDATE SET version=workspace_model_default_versions.version+1',(workspace,))
+        az.audit(conn,actor,'space.model_defaults',workspace,workspace,{'count':len(items)})
+    return {'ok':True}
+
+RULES={'invite_members':'邀请企业成员','create_spaces':'创建协作空间','manage_members':'调整成员与空间权限','assign_models':'分配空间模型与默认模型'}
+
+
+def effective_rules(tenant):
+    return {key:tenant['platform_rules'].get(key,True) and tenant['enterprise_rules'].get(key,True) for key in RULES}
+
+
+def require_rule(conn,actor,tenant,key):
+    if not platform(conn,actor) and not effective_rules(tenant)[key]:
+        az.fail('tenant_rule_denied')
+
+
+def rules(actor,tid):
+    with az.policy_transaction() as conn:
+        tenant=require(conn,actor,tid)
+        return {'platform_rules':{k:tenant['platform_rules'].get(k,True) for k in RULES},
+                'enterprise_rules':{k:tenant['enterprise_rules'].get(k,True) for k in RULES},
+                'effective':effective_rules(tenant),'version':tenant['rules_version'],'can_set_limits':platform(conn,actor)}
+
+
+def update_rules(actor,tid,values,version,platform_limits=False):
+    from psycopg.types.json import Jsonb
+    if set(values)!=set(RULES) or any(type(v) is not bool for v in values.values()):az.fail('invalid_request',400)
+    with az.policy_transaction(change=True) as conn:
+        tenant=require(conn,actor,tid)
+        if tenant['rules_version']!=version:az.fail('tenant_changed',409)
+        if platform_limits:
+            az.require(conn,actor,'tenant.manage')
+            conn.execute('UPDATE tenants SET platform_rules=%s,rules_version=rules_version+1 WHERE id=%s',(Jsonb(values),tid))
+        else:
+            if any(v and not tenant['platform_rules'].get(k,True) for k,v in values.items()):az.fail('tenant_rule_denied')
+            conn.execute('UPDATE tenants SET enterprise_rules=%s,rules_version=rules_version+1 WHERE id=%s',(Jsonb(values),tid))
+        az.audit(conn,actor,'tenant.rules.update',tid,details={'tenant_id':tid,'scope':'platform' if platform_limits else 'enterprise','rules':values})
+    return {'ok':True}
+
+
+def events(actor,tid,before=None,limit=30):
+    with az.policy_transaction() as conn:
+        require(conn,actor,tid)
+        rows=conn.execute('''SELECT e.id,e.action,e.created_at,e.target_id,e.workspace_id,m.display_name actor_name
+            FROM management_events e LEFT JOIN members m ON m.id=e.actor_id
+            WHERE (e.action LIKE 'tenant.%%' OR e.action='space.model_defaults')
+            AND (e.details->>'tenant_id'=%s OR e.target_id=%s OR EXISTS(SELECT 1 FROM workspaces w WHERE w.id=e.workspace_id AND w.tenant_id=%s))
+            AND (%s::bigint IS NULL OR e.id<%s) ORDER BY e.id DESC LIMIT %s''',(tid,tid,tid,before,before,limit+1)).fetchall()
+        return {'events':rows[:limit],'next':rows[limit-1]['id'] if len(rows)>limit else None}

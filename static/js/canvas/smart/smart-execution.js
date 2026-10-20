@@ -146,9 +146,11 @@ function smartSettingsForNode(node){
         ...recentSettings,
         ...nodeSettings
     };
+    const preferred=window.CanvasCore.workspaceModelDefault(apiProviders,smartGenerationKind(node));
+    if(preferred&&!Object.keys(nodeSettings).length){base.engine='api';if(smartGenerationKind(node)==='video'){base.videoProvider=preferred.provider_id;base.videoModel=preferred.model;}else{base.provider_id=preferred.provider_id;base.model=preferred.model;}}
     const resolved = enforceSmartGenerationKind(node, withOutpaintDisplaySettings(node, base));
     const kind = smartGenerationKind(node);
-    if(kind){
+    if(kind && !(kind==='video'?nodeSettings.videoProvider&&nodeSettings.videoModel:nodeSettings.provider_id&&nodeSettings.model)){
         // New nodes and chain runs need the same model defaults as the visible
         // composer, even when that node has never been opened for editing.
         if(resolved.engine === 'volcengine') sanitizeSmartApiSelection(resolved);

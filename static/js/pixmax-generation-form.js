@@ -5,6 +5,9 @@
         const definitions=await PixmaxGenerationParameters.definitions();if(!valid())return;
         const target=document.createElement('div');target.className='pixmax-native-generation-form pixmax-native-prompt';composer.append(target);onRoot(target,true);
         let closed=false,handle,signature,quoteStamp,quoteTimer,quoteVersion=0,generateLabel='生成',surface,motionLibrary;
+        const choose=document.createElement('button');choose.type='button';choose.textContent='搜索 / 切换模型';composer.insertBefore(choose,target);onRoot(choose,true);
+        choose.onclick=()=>{if(!allowed())return;const config=PixmaxGenerationParameters.configuration(node),kind=config.apiKind;
+            const picker=CanvasCore.openModelPicker({providers:()=>apiProviders,kind,value:{provider_id:kind==='video'?config.videoProvider:config.provider_id,model:kind==='video'?config.videoModel:config.model},valid:allowed,onSelect:value=>{const form=PixmaxGenerationParameters.formData(node,definitions).value;changed({...form,model:JSON.stringify([value.provider_id,value.model])});}});onRoot(picker,true);picker.addEventListener('close',()=>onRoot(picker,false),{once:true});};
         const current=()=>!closed&&target.isConnected&&valid(),allowed=()=>current()&&editable();
         const plan=()=>PixmaxReshootReferences.plan(node);
         function graphData(currentPlan,values){
@@ -75,7 +78,7 @@
                 onFormRoot:(root,fullscreen)=>{surface=root;queueMicrotask(()=>{if(!current()||!root.isConnected)return;if(fullscreen){root.parentElement.classList.add('pixmax-native-generation-fullscreen');onRoot(root.parentElement,true);}positionComposerForNode(node);})}});
             if(!current()){destroy();return;}composer.classList.add('pixmax-native-form-active');refresh();positionComposerForNode(node);return {refresh,destroy,flush:()=>{if(allowed()){const value=handle.instance.getSerializedPrompt();if(typeof value==='string'&&value!==raw())project(value);}},updateViewport:()=>{if(current())handle.setViewport(viewport);},surface:()=>surface};
         }catch(error){destroy();throw error;}
-        function destroy(){if(closed)return;closed=true;quoteVersion++;clearTimeout(quoteTimer);motionLibrary?.destroy();handle?.destroy();target.remove();onRoot(target,false);composer.classList.remove('pixmax-native-form-active');}
+        function destroy(){if(closed)return;closed=true;quoteVersion++;clearTimeout(quoteTimer);motionLibrary?.destroy();handle?.destroy();target.remove();choose.remove();onRoot(choose,false);onRoot(target,false);composer.classList.remove('pixmax-native-form-active');}
     }
     window.PixmaxGenerationForm=Object.freeze({mount});
 })();

@@ -172,3 +172,61 @@ def test_tenant_member_candidates_never_search_other_enterprises(enterprise_admi
     assert [m['id'] for m in queries.member_candidates(actor,workspace=space['id'])['members']]==[a['id']]
     assert queries.member_candidates(actor,b['username'],space['id'])['members']==[]
     denied(lambda:queries.member_candidates(other,workspace=space['id']),'tenant_forbidden')
+
+def test_tenant_space_defaults_validate_grants_and_versions(enterprise_admin):
+    from app.services import tenants,provider_control
+    from app.storage.workspace import workspace_scope
+    owner,actor=user(enterprise_admin);tenant=tenants.create(enterprise_admin,'默认模型企业',owner['username'])
+    space=tenants.create_space(actor,tenant['id'],'默认模型空间',owner['id'])
+    pid='defaults-'+uuid.uuid4().hex[:12]
+    provider_control.save(enterprise_admin,pid,{'name':'默认模型供应商','base_url':'https://supplier.test/v1','protocol':'openai','enabled':True,'image_models':['allowed','other']},0,reason='默认模型验收')
+    item={'provider_id':pid,'kind':'image','model':'allowed'}
+    tenants.set_models(enterprise_admin,tenant['id'],[item]);tenants.set_models(actor,tenant['id'],[item],space['id'])
+    denied(lambda:tenants.set_defaults(actor,tenant['id'],space['id'],[{**item,'model':'other'}],0),'model_not_available')
+    tenants.set_defaults(actor,tenant['id'],space['id'],[item],0)
+    denied(lambda:tenants.set_defaults(actor,tenant['id'],space['id'],[],0),'tenant_changed')
+    with workspace_scope(space['id']):
+        assert provider_control.workspace_providers()[0]['workspace_defaults']=={'image':'allowed'}
+        tenants.set_models(enterprise_admin,tenant['id'],[])
+        assert provider_control.workspace_providers()[0]['workspace_defaults']=={}
+    assert tenants.models(actor,tenant['id'])['default_versions'][0]['version']==1
+
+def test_tenant_governance_ceiling_enforcement_and_audit(enterprise_admin):
+    from app.services import tenants,authorization as az
+    owner,actor=user(enterprise_admin);other,foreign_actor=user(enterprise_admin)
+    tenant=tenants.create(enterprise_admin,'治理企业',owner['username'])
+    foreign=tenants.create(enterprise_admin,'另一企业',other['username'])
+    space=tenants.create_space(actor,tenant['id'],'已有空间',owner['id'])
+    values={k:True for k in tenants.RULES}
+    tenants.update_rules(enterprise_admin,tenant['id'],{**values,'create_spaces':False,'manage_members':False},0,True)
+    denied(lambda:tenants.update_rules(actor,tenant['id'],values,1,True),'permission_denied')
+    denied(lambda:tenants.update_rules(actor,tenant['id'],values,1),'tenant_rule_denied')
+    denied(lambda:tenants.create_space(actor,tenant['id'],'禁止创建',owner['id']),'tenant_rule_denied')
+    with az.policy_transaction() as conn:
+        denied(lambda:az.require(conn,actor,'space.members.manage',space['id']),'tenant_rule_denied')
+        assert 'space.members.manage' not in az.effective_permissions(conn,actor.member_id,space['id'])
+    tightened={**values,'create_spaces':False,'manage_members':False,'assign_models':False}
+    tenants.update_rules(actor,tenant['id'],tightened,1)
+    denied(lambda:tenants.set_defaults(actor,tenant['id'],space['id'],[],0),'tenant_rule_denied')
+    denied(lambda:tenants.update_rules(actor,tenant['id'],tightened,1),'tenant_changed')
+    records=tenants.events(actor,tenant['id'])['events']
+    assert any(e['action']=='tenant.rules.update' for e in records)
+    assert all(e['target_id']!=foreign['id'] for e in records)
+    denied(lambda:tenants.events(foreign_actor,tenant['id']),'tenant_forbidden')
+    assert tenants.rules(actor,tenant['id'])['effective']['assign_models'] is False
+    tenants.create_space(enterprise_admin,tenant['id'],'平台仍可维护',owner['id'])
+
+def test_tenant_disabling_invitations_blocks_pending_acceptance(enterprise_admin,monkeypatch):
+    from app.services import tenants,email_delivery
+    monkeypatch.setenv('SMTP_HOST','smtp.example.test');monkeypatch.setenv('SMTP_FROM','sender@example.test')
+    monkeypatch.setenv('EMAIL_TOKEN_SECRET','x'*40)
+    sent=[];monkeypatch.setattr(email_delivery,'send',lambda *args:sent.append(args))
+    owner,actor=user(enterprise_admin)
+    tenant=tenants.create(enterprise_admin,'关闭邀请企业',owner['username'])
+    email='pending-'+uuid.uuid4().hex+'@example.test'
+    tenants.invite(actor,tenant['id'],email,'member')
+    token=re.search(r'邀请凭证：(\S+)',sent[-1][2])[1]
+    tenants.update_rules(enterprise_admin,tenant['id'],{k:k!='invite_members' for k in tenants.RULES},0,True)
+    denied(lambda:tenants.invite(actor,tenant['id'],email,'member'),'tenant_rule_denied')
+    denied(lambda:tenants.accept(token,username='blocked-'+uuid.uuid4().hex,display_name='待加入成员',password=PASSWORD),'invalid_invitation')
+    assert len(sent)==1

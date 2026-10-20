@@ -265,7 +265,7 @@ def public_provider_config():
     from urllib.parse import urlparse
     # The canvas must compare the registration's ProjectName with this provider's
     # project. This is scope metadata, not a credential.
-    keys = {'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'audio_models', 'model_models', 'model_prices', 'model_policies', 'avatar_registration', 'volcengine_project_name'}
+    keys = {'workspace_defaults', 'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'audio_models', 'model_models', 'model_prices', 'model_policies', 'avatar_registration', 'volcengine_project_name'}
     from app.services.model_commercial import public_models
     providers = []
     for source in load_api_providers():

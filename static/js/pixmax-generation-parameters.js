@@ -16,7 +16,7 @@
         return apiProviders.filter(provider=>provider.enabled!==false).flatMap(provider=>(provider[kind+'_models']||[]).filter(model=>provider.model_policies?.[kind+':'+model]?.visible!==false).map(model=>{
             const rule=provider.model_policies?.[kind+':'+model],config=kind==='video'?{apiKind:kind,videoProvider:provider.id,videoModel:model}:{apiKind:kind,provider_id:provider.id,model};
             const specs=resolutions(config),reason=!provider.has_key?'供应商尚未配置密钥':rule?.enabled===false?'此模型已停用':!specs.length?'此模型没有可用的生成规格':'';
-            return {value:JSON.stringify([provider.id,model]),label:(provider.name||provider.id)+' · '+model,subtitle:specs.map(value=>value?value.toUpperCase():'自动').join(' / '),disabled:!!reason,tooltip:reason};
+            return {value:JSON.stringify([provider.id,model]),label:(provider.name||provider.id)+' · '+model,subtitle:(provider.workspace_defaults?.[kind]===model?'空间默认 · ':'')+specs.map(value=>value?value.toUpperCase():'自动').join(' / '),disabled:!!reason,tooltip:reason};
         }));
     }
     async function definitions(){
@@ -67,7 +67,7 @@
     function validate(node,config=configuration(node)){
         if(!supported(node))return config;
         const option=catalog(node).find(option=>option.value===JSON.stringify(identity(config)));
-        if(!option||option.disabled)throw Error(option?.tooltip||'已保存的供应商或模型已不可用，请重新选择生成模型');
+        if(!option||option.disabled)throw Error(option?.tooltip||window.CanvasCore.modelUnavailableMessage());
         if(!resolutions(config).includes(config.apiKind==='video'?config.videoResolution||'':config.resolution||'1k')&&!config.outpaintResolutionLocked)throw Error('生成分辨率已失效，请重新选择');
         if(config.apiKind==='video'){
             const range=smartVideoDurationRange(config);if(VideoDurationPolicy.clamp(config.videoDuration,range)!==Number(config.videoDuration))throw Error('生成时长超出当前模型范围');

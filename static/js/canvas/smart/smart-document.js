@@ -661,9 +661,10 @@ function createNode(x, y, images=[], options={}){
         const recent = recentSmartSettingsForMode();
         const defaults = canvasDefaultSmartSettings || initialSmartSettings;
         const engine = isApiLikeEngine(recent.engine) ? recent.engine : isApiLikeEngine(defaults.engine) ? defaults.engine : 'api';
-        node.runSettings = settingsForStorage(smartSettingsForNode({
-            ...node, runSettings:{...recentSmartSettingsForMode(`${engine}:${node.generationKind}`), engine, apiKind:node.generationKind}
-        }));
+        const preferred=window.CanvasCore.workspaceModelDefault(apiProviders,node.generationKind);
+        const initial={...recentSmartSettingsForMode(`${engine}:${node.generationKind}`),engine,apiKind:node.generationKind};
+        if(preferred){initial.engine=preferred.provider_id==='volcengine'?'volcengine':'api';if(node.generationKind==='video'){initial.videoProvider=preferred.provider_id;initial.videoModel=preferred.model;}else{initial.provider_id=preferred.provider_id;initial.model=preferred.model;}}
+        node.runSettings = settingsForStorage(smartSettingsForNode({...node,runSettings:initial}));
     }
     node.scale = nodeImages.length > 1 ? MEDIA_GROUP_DEFAULT_SCALE : mediaNodeDefaultScale(node);
     if(options.generationKind && !options.id)window.CanvasPreferences?.applyNode(node);

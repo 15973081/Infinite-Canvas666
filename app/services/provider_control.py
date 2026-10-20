@@ -220,6 +220,9 @@ def workspace_providers():
         from app.storage.database import connection
         with connection() as model_conn:
             config = row['config'] if recovery else filter_models(model_conn,row['config'],row['config']['id'],current_workspace())
+        with connection() as model_conn:
+            defaults={r['kind']:r['model'] for r in model_conn.execute('SELECT kind,model FROM workspace_model_defaults WHERE workspace_id=%s AND provider_id=%s',(current_workspace(),config['id'])) if r['model'] in config.get(r['kind']+'_models',[])}
+        config={**config,'workspace_defaults':defaults}
         fields = set(row['secret_fields'] or [])
         platform = avatar_platform_for_provider(config)
         supported = provider_supports_avatar(config)

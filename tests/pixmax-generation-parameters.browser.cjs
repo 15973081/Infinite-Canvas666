@@ -91,3 +91,19 @@ test('a model with only custom image sizes initializes dimensions and remains us
 test('native asset entry loads the real catalog items field and connects a selected media reference',async t=>{
     const {page,errors}=await setup(t,'video');await page.route('**/api/asset-library**',route=>route.fulfill({json:{libraries:[{id:'default',categories:[{id:'images',items:[{id:'portrait',name:'可用人物资产',url:'/test-image.svg',kind:'image'}]}]}]}}));await page.locator('[data-native-generation-surface]').getByText('资产',{exact:true}).click();const picker=page.getByRole('dialog',{name:'添加资产参考',exact:true});await picker.getByRole('button',{name:'可用人物资产',exact:true}).click();await picker.waitFor({state:'detached'});assert.equal(await page.locator('.pixmax-native-generation-references [data-source-node-order-item]').count(),1);const result=await page.evaluate(()=>({refs:buildPromptRequest(generationNode).refs,hidden:nodes.filter(node=>node.hidden).length}));assert.equal(result.hidden,1);assert.equal(result.refs[0].url,'/test-image.svg');assert.deepEqual(errors,[]);
 });
+
+test('workspace defaults apply to new nodes while saved models remain unchanged; unified search selects explicitly',async t=>{
+ const {page}=await setup(t,'image');
+ const result=await page.evaluate(()=>{
+  apiProviders[1].workspace_defaults={image:'gpt-image-2'};
+  const old=PixmaxGenerationParameters.configuration(generationNode);
+  const fresh=createGenerationNodeAt({x:900,y:100},'image');
+  return {old:old.provider_id,fresh:fresh.runSettings.provider_id};
+ });
+ assert.deepEqual(result,{old:'p',fresh:'second'});
+ await page.evaluate(()=>CanvasCore.openModelPicker({providers:()=>apiProviders,kind:'image',value:{provider_id:'p',model:'gpt-image-2'},onSelect:value=>window.chosenModel=value}));
+ const picker=page.getByRole('dialog',{name:'选择生成模型'});
+ await picker.getByRole('searchbox').fill('第二供应商');
+ await picker.getByRole('button',{name:/gpt-image-2.*第二供应商.*空间默认/}).click();
+ assert.deepEqual(await page.evaluate(()=>window.chosenModel),{provider_id:'second',model:'gpt-image-2'});
+});

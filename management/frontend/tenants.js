@@ -27,7 +27,7 @@ async function create({api,dialog,table,button,refresh,tenantId,section}){
  bar.append(button('企业设置',()=>dialog('企业设置',[nameField,select('状态','status',detail.can_suspend?[['active','启用'],['disabled','停用']]:[[company.status,company.status==='active'?'启用':'停用']])],f=>post(base,{name:f.get('name'),status:f.get('status'),version:company.version},'PUT'))));
  const tabs=el('div',undefined,'management-tabs');tabs.setAttribute('role','tablist');const panels=[];
  const activate=index=>{panels.forEach((p,i)=>p.hidden=i!==index);Array.from(tabs.children).forEach((b,i)=>b.setAttribute('aria-selected',String(i===index)));};
- if(!enterprise)root.append(tabs);for(const title of ['企业成员','空间分配','模型授权','企业费用']){const index=panels.length,panel=el('section');panel.setAttribute('role','tabpanel');panels.push(panel);const b=button(title,()=>activate(index));b.setAttribute('role','tab');tabs.append(b);root.append(panel);}activate(0);
+ if(!enterprise)root.append(tabs);for(const title of ['企业成员','空间分配','模型授权','企业费用','权限规则','操作记录']){const index=panels.length,panel=el('section');panel.setAttribute('role','tabpanel');panels.push(panel);const b=button(title,()=>activate(index));b.setAttribute('role','tab');tabs.append(b);root.append(panel);}activate(0);
  const people=panels[0],inviteBar=el('div',undefined,'toolbar');
  const invite=button('邀请成员',()=>dialog('发送企业邀请',[field('受邀邮箱','email','email'),select('企业角色','role',[['member','普通成员'],['admin','企业管理员']])],f=>post(base+'/invitations',Object.fromEntries(f))),'primary');invite.disabled=!data.delivery_configured;inviteBar.append(invite);people.append(inviteBar);
  if(!data.delivery_configured)people.append(el('p','邮件发送服务尚未配置，暂不能发送邀请。请配置 SMTP 后使用。','muted'));
@@ -52,10 +52,43 @@ async function create({api,dialog,table,button,refresh,tenantId,section}){
   panels[2].append(table(['供应商','类型','已授权模型'],models.grants.map(m=>[models.catalog.find(c=>key(c)===key(m))?.provider_name||m.provider_id,m.kind,m.model])));
   panels[2].append(table(['空间','模型分配'],detail.spaces.map(w=>[w.name,button('选择模型',()=>editor(w.id))])));
  }
+ panels[2].append(el('h2','空间默认模型'),el('p','按用途设置新节点的默认模型，已有节点的选择保持不变。','muted'));
+ for(const space of detail.spaces){panels[2].append(button('设置默认模型 · '+space.name,()=>{
+   const controls=[];
+   for(const [kind,title] of [['image','图像'],['video','视频'],['chat','文本'],['audio','音频'],['model','3D']]){
+     const current=(models.defaults||[]).find(d=>d.workspace_id===space.id&&d.kind===kind);
+     const choices=(models.default_choices||[]).filter(m=>m.workspace_id===space.id&&m.kind===kind);
+     const control=select(title,kind,[['','不指定默认模型'],...choices.map(m=>[JSON.stringify([m.provider_id,m.model]),m.provider_name+' / '+m.model])]);
+     const input=control.querySelector('select'),value=current?JSON.stringify([current.provider_id,current.model]):'';
+     if(current&&!choices.some(m=>m.provider_id===current.provider_id&&m.model===current.model)){const warning=el('p','原默认模型已不可用，请重新选择。','muted');control.append(warning);}else input.value=value;
+     controls.push(control);
+   }
+   dialog('空间默认模型 · '+space.name,controls,f=>post(base+'/spaces/'+encodeURIComponent(space.id)+'/model-defaults',{version:(models.default_versions||[]).find(v=>v.workspace_id===space.id)?.version||0,models:Array.from(f).filter(([k,v])=>v).map(([kind,value])=>{const [provider_id,model]=JSON.parse(value);return {kind,provider_id,model};})},'PUT'));
+ }));}
  panels[3].append(el('p','仅统计本企业所属空间。个人积分与历史个人资产不转入企业，不启用积分扣费。','muted'));
  if(!enterprise || section==='costs')panels[3].append(await window.CanvasBillingUI.create({management:true,fetchReport:p=>api(base+'/billing?'+new URLSearchParams(p))}));
+ const labels={invite_members:'邀请企业成员',create_spaces:'创建协作空间',manage_members:'调整成员与空间权限',assign_models:'分配空间模型与默认模型'};
+ if(!enterprise || section==='settings'){
+  const rules=await api(base+'/rules'),settings=panels[4];
+  settings.append(el('h2','企业权限规则'),el('p','企业和空间的管理操作受以下规则约束。平台关闭的能力，企业不能自行开启。','muted'));
+  settings.append(table(['管理能力','平台允许','企业设置','当前生效'],Object.entries(labels).map(([key,label])=>[label,rules.platform_rules[key]?'允许':'已限制',rules.enterprise_rules[key]?'开启':'关闭',rules.effective[key]?'可用':'不可用'])));
+  function editRules(platformLimits){
+   const fields=Object.entries(labels).map(([key,title])=>{const label=el('label',undefined,'check'),input=el('input');input.type='checkbox';input.name=key;input.checked=(platformLimits?rules.platform_rules[key]:rules.effective[key]);input.disabled=!platformLimits&&!rules.platform_rules[key];label.append(input,el('span',title+(!platformLimits&&!rules.platform_rules[key]?'（平台已限制）':'')));return label;});
+   dialog(platformLimits?'设置平台授权范围':'设置企业权限规则',fields,f=>post(base+'/rules',{version:rules.version,platform_limits:platformLimits,rules:Object.fromEntries(Object.keys(labels).map(k=>[k,f.has(k)]))},'PUT'));
+  }
+  settings.append(button('调整企业规则',()=>editRules(false),'primary'));
+  if(rules.can_set_limits)settings.append(button('设置平台授权范围',()=>editRules(true)));
+  settings.append(el('h2','平台专属管理'),el('p','供应商、API 接口、密钥、模型新增、定价、数据库、备份与系统维护仅由平台管理。企业只能分配已获授权的模型，不能自行接入模型或扩大授权。','muted'));
+ }
+ if(!enterprise || section==='events'){
+  const eventsPanel=panels[5],list=el('div'),more=button('加载更多',()=>loadEvents()),actions={'tenant.create':'创建企业','tenant.update':'修改企业设置','tenant.space.create':'创建空间','tenant.space.assign':'调整空间成员','tenant.member.update':'调整企业成员','tenant.invite':'邀请成员','tenant.invite.accept':'接受企业邀请','tenant.models.assign':'调整模型授权','tenant.rules.update':'调整权限规则','space.model_defaults':'调整默认模型'};let before='';
+  async function loadEvents(){const result=await api(base+'/events'+(before?'?before='+before:''));list.append(table(['时间','操作人','操作','目标'],result.events.map(e=>[new Date(e.created_at).toLocaleString(),e.actor_name||'受邀成员',actions[e.action]||e.action,e.target_id||'—'])));if(!result.events.length&&!before)list.append(el('p','暂无企业操作记录。','empty'));before=result.next;more.hidden=!before;}
+  eventsPanel.append(el('h2','企业操作记录'),el('p','仅展示本企业的成员、空间、模型及权限设置记录。','muted'),list,more);await loadEvents();
+ }
+ const permitted=key=>detail.can_suspend||detail.rules?.[key]!==false;
+ for(const b of root.querySelectorAll('button')){const text=b.textContent,key=text==='邀请成员'?'invite_members':text==='创建空间'?'create_spaces':['调整角色','分配成员'].includes(text)?'manage_members':text==='选择模型'||text.startsWith('设置默认模型 ·')?'assign_models':null;if(key&&!permitted(key)){b.disabled=true;b.title='企业权限规则已限制此操作';}}
  if(enterprise){
-  const sections={people:0,workspaces:1,models:2,costs:3};
+  const sections={people:0,workspaces:1,models:2,costs:3,settings:4,events:5};
   panels.forEach((panel,i)=>panel.hidden=i!==sections[section]);
   if(section==='settings'){
    const settings=el('section',undefined,'card');settings.append(el('h2','企业设置'),el('p','企业名称：'+company.name),el('p','企业状态：'+(company.status==='active'?'已启用':'已停用')));

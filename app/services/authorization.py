@@ -104,6 +104,13 @@ def tenant_admin(conn, member_id, workspace):
 TENANT_SPACE_MANAGEMENT = {'space.members.manage','space.roles.manage','billing.read','audit.read'}
 
 
+def tenant_member_management_allowed(conn,member_id,workspace):
+    if 'tenant.manage' in effective_permissions(conn,member_id):
+        return True
+    row=conn.execute("SELECT t.platform_rules,t.enterprise_rules FROM workspaces w JOIN tenants t ON t.id=w.tenant_id WHERE w.id=%s",(workspace,)).fetchone()
+    return bool(row and row['platform_rules'].get('manage_members',True) and row['enterprise_rules'].get('manage_members',True))
+
+
 def effective_permissions(conn, member_id, workspace=None):
     if workspace is not None and not conn.execute("SELECT 1 FROM workspaces w JOIN tenants t ON t.id=w.tenant_id JOIN tenant_members tm ON tm.tenant_id=t.id WHERE w.id=%s AND t.status='active' AND tm.member_id=%s",(workspace,member_id)).fetchone():
         return set()
@@ -118,6 +125,8 @@ def effective_permissions(conn, member_id, workspace=None):
     result={r['permission_id'] for r in rows}
     if workspace is not None and tenant_admin(conn,member_id,workspace):
         result |= TENANT_SPACE_MANAGEMENT
+    if workspace is not None and result & {'space.members.manage','space.roles.manage'} and not tenant_member_management_allowed(conn,member_id,workspace):
+        result -= {'space.members.manage','space.roles.manage'}
     return result
 
 
@@ -132,6 +141,8 @@ def require(conn, principal, action, workspace=None):
             fail('workspace_unavailable')
         # Cross-space management is explicit; superadmin is not blanket access
         # to every member's canvas, private conversation, or media contents.
+        if action in {'space.members.manage','space.roles.manage'} and not tenant_member_management_allowed(conn,principal.member_id,workspace):
+            fail('tenant_rule_denied')
         management = action in {'space.members.manage', 'space.roles.manage', 'maintenance.space', 'audit.read', 'backup.read', 'backup.request', 'billing.read', 'billing.assign'}
         if action in TENANT_SPACE_MANAGEMENT and tenant_admin(conn,principal.member_id,workspace):
             return member

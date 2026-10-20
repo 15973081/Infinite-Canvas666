@@ -303,12 +303,27 @@
         });
     }
 
+    function workspaceModelDefault(providers,kind){
+        for(const p of providers){const model=p.workspace_defaults?.[kind],rule=p.model_policies?.[kind+':'+model];if(p.enabled!==false&&p.has_key&&model&&(p[kind+'_models']||[]).includes(model)&&rule?.enabled!==false&&rule?.visible!==false)return {provider_id:p.id,model};}
+        return null;
+    }
+    function modelUnavailableMessage(){return '此模型当前不可用，可能已撤销空间授权或停用。请重新选择；如列表为空，请联系企业管理员分配模型。';}
+    function openModelPicker({providers,kind,value,onSelect,valid=()=>true}){
+        const d=document.createElement('dialog');d.className='canvas-model-picker';d.setAttribute('aria-label','选择生成模型');
+        if(!document.getElementById('model-catalog-style')){const link=document.createElement('link');link.id='model-catalog-style';link.rel='stylesheet';link.href='/static/css/model-catalog.css';document.head.append(link);}
+        const h=document.createElement('h2');h.textContent='选择生成模型';const input=document.createElement('input');input.type='search';input.placeholder='搜索模型或供应商';input.setAttribute('aria-label','搜索模型或供应商');
+        const list=document.createElement('div'),note=document.createElement('p'),close=document.createElement('button');close.textContent='关闭';close.onclick=()=>d.close();note.textContent='仅显示本空间可见的模型。空间默认仅用于新节点。';d.append(h,input,note,list,close);
+        function draw(){list.replaceChildren();const query=input.value.trim().toLowerCase();let count=0;for(const p of providers())for(const model of p[kind+'_models']||[]){const rule=p.model_policies?.[kind+':'+model];if(rule?.visible===false||!((p.name||p.id)+' '+model).toLowerCase().includes(query))continue;const reason=p.enabled===false?'供应商已停用':!p.has_key?'供应商凭证未就绪，请联系平台管理员':rule?.enabled===false?'模型已停用':'';const b=document.createElement('button');b.type='button';b.disabled=!!reason;b.textContent=model+' · '+(p.name||p.id)+(p.workspace_defaults?.[kind]===model?' · 空间默认':'')+(reason?' · '+reason:'');b.setAttribute('aria-pressed',String(value?.provider_id===p.id&&value?.model===model));b.onclick=()=>{if(!valid())return d.close();onSelect({provider_id:p.id,model});d.close();};list.append(b);count++;}if(!count){const empty=document.createElement('p');empty.textContent=query?'没有匹配模型，请调整搜索词。':'空间未分配此类可用模型，请联系企业管理员。';list.append(empty);}}
+        input.oninput=draw;document.body.append(d);d.addEventListener('close',()=>d.remove(),{once:true});draw();d.showModal();input.focus();return d;
+    }
+
     window.CanvasCore = {
         imageSizeForRatio,
         createAssetHoverController,
         createAssetPanelController,
         modelResolutions,
         availableModelProviders,
+        workspaceModelDefault, modelUnavailableMessage, openModelPicker,
         apiErrorMessage,
         responseErrorMessage,
         safeFileName,
