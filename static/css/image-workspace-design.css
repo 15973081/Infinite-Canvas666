@@ -1,5 +1,5 @@
 /* Desktop image production desk. Keep controls stable while reviewing results. */
-body.studio-online .container-box {max-width:none;padding:20px 24px 32px}
+body.studio-online .container-box {width:100%;max-width:1440px;margin-inline:auto;box-sizing:border-box;padding:16px 24px 24px}
 body.studio-online .container-box>header {margin:0 0 16px;padding:0 0 16px;border-bottom:1px solid var(--studio-border);align-items:center}
 html body.studio-online .container-box h1 {font-size:20px;font-style:normal;letter-spacing:0}
 body.studio-online .image-workspace-subtitle {font-size:12px;color:var(--studio-text-muted);margin-top:4px}
@@ -7,7 +7,7 @@ body.studio-online .container-box>header nav {display:flex}
 .image-archive-link,.image-empty-history {font:12px var(--studio-font);color:var(--studio-text-muted);text-decoration:none}
 .image-archive-link {padding:8px 12px;border:1px solid var(--studio-border);border-radius:4px}
 .image-archive-link:hover,.image-empty-history:hover {color:var(--studio-text)}
-body.studio-online .image-workspace-layout {display:grid;grid-template-columns:348px minmax(0,1fr);gap:0;align-items:stretch;border:1px solid var(--studio-border);border-radius:4px;overflow:hidden}
+body.studio-online .container-box>.image-workspace-layout {display:grid;grid-template-columns:320px minmax(0,1fr);gap:0;align-items:stretch;border:1px solid var(--studio-border);border-radius:4px;overflow:hidden}
 body.studio-online .image-workspace-controls {grid-column:1;grid-row:1;min-width:0;padding:16px;border-right:1px solid var(--studio-border);background:var(--studio-panel)}
 body.studio-online .image-workspace-preview {grid-column:2;grid-row:1;min-width:0;margin:0!important;display:flex;flex-direction:column;background:var(--studio-page);overflow:hidden}
 .image-settings-heading,.image-preview-heading {display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -15,12 +15,12 @@ body.studio-online .image-workspace-preview {grid-column:2;grid-row:1;min-width:
 .image-settings-heading>span,.image-preview-heading>span {font-size:11px;color:var(--studio-text-muted)}
 .image-settings-heading {padding-bottom:12px;border-bottom:1px solid var(--studio-border)}
 .image-preview-heading {padding:14px 18px;border-bottom:1px solid var(--studio-border);background:var(--studio-panel)}
-body.studio-online .image-workspace-controls>*+* {margin-top:14px!important}
+body.studio-online .image-workspace-controls>*+* {margin-top:10px!important}
 body.studio-online .image-workspace-controls section>div:first-child {font-size:12px;font-weight:500}
 body.studio-online .image-workspace-controls section>*+* {margin-top:8px}
-html body.studio-online .image-workspace-controls .nano-input {height:132px;min-height:100px;padding:10px;border-radius:4px;background:var(--studio-page);font-size:13px;line-height:1.6;resize:vertical}
+html body.studio-online .image-workspace-controls .nano-input {height:104px;min-height:88px;padding:10px;border-radius:4px;background:var(--studio-page);font-size:13px;line-height:1.6;resize:vertical}
 body.studio-online .image-workspace-controls section>div.grid {gap:6px}
-body.studio-online .image-workspace-controls .upload-item {height:64px;aspect-ratio:auto;border-radius:4px;background:var(--studio-page);border-color:var(--studio-border-strong)}
+body.studio-online .image-workspace-controls .upload-item {height:52px;aspect-ratio:auto;border-radius:4px;background:var(--studio-page);border-color:var(--studio-border-strong)}
 body.studio-online .image-workspace-controls .upload-item span {font-size:10px;font-weight:400}
 body.studio-online .image-workspace-controls .upload-item:hover {border-color:var(--studio-focus);box-shadow:none}
 html body.studio-online .image-workspace-controls .tool-panel {padding:14px 0 0;border:0;border-top:1px solid var(--studio-border);border-radius:0;background:transparent;gap:8px}
@@ -28,7 +28,7 @@ body.studio-online .image-workspace-controls .control-label {font-size:12px;lett
 html body.studio-online .image-workspace-controls :is(.size-select,.size-custom,.studio-select-trigger) {border-radius:4px;min-height:34px;font-size:12px}
 html body.studio-online .image-workspace-controls #genBtn {border-radius:4px;min-height:38px;padding:10px;box-shadow:none}
 body.studio-online #genBtn span {font-size:13px;letter-spacing:0}
-html body.studio-online .image-workspace-preview #resultBox {flex:1;height:auto;min-height:420px;border:0;border-radius:0;background:var(--studio-page);box-shadow:none}
+html body.studio-online .image-workspace-preview #resultBox {flex:1;height:auto;min-height:340px;border:0;border-radius:0;background:var(--studio-page);box-shadow:none}
 body.studio-online #outputImg {position:absolute;inset:0;padding:20px}
 body.studio-online #downloadBtn {width:34px;height:34px;top:12px;right:12px;border-radius:4px;box-shadow:none}
 body.studio-online #placeholder {padding:24px;max-width:380px;text-align:center;opacity:1}
@@ -45,3 +45,10 @@ body.studio-online .inbox-heading h2 {font-size:14px}
 body.studio-online .inbox-tools {border-radius:4px;padding:10px;background:var(--studio-panel)}
 body.studio-online .inbox-tabs button {border-radius:4px}
 body.studio-online :is(button,a,textarea,summary):focus-visible {outline:2px solid var(--studio-focus);outline-offset:2px}
+@media(max-width:760px){
+ body.studio-online .container-box {padding-inline:16px}
+ body.studio-online .container-box>.image-workspace-layout {grid-template-columns:minmax(0,1fr)}
+ body.studio-online .image-workspace-controls {grid-column:1;grid-row:1;border-right:0;border-bottom:1px solid var(--studio-border)}
+ body.studio-online .image-workspace-preview {grid-column:1;grid-row:2}
+ .image-preview-heading {flex-wrap:wrap;gap:6px}
+}

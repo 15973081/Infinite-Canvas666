@@ -1,0 +1,250 @@
+@import url('/static/css/studio-tokens.css');
+@import url('/static/css/shadox-brand.css');
+
+/* Public studio visual system. Opted in by the public HTML entry points only;
+   management keeps its own stylesheet and palette. Load after legacy skins. */
+:root, html body.studio-skin, html body.studio-login, html body.studio-media-editor {
+    color-scheme: dark;
+    --studio-page: #090b09;
+    --studio-nav: #090b09;
+    --studio-panel: #141614;
+    --studio-surface: #141614;
+    --studio-surface-soft: #1a1d18;
+    --studio-surface-muted: #252923;
+    --studio-border: #33382e;
+    --studio-border-strong: #65734f;
+    --studio-text: #f3f5ed;
+    --studio-text-muted: #a7ae9f;
+    --studio-text-faint: #929b88;
+    --studio-accent: #d2ff3a;
+    --studio-accent-text: #151b09;
+    --studio-accent-label: #d2ff3a;
+    --studio-focus: #d2ff3a;
+    --studio-selected: #28331b;
+    --studio-strong: #d2ff3a;
+    --studio-strong-text: #151b09;
+    --studio-success: #bde677;
+    --studio-error: #fa9990;
+    --studio-warning: #e5c174;
+    --studio-grid: #b4cc7b08;
+    --studio-glow: #d2ff3a14;
+    --studio-overlay: #050704cf;
+    --studio-font: 'Shadox Grotesk', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    --studio-radius-control: 3px;
+    --studio-radius-card: 4px;
+    --studio-radius-dialog: 6px;
+    --studio-radius-editor: 8px;
+    --studio-radius-editor-control: 4px;
+    --st-bg: var(--studio-page);
+    --st-panel: var(--studio-panel);
+    --st-card: var(--studio-panel);
+    --st-text: var(--studio-text);
+    --st-muted: var(--studio-text-muted);
+    --st-line: var(--studio-border);
+    --st-soft: var(--studio-surface-muted);
+    --st-accent: var(--studio-accent);
+    --st-ink: var(--studio-accent-text);
+}
+
+body:is(.studio-skin,.studio-login,.studio-media-editor) {
+    accent-color: var(--studio-accent);
+    font-family: var(--studio-font);
+}
+body:is(.studio-skin,.studio-login,.studio-media-editor) ::selection {
+    background: var(--studio-accent);
+    color: var(--studio-accent-text);
+}
+body:is(.studio-skin,.studio-login,.studio-media-editor) :is(button,a,input,textarea,select,summary):focus-visible {
+    outline: 2px solid var(--studio-focus);
+    outline-offset: 3px;
+}
+
+/* Permanent navigation: a precise rail, an acid active state, quiet dividers. */
+body.studio-home .app-shell::before {
+    content: ''; position: absolute; top: 83px; left: 24px; right: 24px;
+    height: 1px; background: var(--studio-border); pointer-events: none; z-index: 21;
+}
+body.studio-home .studio-desktop-brand {font-weight: 700; letter-spacing: -.06em}
+body.studio-home .studio-desktop-brand::after {content: '/'; color: var(--studio-accent); margin-left: 5px}
+body.studio-home .sidebar nav {border-radius: 4px; border-color: var(--studio-border); background: var(--studio-panel)}
+body.studio-home .sidebar :is(.nav-item,.side-pill) {border-radius: 3px}
+body.studio-home .sidebar .nav-item.active {color: var(--studio-accent-text); background: var(--studio-accent)}
+body.studio-home .sidebar .nav-item.active svg {color: inherit}
+body.studio-home :is(.member-home-wallet,.member-session-account>summary) {border-radius: 3px}
+body.studio-home .member-home-wallet {border-color: var(--studio-border-strong)}
+.studio-rail-tooltip {border-radius: 3px; background: var(--studio-panel); color: var(--studio-text); border-color: var(--studio-border)}
+
+/* Homepage editorial panel. The artwork is a local, lightweight SVG. */
+#canvasGate {padding-top: 26px; background-color: var(--studio-page)}
+.cyber-intro {position: relative; display: grid; grid-template-columns: 1.15fr 1fr; min-height: 260px; margin: 0 0 30px; border: 1px solid var(--studio-border); background: var(--studio-page); overflow: hidden}
+.cyber-intro-copy {padding: 28px 32px; position: relative; z-index: 1}
+.cyber-kicker {display: block; font: 10px/1.5 var(--studio-font-mono); color: var(--studio-accent); letter-spacing: .15em}
+#canvasGate .cyber-intro h2 {margin: 16px 0 12px; font: 700 clamp(34px,3.5vw,54px)/1.12 var(--studio-font); letter-spacing: -.05em; color: var(--studio-text)}
+#canvasGate .cyber-intro h2::before {display: none}
+#canvasGate .cyber-intro h2 span {display: block; color: var(--studio-accent); font-size: .63em; margin-top: 8px; letter-spacing: -.035em}
+.cyber-intro p {margin: 0; font-size: 12px; line-height: 1.9; color: var(--studio-text-muted)}
+.cyber-intro-art {position: relative; min-width: 0; border-left: 1px solid var(--studio-border); background: url('/static/images/cyber-infinity.svg') center/cover no-repeat}
+.cyber-intro-art::after {content: 'SHADOX / INFINITE POSSIBILITIES'; position: absolute; bottom: 16px; right: 18px; font: 9px var(--studio-font-mono); letter-spacing: .08em; color: var(--studio-text-muted)}
+.cyber-intro-foot {grid-column: 1/-1; display: flex; gap: 24px; align-items: center; padding: 11px 32px; border-top: 1px solid var(--studio-border); font: 10px/1.4 var(--studio-font-mono); color: var(--studio-text-muted); letter-spacing: .07em}
+.cyber-intro-foot b {font-weight: 400; color: var(--studio-accent); margin-right: 8px}
+.cyber-intro-foot span:last-child {margin-left: auto}
+#canvasGate.trash-mode .cyber-intro {display: none}
+#canvasGate .gate-head {margin-bottom: 22px}
+#canvasGate .gate-title {font-size: 25px; font-weight: 700; padding-bottom: 0; letter-spacing: -.03em}
+#canvasGate .gate-title::after {display: none}
+#canvasGate .gate-title::before {content: '/01'; display: inline; position: static; margin-right: 14px; background: none; color: var(--studio-accent); font: 12px var(--studio-font-mono)}
+#canvasGate .gate-count-pill {padding-bottom: 0; color: var(--studio-text-muted); font-family: var(--studio-font-mono)}
+#canvasGate :is(.gate-search,.gate-icon-btn,.studio-pick-trigger) {border-radius: 3px; background-color: var(--studio-panel)}
+#canvasGate .project-create-button {background: var(--studio-accent); color: var(--studio-accent-text)}
+#canvasGate .project-create-button:hover {background: #e0ff80; border-color: #e0ff80}
+#canvasGate :is(.canvas-item,.project-new-card) {border-radius: 4px; background: var(--studio-panel)}
+#canvasGate .canvas-open {border-radius: 3px}
+#canvasGate .canvas-item:hover {border-color: var(--studio-border-strong)}
+#canvasGate .studio-canvas-cover {background-color: #191d16; background-image: linear-gradient(#b4cc7b08 1px,transparent 1px),linear-gradient(90deg,#b4cc7b08 1px,transparent 1px); background-size: 24px 24px}
+#canvasGate .studio-canvas-cover:not(.has-media)::before {color: var(--studio-accent); background-color: var(--studio-accent); opacity: .6}
+#canvasGate .canvas-card-info {border-top: 1px solid var(--studio-border)}
+#canvasGate .canvas-card-title {font-size: 14px}
+#canvasGate .canvas-card-time {font-size: 11px; font-family: var(--studio-font-mono)}
+#canvasGate .studio-card-type {border-radius: 2px; color: var(--studio-text)}
+#canvasGate .project-new-card {border-style: dashed; color: var(--studio-accent); background: #141a0e}
+#canvasGate .project-new-card:is(:hover,:focus-visible) {background: var(--studio-selected); color: var(--studio-accent); border-color: var(--studio-accent)}
+#canvasGate .project-card-enter {color: var(--studio-accent)}
+#canvasGate :is(.studio-pick-menu,.studio-card-menu-items,.canvas-folder-menu) {border-radius: 4px}
+body.studio-canvas-home .name-dialog-choices label {border-radius: 4px}
+body.studio-canvas-home .name-dialog-choices label:has(:checked) {background: var(--studio-selected)}
+.studio-desktop-required>div {border-radius: 4px; border-color: var(--studio-border); background: var(--studio-panel)}
+
+/* Resource and generation pages: consistent titles and purposeful work surfaces. */
+html body.studio-online .container-box h1, body.studio-library .asset-title, .skill-head h1 {
+    font-family: var(--studio-font); font-weight: 700; font-size: 28px; letter-spacing: -.045em;
+}
+body.studio-online .container-box>header {padding-bottom: 14px; margin-bottom: 16px}
+body.studio-online .container-box>header h1::before {content: '/02'; font: 11px var(--studio-font-mono); color: var(--studio-accent); margin-right: 14px; letter-spacing: 0}
+body.studio-library .asset-title::before {content: '/04'; font: 11px var(--studio-font-mono); color: var(--studio-accent); margin-right: 14px; letter-spacing: 0}
+body.studio-online :is(.image-workspace-layout,.image-records) {border-radius: 4px}
+body.studio-online .image-settings-heading>span {color: var(--studio-accent); font-family: var(--studio-font-mono)}
+html body.studio-online .image-workspace-controls .tool-panel {background: var(--studio-panel)}
+html body.studio-online #genBtn {background: var(--studio-accent); border-color: var(--studio-accent); color: var(--studio-accent-text)}
+html body.studio-online #genBtn:disabled {background: var(--studio-surface-muted); border-color: var(--studio-border); color: var(--studio-text-muted)}
+body.studio-online #placeholder strong {color: var(--studio-text); font-size: 17px}
+body.studio-library :is(.asset-content,.asset-detail,.asset-card,.asset-tabs button,.tree-row) {border-radius: 4px}
+body.studio-library .asset-card {border-color: var(--studio-border); background: var(--studio-panel)}
+body.studio-library .asset-tabs button.active {color: var(--studio-accent); border-color: var(--studio-border-strong); background: var(--studio-selected)}
+.skill-head {border-bottom: 1px solid var(--studio-border); padding-bottom: 24px}
+:is(.skill-card,.skill-dropzone,.skill-dialog,.skill-file-summary) {border-radius: 4px}
+.skill-card:hover {box-shadow: none; border-color: var(--studio-accent)}
+.skill-dropzone {background: var(--studio-panel)}
+
+/* Chat keeps generous reading space; accent marks the action and start points. */
+body.studio-chat .chat-workspace-label {font-family: var(--studio-font-mono); color: var(--studio-accent)}
+body.studio-chat .chat-start h2 {font-weight: 700; font-size: clamp(26px,3vw,40px); letter-spacing: -.04em}
+body.studio-chat .chat-start-symbol {color: var(--studio-accent)}
+body.studio-chat .chat-starters button {border-radius: 4px; border-top: 2px solid var(--studio-border-strong)}
+body.studio-chat .chat-starters button:hover {border-color: var(--studio-accent); background: var(--studio-selected)}
+body.studio-chat .chat-starter-index {color: var(--studio-accent)}
+html body.studio-chat .composer {border-radius: 5px; box-shadow: none}
+html body.studio-chat .composer:focus-within {border-color: var(--studio-border-strong)}
+html body.studio-chat .send-btn {background: var(--studio-accent); color: var(--studio-accent-text)}
+html body.studio-chat .send-btn:disabled {background: var(--studio-surface-muted); color: var(--studio-text-muted)}
+
+/* Editor chrome only. Keep media pixels, node geometry, transforms and timing intact. */
+html body.studio-smart-canvas {background: var(--studio-page); color: var(--studio-text)}
+body.studio-smart-canvas #shell {background-color: var(--studio-page)}
+body.studio-smart-canvas :is(.pixmax-rail,.pixmax-control-group,.pixmax-control,.smart-minimap,.composer-card,.create-menu,.pixmax-context-menu,.pixmax-settings-menu) {background: var(--studio-panel); border-color: var(--studio-border); border-radius: 5px; color: var(--studio-text-muted)}
+body.studio-smart-canvas :is(.pixmax-rail button,.pixmax-control-group button,.create-card,.create-card-icon,.engine-select,.smart-pill) {border-radius: 3px; color: var(--studio-text-muted)}
+body.studio-smart-canvas :is(.pixmax-rail button.primary,.run-btn) {background: var(--studio-accent); color: var(--studio-accent-text); border-radius: 3px}
+body.studio-smart-canvas .run-btn:disabled {background: var(--studio-surface-muted); color: var(--studio-text-muted)}
+body.studio-smart-canvas :is(.pixmax-control-group button.active,.pixmax-rail button:hover,.create-card:hover) {background: var(--studio-selected); color: var(--studio-accent)}
+body.studio-smart-canvas :is(.prompt-row,.prompt-input) {background: var(--studio-page); border-radius: 3px; color: var(--studio-text)}
+body.studio-smart-canvas .prompt-input:empty::before {color: var(--studio-text-faint)}
+body.studio-smart-canvas .composer-card:focus-within {border-color: var(--studio-border-strong)}
+body.studio-smart-canvas .image-node .node-body {border-radius: 6px; border-color: var(--studio-border)}
+body.studio-smart-canvas .image-node.selected .node-body {border-color: var(--studio-accent)}
+body.studio-smart-canvas .smart-minimap-viewport {border-color: var(--studio-accent); background: #d2ff3a0a}
+body.studio-smart-canvas .generation-node-caption {color: var(--studio-text-muted)}
+body.studio-smart-canvas :is(.member-canvas-edit,.member-canvas-drafts,.member-canvas-results,.member-media-preview) {--mc-bg:var(--studio-panel);--mc-glass:var(--studio-panel);--mc-border:var(--studio-border);--mc-text:var(--studio-text);--mc-muted:var(--studio-text-muted);--mc-hover:var(--studio-selected);border-radius:6px}
+body.studio-canvas #shell .minimap-viewport {background: #d2ff3a12!important}
+body.studio-canvas #shell .node.selected {border-color: var(--studio-accent)}
+html body.studio-canvas .shell :is(.canvas-nav,.toolbar,.minimap) {border-radius: 5px}
+body.studio-skin :is(.name-dialog,.billing-dialog,.ledger-dialog,.member-profile-dialog) {border-radius: 6px; border-top-color: var(--studio-accent)}
+body.studio-skin :is(.account-panel,.canvas-preferences) {--ac-bg:var(--studio-panel);--ac-line:var(--studio-border);--ac-muted:var(--studio-text-muted);--ac-accent:var(--studio-accent);border-radius:6px;color:var(--studio-text);font-family:var(--studio-font)}
+body.studio-skin :is(.account-panel,.canvas-preferences)>header {background: var(--studio-page)}
+body.studio-skin :is(.account-panel,.canvas-preferences) :is(button,input:not([type=checkbox]),select,textarea) {border-radius: 3px}
+body.studio-skin .account-nav button.active {color: var(--studio-accent); background: var(--studio-selected)}
+body.studio-skin .account-panel .account-primary, body.studio-skin .account-bonus {color: var(--studio-accent-text)}
+body.studio-skin .account-panel .account-plan {border-radius: 4px}
+body.studio-skin .account-bonus {border-radius: 0 2px 0 3px}
+body.studio-skin .canvas-preferences .preference-row input[type=checkbox]:checked {background: var(--studio-accent)}
+body.studio-skin .canvas-preferences .preference-row input[type=checkbox]:checked::after {background: var(--studio-accent-text)}
+body.studio-smart-canvas :is(.pixmax-navigator,.pixmax-navigator-menu,.pixmax-creation-sidebar,.pixmax-creation-modal>section) {background: var(--studio-panel); color: var(--studio-text); border-color: var(--studio-border); border-radius: 6px}
+body.studio-smart-canvas .pixmax-navigator [role=tab][aria-selected=true] {color: var(--studio-accent); border-bottom-color: var(--studio-accent)}
+body.studio-smart-canvas .pixmax-creation-primary {background: var(--studio-accent)!important; color: var(--studio-accent-text)!important}
+
+/* Standalone and embedded native editing tools use the same chrome. */
+body:is(.studio-smart-canvas,.studio-media-editor) {
+    --color-brand: var(--studio-accent);
+    --color-s-background: var(--studio-page);
+    --color-s-block: var(--studio-panel);
+    --color-s-block-hover: var(--studio-surface-muted);
+    --color-b-block: var(--studio-border);
+    --color-b-click: var(--studio-border-strong);
+    --color-t-primary: var(--studio-text);
+    --color-t-secondary: var(--studio-text-muted);
+    --color-t-placeholder: var(--studio-text-faint);
+}
+body:is(.studio-smart-canvas,.studio-media-editor) :is(.stage-editor,.video-editor) {color: var(--studio-text); background: var(--studio-page)}
+body:is(.studio-smart-canvas,.studio-media-editor) :is(.stage-editor__header,.stage-editor__panel,.stage-editor__toolbar,.video-editor__header,.video-editor__panel,.video-editor__footer) {background: var(--studio-panel); border-color: var(--studio-border)}
+body:is(.studio-smart-canvas,.studio-media-editor) :is(.stage-editor__title,.video-editor__title) {color: var(--studio-text); font-family: var(--studio-font)}
+body:is(.studio-smart-canvas,.studio-media-editor) .stage-timeline {--timeline-accent-soft:#d2ff3a25;--timeline-surface:var(--studio-panel);--timeline-surface-raised:var(--studio-surface-muted);--timeline-border:var(--studio-border);--timeline-text-muted:var(--studio-text-muted)}
+body:is(.studio-smart-canvas,.studio-media-editor) .timeline__view-tools button.is-active {color: var(--studio-accent); background: var(--studio-selected)}
+body:is(.studio-smart-canvas,.studio-media-editor) .video-editor__export-button--primary {background: var(--studio-accent); color: var(--studio-accent-text); border-color: var(--studio-accent)}
+body.studio-media-editor .local-media-picker>section {background: var(--studio-panel); border-color: var(--studio-border); border-radius: 6px}
+
+/* Login: bold typography, the original infinity art, and a clear form boundary. */
+body.studio-login .login-shell {background: var(--studio-page)}
+body.studio-login .auth-brand {border-bottom: 1px solid var(--studio-border); margin: 0 4vw; padding: 24px 0}
+body.studio-login .auth-brand a>span {color: var(--studio-accent)}
+body.studio-login .welcome-icon {filter: grayscale(1) sepia(1) saturate(2.5) hue-rotate(22deg); opacity: .45}
+.cyber-login-intro {position: absolute; top: 25%; left: 7vw; width: 50%; pointer-events: none}
+.cyber-login-intro h1 {margin: 22px 0; color: var(--studio-text); font: 700 clamp(48px,6.8vw,104px)/.98 var(--studio-font); letter-spacing: -.065em}
+.cyber-login-intro h1 span {color: var(--studio-accent)}
+.cyber-login-intro p {font-size: 14px; line-height: 1.9; color: var(--studio-text-muted); margin: 0}
+body.studio-login .form-content {padding: 28px; max-width: 410px; background: #10130ff5; border: 1px solid var(--studio-border); border-top: 2px solid var(--studio-accent); margin-block: auto}
+body.studio-login .form-content h2 {font-size: 28px; font-weight: 700; letter-spacing: -.04em}
+body.studio-login .shadox-display {font-family: var(--studio-font); font-size: 1em; font-style: normal; font-weight: 700}
+body.studio-login .input-wrap {border-radius: 3px; background: var(--studio-page); border-color: var(--studio-border)}
+body.studio-login .input-wrap:focus-within {border-color: var(--studio-accent); box-shadow: none}
+body.studio-login .input-wrap input {border-radius: 3px; color: var(--studio-text)}
+body.studio-login .submit-button {border-radius: 3px; background: var(--studio-accent); border-color: var(--studio-accent); color: var(--studio-accent-text); font-weight: 700}
+body.studio-login .submit-button:hover:not(:disabled) {background: #e0ff80; border-color: #e0ff80}
+body.studio-login .submit-button:disabled {background: var(--studio-surface-muted); color: var(--studio-text-muted); border-color: var(--studio-border); opacity: 1}
+body.studio-login .remember input:checked {background: var(--studio-selected); border-color: var(--studio-accent)}
+body.studio-login .remember input::after {border-color: var(--studio-accent)}
+body.studio-login .panel-footer {width: 410px; color: var(--studio-text-muted)}
+body.studio-login :is(.subtitle,.workspace-note p,.workspace-note small,.text-button,#toggle-password,.auth-brand-caption) {color: var(--studio-text-muted)}
+
+@media(max-width:1180px) {
+    .cyber-intro-copy {padding: 24px}
+    .cyber-intro {min-height: 236px}
+    .cyber-intro-foot {padding-inline: 24px; gap: 18px}
+    .cyber-intro-foot span:last-child {display: none}
+    .cyber-login-intro {left: 5vw; width: 43%}
+    .cyber-login-intro h1 {font-size: 64px}
+}
+@media(max-width:900px) {
+    .cyber-login-intro {display: none}
+    body.studio-login .form-panel {align-items: center; padding: 36px 20px 0}
+    body.studio-login .form-content {width: 100%; max-width: 410px}
+    body.studio-login .welcome-icon {opacity: .18}
+}
+@media(max-width:600px) {
+    body.studio-login .auth-brand {margin-inline: 20px}
+    body.studio-login .form-content {padding: 24px 20px}
+    body.studio-online .container-box>header h1::before, body.studio-library .asset-title::before {display: none}
+    body.studio-chat .chat-start h2 {font-size: 26px}
+}
+@media(prefers-reduced-motion:reduce) {
+    body:is(.studio-skin,.studio-login,.studio-media-editor) *,
+    body:is(.studio-skin,.studio-login,.studio-media-editor) *::before,
+    body:is(.studio-skin,.studio-login,.studio-media-editor) *::after {animation: none!important; transition: none!important; scroll-behavior: auto!important}
+}

@@ -79,7 +79,7 @@ test('icon rail has hover and keyboard labels, two SVG states and stable navigat
  assert.equal(await tooltip.textContent(),'AI 对话');
  assert.equal(await chat.getAttribute('title'),null);
  assert.equal(await chat.locator('.studio-rail-accent').evaluate(opacity),'1');
- assert.equal(await chat.evaluate(el=>getComputedStyle(el).color),'rgb(76, 226, 243)');
+ assert.equal(await chat.evaluate(el=>getComputedStyle(el).color),'rgb(210, 255, 58)');
  await tooltip.hover();
  assert.equal(await tooltip.isVisible(),true,'label remains readable while hovered');
  await page.keyboard.press('Escape');

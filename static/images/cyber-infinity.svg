@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 300" fill="none">
+  <defs>
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0H0V30" stroke="#33382e" stroke-width=".6"/></pattern>
+    <pattern id="lines" width="4" height="4" patternUnits="userSpaceOnUse"><path d="M0 1H4" stroke="#d2ff3a" stroke-width=".7"/></pattern>
+    <linearGradient id="metal" x1="100" y1="80" x2="460" y2="230" gradientUnits="userSpaceOnUse"><stop stop-color="#d2ff3a"/><stop offset=".45" stop-color="#3e5025"/><stop offset=".7" stop-color="#c4d6a7"/><stop offset="1" stop-color="#d2ff3a"/></linearGradient>
+  </defs>
+  <path fill="#0d100b" d="M0 0h600v300H0z"/><path fill="url(#grid)" d="M0 0h600v300H0z"/>
+  <circle cx="300" cy="150" r="125" stroke="#65734f" stroke-dasharray="2 8"/>
+  <ellipse cx="300" cy="150" rx="245" ry="95" stroke="#33382e"/>
+  <path d="M300 150C210 20 90 45 90 150s120 130 210 0S510 45 510 150s-120 130-210 0Z" stroke="#18200f" stroke-width="60"/>
+  <path d="M300 150C210 20 90 45 90 150s120 130 210 0S510 45 510 150s-120 130-210 0Z" stroke="url(#metal)" stroke-width="36"/>
+  <path d="M300 150C210 20 90 45 90 150s120 130 210 0S510 45 510 150s-120 130-210 0Z" stroke="url(#lines)" stroke-width="34"/>
+  <path d="M300 150C210 20 90 45 90 150s120 130 210 0S510 45 510 150s-120 130-210 0Z" stroke="#e6ffb3" stroke-width=".8"/>
+  <g stroke="#d2ff3a"><path d="M22 28h18m-9-9v18M558 263h18m-9-9v18M300 14v20M300 266v20"/><path d="M70 61H56v14M530 239h14v-14"/></g>
+  <path fill="#d2ff3a" d="M43 218h42v8H43zM507 80h64v9h-64zM523 94h19v6h-19z"/>
+  <g fill="#a7ae9f" font-family="monospace" font-size="9" letter-spacing="1"><text x="53" y="38">FIG. 01 / INFINITY</text></g>
+</svg>

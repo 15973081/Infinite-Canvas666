@@ -54,7 +54,7 @@ test('production page controls share readable opaque dark surfaces',async t=>{
  const pages={
   online:['#promptInput','.tool-panel','.result-frame','#modelSelect'],
   'gpt-chat':['.topbar','.composer','.model-picker-popover','.upload-btn'],
-  'asset-manager':['.asset-panel','.asset-tabs'],
+  'asset-manager':['.asset-content','.asset-detail'],
  };
  for(const [name,selectors] of Object.entries(pages)){
   await page.goto('http://canvas-modules.test/static/'+name+'.html');
@@ -95,6 +95,7 @@ test('history selection toolbar keeps neutral disabled state, themed selection a
  const {page,writes}=await fixture(t,'classic',false);
  await page.goto('http://canvas-modules.test/static/online.html');
  await page.waitForFunction(()=>Boolean(document.querySelector('#masonry')?._hbm));
+ await page.locator('.image-records>summary').click();
  await page.evaluate(()=>{
   const grid=document.querySelector('#masonry');
   for(const id of ['1','2']){const card=document.createElement('button');card.dataset.historyTs=id;card.textContent='回归图片 '+id;grid.append(card);}

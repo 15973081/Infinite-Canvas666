@@ -15,7 +15,7 @@ test('reference canvas creates all eight node types, context actions and redo pr
     assert.equal(await page.evaluate(()=>nodes.length),1);
     for(const kind of ['editor','storyboard','audio','model'])await page.evaluate(kind=>{createMenuPoint={x:600,y:400};createNodeFromMenu(kind);},kind);
     assert.equal(await page.evaluate(()=>nodes.length),5);
-    assert.equal(await page.evaluate(()=>getComputedStyle(shell).backgroundColor),'rgb(0, 0, 0)');
+    assert.equal(await page.evaluate(()=>getComputedStyle(shell).backgroundColor),'rgb(9, 11, 9)');
     await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
     await page.evaluate(()=>createNodeFromMenu('director'));
     assert.equal(await page.evaluate(()=>nodes.length),5);

@@ -8,7 +8,7 @@ test('native canvas matches source geometry, SVGs, menus and node names through 
  const menu=await p.locator('#createMenu').boundingBox();assert.equal(menu.width,300);assert.equal(menu.height,470);
  assert.equal(await p.locator('.create-card-icon svg').count(),8);
  await p.getByRole('menuitem',{name:'图像节点',exact:true}).click();
- assert.deepEqual(await p.evaluate(()=>{const n=nodes[0],b=nodeRect(n),e=document.querySelector('.node-body');return {w:b.width,h:b.height,background:getComputedStyle(e).backgroundColor,radius:getComputedStyle(e).borderRadius};}),{w:200,h:200,background:'rgb(20, 20, 22)',radius:'12px'});
+ assert.deepEqual(await p.evaluate(()=>{const n=nodes[0],b=nodeRect(n),e=document.querySelector('.node-body');return {w:b.width,h:b.height,background:getComputedStyle(e).backgroundColor,radius:getComputedStyle(e).borderRadius};}),{w:200,h:200,background:'rgb(20, 20, 22)',radius:'6px'});
  const name=p.getByRole('textbox',{name:'节点名称'});await name.fill('镜头一 · 主画面');await name.press('Enter');
  await p.evaluate(async()=>saveCanvas({force:true}));assert.equal(record.nodes[0].label,'镜头一 · 主画面');
  await p.reload();await p.waitForFunction(()=>nodes.length===1);assert.equal(await name.inputValue(),'镜头一 · 主画面');
