@@ -46,6 +46,28 @@ async function tasks(page,kind){
         return route.fulfill({json:records.get(new URL(route.request().url()).pathname.split('/').pop())});
     });return calls;
 }
+for(const kind of ['image','video'])test('native '+kind+' form repairs a stale model without manual selection',async t=>{
+    const {page,errors}=await fixture(t,'smart',true);
+    await page.evaluate(kind=>{
+        const model=kind==='video'?'doubao-seedance-2-0-260128':'gpt-image-2';
+        apiProviders=[{id:'missing-key',name:'无密钥',enabled:true,has_key:false,[kind+'_models']:[model]},
+            {id:'ready',name:'可用供应商',enabled:true,has_key:true,[kind+'_models']:[model],workspace_defaults:{[kind]:model}}];
+        window.repairNode=createGenerationNodeAt({x:600,y:150},kind);
+        Object.assign(repairNode.runSettings,{engine:'api',provider_id:'removed',model:'old',videoProvider:'removed',videoModel:'old',videoResolution:'720p',videoDuration:5});
+        render();
+    },kind);
+    const modelButton=page.getByRole('button',{name:'生成模型',exact:true});await modelButton.waitFor();
+    assert.match(await modelButton.innerText(),/可用供应商/);
+    assert.equal(await page.evaluate(kind=>repairNode.runSettings[kind==='video'?'videoProvider':'provider_id'],kind),'ready');
+    assert.equal(await page.getByText(/此模型当前不可用/).count(),0);
+    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('保留这段提示词');
+    await modelButton.click();
+    assert.ok((await page.locator('[data-select-option]').first().boundingBox()).width>=280);
+    await page.keyboard.press('Escape');
+    const request=await page.evaluate(kind=>PixmaxBatchExecution.prepare(repairNode,kind),kind);
+    assert.equal(request.provider_id,'ready');assert.match(request.prompt,/保留这段提示词/);
+    assert.deepEqual(errors,[]);
+});
 for(const kind of ['image','video'])test('native '+kind+' prompt admits a bound task and preserves its canonical draft',async t=>{
     const {page,errors,record}=await setup(t,kind),calls=await tasks(page,kind);
     await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('夕阳中的树林');
