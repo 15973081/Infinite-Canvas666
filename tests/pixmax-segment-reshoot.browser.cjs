@@ -492,6 +492,9 @@ test('camera panel fits narrow screens Escape keeps the modal and editing loss b
 });
 
 
-test('native camerawork library inserts a persisted reshoot hash without changing its selected range',async t=>{
-    const {page,errors}=await setup(t,{permissions:['canvas.read','canvas.create','canvas.edit','asset.read','asset.manage']});await open(page);await require('./helpers/pixmax-camera-motions.cjs')(page);await page.getByRole('button',{name:'运镜',exact:true}).click();const library=page.locator('[data-native-camerawork="library"]');await library.getByText('环绕运镜',{exact:true}).click();await library.waitFor({state:'detached'});const result=await page.evaluate(()=>{const target=nodes.find(node=>node.segmentReshoot);return {raw:target.segmentReshoot.prompt,prompt:PixmaxReshootReferences.validate(target),start:target.segmentReshoot.startSec,end:target.segmentReshoot.endSec};});assert.match(result.raw,/%%#\[camerawork\]/);assert.match(result.prompt,/镜头缓慢绕人物环绕一周/);assert.ok(result.end-result.start>=4);assert.deepEqual(errors,[]);
+test('reshoot no longer exposes camerawork controls',async t=>{
+    const {page,errors}=await setup(t);await open(page);
+    assert.equal(await page.getByRole('button',{name:'运镜',exact:true}).count(),0);
+    assert.equal(await page.locator('[data-reshoot-camerawork],[data-native-camerawork]').count(),0);
+    assert.deepEqual(errors,[]);
 });

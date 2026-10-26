@@ -4,7 +4,7 @@
     async function mount({node,api,valid,editable,raw,project,onRoot,mentionModel}){
         const definitions=await PixmaxGenerationParameters.definitions();if(!valid())return;
         const target=document.createElement('div');target.className='pixmax-native-generation-form pixmax-native-prompt';composer.append(target);onRoot(target,true);
-        let closed=false,handle,signature,quoteStamp,quoteTimer,quoteVersion=0,generateLabel='生成',surface,motionLibrary;
+        let closed=false,handle,signature,quoteStamp,quoteTimer,quoteVersion=0,generateLabel='生成',surface;
         const choose=document.createElement('button');choose.type='button';choose.textContent='搜索 / 切换模型';composer.insertBefore(choose,target);onRoot(choose,true);
         choose.onclick=()=>{if(!allowed())return;const config=PixmaxGenerationParameters.configuration(node),kind=config.apiKind;
             const picker=CanvasCore.openModelPicker({providers:()=>apiProviders,kind,value:{provider_id:kind==='video'?config.videoProvider:config.provider_id,model:kind==='video'?config.videoModel:config.model},valid:allowed,onSelect:value=>{const form=PixmaxGenerationParameters.formData(node,definitions).value;changed({...form,model:JSON.stringify([value.provider_id,value.model])});}});onRoot(picker,true);picker.addEventListener('close',()=>onRoot(picker,false),{once:true});};
@@ -23,7 +23,7 @@
             return {...base,graph:graphData(refs,base.value),referenceNames:Object.fromEntries(refs.resources.map(entry=>[entry.id,'引用 '+(entry.kind==='image'&&['imageToVideo','firstAndLastFrame'].includes(mode)?images.indexOf(entry)===0?'首帧':'尾帧':entry.alias)+' · '+entry.name])),validation:{invalid:summary.length>0,sourceDetails,summary,groups:summary.length?[{title:'生成设置',items:summary}]:[]},generateLabel};
         }
         function refresh(){
-            if(!current())return;repairModelSelection();motionLibrary?.sync();const quoteKey=JSON.stringify([PixmaxReshootReferences.signature(node),apiProviders]);
+            if(!current())return;repairModelSelection();const quoteKey=JSON.stringify([PixmaxReshootReferences.signature(node),apiProviders]);
             if(quoteKey!==quoteStamp){quoteStamp=quoteKey;generateLabel='生成';quoteVersion++;clearTimeout(quoteTimer);if(editable()&&window.CanvasSession?.enabled)quoteTimer=setTimeout(()=>void quote(quoteKey),300);}
             const next=data(),key=JSON.stringify(next);if(key!==signature){signature=key;handle?.setData(next);}handle?.setDisabled(!editable());
         }
@@ -79,19 +79,15 @@
             if(!window.CanvasSession?.enabled)return toast('请在成员画布中使用主体库');
             if(!allowed())return;await PixmaxSubjectLibrary.open({api,node,valid:allowed,onRoot,onChoose:async(group,type)=>{if(!allowed())return;project(raw());const chip=PixmaxSubjects.select(node,group,type);handle.instance.insertChipItem('subject-reference',chip);project(handle.instance.getSerializedPrompt());render();refresh();}});
         }
-        async function camerawork(){
-            if(!window.CanvasSession?.enabled)return toast('请在成员画布中使用运镜库');
-            if(!allowed())return;motionLibrary=await PixmaxCamerawork.open({api,valid:allowed,onRoot,onClose:()=>{motionLibrary=null;},onChoose:motion=>{if(!allowed())return false;const inserted=handle.instance.insertCameraworkChip(motion);if(inserted){project(handle.instance.getSerializedPrompt());refresh();}return !!inserted;}});
-        }
         const key=window.CanvasSession?.storageKey?.('pixmax-camera-preferences-v1')||'pixmax-camera-preferences-v1';
         try{
             repairModelSelection();
-            handle=await api.mountGenerationForm(target,{data:data(),nodeId:node.id,formVariant:smartSettingsForNode(node).apiKind==='video'?'video-gen':'default',showCameraParamsEntry:smartSettingsForNode(node).apiKind==='image',showCamerawork:true,viewport,disabled:!editable(),fieldLabelOverrides:{watermark:'水印',enhancePrompt:'提示词增强',enableUpsample:'超分辨率',cameraFixed:'固定镜头',quality:'画质',duration:'时长',customWidth:'宽度',customHeight:'高度',customRatioWidth:'比例宽',customRatioHeight:'比例高'},canPreview:source=>!String(source.data.url||'').startsWith('asset://'),subjectApi:PixmaxSubjects.adapter(node,current),subjectMediaUrl:url=>displayMediaUrl({url}),atMentionPicker:{getModel:mentionModel,connect:id=>allowed()&&PixmaxReshootReferences.connect(node,id)},enabledProtocols:['at-mention','hash-rich','subject-reference'],graphActions,onChange:changed,onSubmit:async()=>{if(allowed())await runGeneration();},onNotice:toast,onOpenAssets:assets,onOpenSubjects:subjects,onOpenCamerawork:camerawork,
+            handle=await api.mountGenerationForm(target,{data:data(),nodeId:node.id,formVariant:smartSettingsForNode(node).apiKind==='video'?'video-gen':'default',showCameraParamsEntry:smartSettingsForNode(node).apiKind==='image',showCamerawork:false,viewport,disabled:!editable(),fieldLabelOverrides:{watermark:'水印',enhancePrompt:'提示词增强',enableUpsample:'超分辨率',cameraFixed:'固定镜头',quality:'画质',duration:'时长',customWidth:'宽度',customHeight:'高度',customRatioWidth:'比例宽',customRatioHeight:'比例高'},canPreview:source=>!String(source.data.url||'').startsWith('asset://'),subjectApi:PixmaxSubjects.adapter(node,current),subjectMediaUrl:url=>displayMediaUrl({url}),atMentionPicker:{getModel:mentionModel,connect:id=>allowed()&&PixmaxReshootReferences.connect(node,id)},enabledProtocols:['at-mention','hash-rich','subject-reference'],graphActions,onChange:changed,onSubmit:async()=>{if(allowed())await runGeneration();},onNotice:toast,onOpenAssets:assets,onOpenSubjects:subjects,
                 readCameraPreferences:()=>{try{const value=JSON.parse(localStorage.getItem(key)||'null'),indices=value?.indices;if(!indices||Object.entries(PixmaxPromptCatalog).some(([name,items])=>!Number.isInteger(indices[name])||indices[name]<0||indices[name]>=items.length))return null;return {indices};}catch{return null;}},writeCameraPreferences:indices=>{if(allowed())localStorage.setItem(key,JSON.stringify({indices}));},
                 onFormRoot:(root,fullscreen)=>{surface=root;queueMicrotask(()=>{if(!current()||!root.isConnected)return;if(fullscreen){root.parentElement.classList.add('pixmax-native-generation-fullscreen');onRoot(root.parentElement,true);}positionComposerForNode(node);})}});
             if(!current()){destroy();return;}composer.classList.add('pixmax-native-form-active');refresh();positionComposerForNode(node);return {refresh,destroy,flush:()=>{if(allowed()){const value=handle.instance.getSerializedPrompt();if(typeof value==='string'&&value!==raw())project(value);}},updateViewport:()=>{if(current())handle.setViewport(viewport);},surface:()=>surface};
         }catch(error){destroy();throw error;}
-        function destroy(){if(closed)return;closed=true;quoteVersion++;clearTimeout(quoteTimer);motionLibrary?.destroy();handle?.destroy();target.remove();choose.remove();onRoot(choose,false);onRoot(target,false);composer.classList.remove('pixmax-native-form-active');}
+        function destroy(){if(closed)return;closed=true;quoteVersion++;clearTimeout(quoteTimer);handle?.destroy();target.remove();choose.remove();onRoot(choose,false);onRoot(target,false);composer.classList.remove('pixmax-native-form-active');}
     }
     window.PixmaxGenerationForm=Object.freeze({mount});
 })();

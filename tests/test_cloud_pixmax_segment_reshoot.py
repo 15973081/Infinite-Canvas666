@@ -15,7 +15,7 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters', 'model-switch', 'camera', 'camerawork', 'subjects'])
+@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters', 'model-switch', 'camera', 'subjects'])
 def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task_and_saves_owned_result(world, platform, tmp_path, import_mode):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope

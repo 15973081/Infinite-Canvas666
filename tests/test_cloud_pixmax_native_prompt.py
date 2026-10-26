@@ -40,7 +40,7 @@ def test_native_generation_price_preview_is_scoped_read_only_and_uses_server_pri
         assert conn.execute('SELECT count(*) AS n FROM ledger_entries').fetchone()['n']==fees
 
 
-@pytest.mark.parametrize('kind', ['image', 'image-edit-contract', 'video', 'video-motion', 'image-parameters', 'video-parameters','video-text','video-first-frame','video-first-last','video-first-last-same','video-reference','video-edit','video-extend-backward','video-extend-forward'])
+@pytest.mark.parametrize('kind', ['image', 'image-edit-contract', 'video', 'image-parameters', 'video-parameters','video-text','video-first-frame','video-first-last','video-first-last-same','video-reference','video-edit','video-extend-backward','video-extend-forward'])
 def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exports_owned_media(world, platform, tmp_path, kind):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
