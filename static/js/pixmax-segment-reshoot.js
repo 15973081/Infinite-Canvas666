@@ -9,7 +9,7 @@
         if(!session||session.closed)return;session.closed=true;
         session.observer?.disconnect();clearTimeout(session.seekTimer);session.root.remove();
         session.cleanupVideo?.();session.unmountPlayer?.();
-        session.promptHandle?.destroy();session.parametersHandle?.destroy();session.modelHandle?.destroy();session.cameraHandle?.destroy();for(const handle of session.subjectLibraries||[])handle.destroy();for(const picker of session.pickers||[])picker.remove();
+        session.promptHandle?.destroy();session.parametersHandle?.destroy();session.modelHandle?.destroy();session.cameraHandle?.destroy();for(const picker of session.pickers||[])picker.remove();
         if(session.video){session.video.pause();session.video.removeAttribute('src');session.video.load();}
         if(session.timeline)void session.timeline.destroy();
         if(activeSession===session)activeSession=null;
@@ -166,10 +166,10 @@
         cameraArea.querySelector('[data-reshoot-camera-open]').onclick=()=>{if(valid()&&!busy)session.cameraHandle?.setOpen(true);};
         let modelStamp='';session.refreshModel=()=>{const data=PixmaxReshootParameters.modelData(node),stamp=JSON.stringify(data);session.modelHasOptions=data.options.length>0;if(modelStamp!==stamp){modelStamp=stamp;session.modelHandle?.setData(data);}};
         session.refreshParameters=()=>{if(session.parameterDefinition&&!session.closed)session.parametersHandle?.setData(PixmaxReshootParameters.data(node,session.parameterDefinition));};
-        const referenceArea=document.createElement('section');referenceArea.className='pixmax-reshoot-references';referenceArea.innerHTML='<header><span>参考素材</span><button type="button" data-reshoot-add-canvas>添加画布参考</button><button type="button" data-reshoot-add-asset>添加资产参考</button><button type="button" data-reshoot-add-subject>添加主体</button></header><div data-reshoot-references></div>';promptTarget.closest('label').before(referenceArea);
+        const referenceArea=document.createElement('section');referenceArea.className='pixmax-reshoot-references';referenceArea.innerHTML='<header><span>参考素材</span><button type="button" data-reshoot-add-canvas>添加画布参考</button><button type="button" data-reshoot-add-asset>添加资产参考</button></header><div data-reshoot-references></div>';promptTarget.closest('label').before(referenceArea);
         let video;try{video=mountPlayer(api,session,source.media);}catch(error){dispose(session);return toast(error.message);}
         const draw=()=>{body.querySelector('[data-reshoot-start]').value=state.startSec;body.querySelector('[data-reshoot-end]').value=state.endSec;body.querySelector('[data-reshoot-summary]').textContent=`${state.startSec.toFixed(1)} – ${state.endSec.toFixed(1)} · ${(state.endSec-state.startSec).toFixed(1)}s`;session.timeline?.setRange({startSec:state.startSec,endSec:state.endSec});session.refreshParameters();};draw();
-        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player],[data-reshoot-parameters],[data-reshoot-model],[data-reshoot-camera]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);session.promptHandle?.setReadonly(disabled);session.parametersHandle?.setDisabled(disabled);session.modelHandle?.setDisabled(disabled||!session.modelHasOptions);session.cameraHandle?.setDisabled(disabled);if(disabled)for(const picker of session.pickers||[])picker.remove();for(const handle of session.subjectLibraries||[])handle.sync();};session.sync=sync;
+        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player],[data-reshoot-parameters],[data-reshoot-model],[data-reshoot-camera]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);session.promptHandle?.setReadonly(disabled);session.parametersHandle?.setDisabled(disabled);session.modelHandle?.setDisabled(disabled||!session.modelHasOptions);session.cameraHandle?.setDisabled(disabled);if(disabled)for(const picker of session.pickers||[])picker.remove();};session.sync=sync;
         let referenceStamp='';
         function refreshReferences(){
             if(session.closed)return;const current=PixmaxReshootReferences.plan(node),invalidSubjects=PixmaxSubjects.invalid(node),stamp=JSON.stringify([current.mentions,current.incomingNodes,invalidSubjects]);if(stamp===referenceStamp)return;referenceStamp=stamp;
@@ -201,15 +201,6 @@
             else items=pickerModel().canvasItems.map(item=>({id:item.id,name:item.label}));draw();
         }
         referenceArea.querySelector('[data-reshoot-add-canvas]').onclick=()=>void pick(false);referenceArea.querySelector('[data-reshoot-add-asset]').onclick=()=>void pick(true);
-        referenceArea.querySelector('[data-reshoot-add-subject]').onclick=async()=>{
-            if(!valid()||busy||!session.promptHandle)return;
-            const handle=await PixmaxSubjectLibrary.open({api,node,valid:()=>valid()&&!busy,onRoot:(root,added)=>{const tracked=session.pickers||=new Set();if(added)tracked.add(root);else tracked.delete(root);},onClose:handle=>session.subjectLibraries?.delete(handle),onChoose:async(group,type)=>{
-                if(!valid()||busy)return;const chip=PixmaxSubjects.select(node,group,type);edited=true;
-                let value;try{value=await session.promptHandle.insertSubject(chip);}catch(error){if(!valid()||busy)return;value=state.prompt;toast('主体已添加到提示词末尾');}
-                if(!valid()||busy)return;
-                PixmaxReshootReferences.setPrompt(node,value);session.promptHandle.setValue(value);render();scheduleSave();refreshReferences();
-            }});if(session.closed||!handle.root.isConnected)handle.destroy();else(session.subjectLibraries||=new Set()).add(handle);
-        };
         session.observer=new MutationObserver(()=>{if(!root.isConnected)dispose(session);});session.observer.observe(document.body,{childList:true});
         function changeRange(range){if(!valid()||busy||Math.abs(range.startSec-state.startSec)<.001&&Math.abs(range.endSec-state.endSec)<.001)return;if(!edited){pushUndo();edited=true;}Object.assign(state,range);Object.assign(node.runSettings,PixmaxReshootParameters.settings(node));delete state.cache;delete state.preparedMedia;node.runSettings.videoTempShLinks=[];draw();scheduleSave();}
         function seek(seconds,final=false){

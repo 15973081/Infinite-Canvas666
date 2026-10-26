@@ -34,12 +34,23 @@ async function tasks(page,{unknown=false}={}){
     const calls=[],records=new Map();await page.route('**/api/canvas-video-tasks**',route=>{const request=route.request();if(request.method()==='POST'){const body=request.postDataJSON(),target=body.canvas_target;calls.push(body);const record={id:body.client_task_id,status:'succeeded',canvas_edit_generation:1,result:{videos:[body.videos[0]]},canvas_binding:{version:3,canvas_id:body.canvas_id,canvas_kind:'smart',source_node_id:target.source_node_id,target_node_id:target.target_node_id,submitted_revision:target.base_revision,graph_sha256:target.input_sha256,request_sha256:'a'.repeat(64)}};records.set(record.id,record);return route.fulfill(unknown?{status:502,json:{detail:'回执未知'}}:{json:{task_id:record.id,status:'queued',canvas_binding:record.canvas_binding}});}return route.fulfill({json:records.get(new URL(request.url()).pathname.split('/').pop())});});return {calls,records};
 }
 
+// Seed persisted subject references to keep historical canvases covered after retiring the picker.
 async function selectSubject(page,name='摄影师主体'){
-    await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});
-    await library.getByText(name,{exact:true}).waitFor().catch(async error=>{throw Error(error.message+'; '+await library.locator('[role=status]').textContent());});await library.locator('[data-subject-cards] .group').filter({hasText:name}).hover();
-    await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'}).catch(async error=>{throw Error(error.message+'; status='+await library.locator('[role=status]').textContent()+'; '+JSON.stringify(await page.evaluate(()=>({prompt:nodes[1].segmentReshoot.prompt,chipCount:document.querySelectorAll('.pixmax-reshoot-rich-prompt [data-editor-node-type="subject-reference"]').length}))))});
+    await page.evaluate(async name=>{
+        const {catalogs}=await (await fetch(CanvasSession.url('/api/subject-library'),{headers:{'X-Member-ID':CanvasSession.context.member.id,'X-Workspace-ID':CanvasSession.context.workspace.id}})).json();
+        PixmaxSubjects.select(nodes[1],catalogs.PERSONAL.groups.find(group=>group.name===name),'PERSONAL');
+        await PixmaxSegmentReshoot.open(nodes[1]);
+    },name);
     await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="subject-reference"]').first().waitFor();
 }
+
+test('reshoot keeps asset references without a subject library entry',async t=>{
+    const {page,errors}=await setup(t);await open(page);
+    assert.equal(await page.getByRole('button',{name:'添加主体',exact:true}).count(),0);
+    assert.equal(await page.getByRole('button',{name:'添加资产参考',exact:true}).count(),1);
+    assert.equal(await page.evaluate(()=>typeof window.PixmaxSubjectLibrary),'undefined');
+    assert.deepEqual(errors,[]);
+});
 
 test('subject native cards insert one real chip with four hidden inputs and submit typed resources',async t=>{
     const {page,errors,record}=await setup(t),catalog=await subjectCatalog(page),media=await uploads(page),api=await tasks(page);await open(page);
@@ -91,53 +102,6 @@ test('subject deleted or moved to another owner scope cannot upload or create a 
     await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await page.locator('.pixmax-segment-reshoot-modal [role=status]').filter({hasText:'主体'}).waitFor();assert.equal(media.calls.length,0);assert.equal(api.calls.length,0);
     await page.evaluate(()=>nodes[1].segmentReshoot.subjects[0].memberId='foreign-member');
     await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await page.locator('.pixmax-segment-reshoot-modal [role=status]').filter({hasText:'当前成员或空间'}).waitFor();assert.equal(api.calls.length,0);assert.deepEqual(errors,[]);
-});
-
-test('subject library CRUD preserves a conflicting name draft until explicit latest-version review',async t=>{
-    const {page,errors}=await setup(t),catalog=await subjectCatalog(page);await open(page);await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});
-    await library.locator('[data-subject-cards] .group').filter({hasText:'摄影师主体'}).hover();await library.getByRole('button',{name:'查看',exact:true}).click();const edit=page.getByRole('dialog',{name:'编辑主体',exact:true});
-    await edit.getByLabel('主体名称',{exact:true}).fill('我的修改草稿');catalog.change(group=>{group.name='另一窗口修改';});
-    await edit.getByRole('button',{name:'保存主体',exact:true}).click();await edit.locator('[role=status]').filter({hasText:'其他窗口'}).waitFor();assert.equal(await edit.getByLabel('主体名称',{exact:true}).inputValue(),'我的修改草稿');
-    await edit.getByRole('button',{name:'读取最新版本',exact:true}).click();await edit.getByText(/最新主体：另一窗口修改/).waitFor();assert.equal(await edit.getByLabel('主体名称',{exact:true}).inputValue(),'我的修改草稿');
-    await edit.getByRole('button',{name:'按当前草稿保存',exact:true}).click();await edit.locator('[role=status]').filter({hasText:'已保存'}).waitFor();assert.equal(catalog.catalogs.PERSONAL.groups[0].name,'我的修改草稿');
-    await edit.getByRole('button',{name:'添加文字',exact:true}).click();const text=page.getByRole('dialog',{name:'添加主体文字',exact:true});await text.getByLabel('文字正文').fill('\n  补充主体信息\n');await text.getByRole('button',{name:'保存文字',exact:true}).click();await text.waitFor({state:'detached'});assert.equal(catalog.catalogs.PERSONAL.groups[0].items.length,5);
-    await edit.getByRole('button',{name:'设为封面',exact:true}).click();await edit.locator('[role=status]').filter({hasText:'已保存'}).waitFor();
-    await edit.getByRole('button',{name:'删除主体',exact:true}).click();await edit.waitFor({state:'detached'});assert.equal(catalog.catalogs.PERSONAL.groups.length,0);assert.deepEqual(errors,[]);
-});
-
-test('subject picker errors can retry and readonly catalog cards still apply existing subjects',async t=>{
-    const {page,errors}=await setup(t),catalog=await subjectCatalog(page,{manage:false});catalog.fail(true);await open(page);await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});
-    await library.locator('[role=status]').filter({hasText:'暂时失败'}).waitFor();catalog.fail(false);await library.getByRole('button',{name:'重新加载',exact:true}).click();await library.getByText('摄影师主体',{exact:true}).waitFor();assert.ok(await library.getByRole('button',{name:'新建主体',exact:true}).isDisabled());
-    await library.locator('[data-subject-cards] .group').filter({hasText:'摄影师主体'}).hover();await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'});assert.equal(await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="subject-reference"]').count(),1);assert.equal(catalog.calls.filter(call=>call.method!=='GET').length,0);assert.deepEqual(errors,[]);
-});
-
-test('subject pending picker requests cannot write after losing the canvas lease',async t=>{
-    const {page,errors}=await setup(t),catalog=await subjectCatalog(page);await open(page);const requested=catalog.hold();await page.getByRole('button',{name:'添加主体',exact:true}).click();await requested;
-    await page.evaluate(()=>{MemberCanvasEdit.setEditable(false);PixmaxSegmentReshoot.documentChanged();});catalog.release();await page.getByRole('dialog',{name:'主体库',exact:true}).waitFor({state:'detached'});assert.equal(await page.evaluate(()=>nodes.filter(node=>node.subjectReference).length),0);assert.deepEqual(errors,[]);
-});
-
-test('subject native hover uses the scoped group adapter and repeated chips reuse material nodes',async t=>{
-    const {page,errors}=await setup(t),catalog=await subjectCatalog(page);await open(page);await selectSubject(page);
-    const chip=page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="subject-reference"]');await chip.hover();await page.getByText('黄昏的摄影师',{exact:true}).waitFor();assert.ok(catalog.calls.filter(call=>call.method==='GET'&&call.path.endsWith(catalog.id)).length>=2);
-    await page.getByRole('textbox',{name:'重拍要求'}).click();await selectSubject(page);assert.equal(await page.evaluate(()=>nodes.filter(node=>node.subjectReference).length),4);assert.equal(await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="subject-reference"]').count(),2);assert.deepEqual(errors,[]);
-});
-
-test('subject team creation adds a real uploaded picture preserves scope and fits a narrow viewport',async t=>{
-    const {page,errors,directory}=await setup(t,{permissions:['canvas.read','canvas.create','canvas.edit','asset.read','asset.manage','asset.upload']}),catalog=await subjectCatalog(page),media=await uploads(page);await open(page);await page.setViewportSize({width:390,height:844});
-    await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});await library.getByRole('tab',{name:'空间主体',exact:true}).click();await library.getByRole('button',{name:'新建主体',exact:true}).click();const editor=page.getByRole('dialog',{name:'新建主体',exact:true});
-    await editor.getByLabel('主体名称',{exact:true}).fill('空间共享人物');await editor.getByLabel('主体描述',{exact:true}).fill('大家可以使用的主体');await editor.getByRole('button',{name:'保存主体',exact:true}).click();await editor.locator('[role=status]').filter({hasText:'已保存'}).waitFor();
-    await editor.getByRole('button',{name:'添加素材',exact:true}).click();const picker=page.getByRole('dialog',{name:'添加主体素材',exact:true}),bytes=execFileSync('ffmpeg',['-v','error','-i',path.join(directory,'source.mp4'),'-frames:v','1','-f','image2pipe','-vcodec','png','-']);
-    await picker.getByLabel('上传主体素材').setInputFiles({name:'空间人物.png',mimeType:'image/png',buffer:bytes});await picker.waitFor({state:'detached'});assert.equal(media.calls.length,1);assert.equal(catalog.catalogs.TEAM.groups[0].items[0].kind,'image');
-    await page.getByRole('button',{name:'关闭新建主体',exact:true}).click();await library.getByText('空间共享人物',{exact:true}).waitFor();const box=await library.locator('section').first().boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390);await library.screenshot({path:'.local/pixmax-subject-library-mobile.png'});
-    await library.locator('[data-subject-cards] .group').filter({hasText:'空间共享人物'}).hover();await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'});assert.equal(await page.evaluate(()=>nodes[1].segmentReshoot.subjects[0].ownerType),'TEAM');
-    await page.evaluate(()=>{nodes[1].segmentReshoot.subjects[0].memberId='another-team-member';});assert.match(await page.evaluate(()=>PixmaxReshootReferences.validate(nodes[1])),/空间共享人物/);assert.deepEqual(errors,[]);
-});
-
-test('subject nested text conflict retains exact whitespace and requires explicit revision review',async t=>{
-    const {page,errors}=await setup(t),catalog=await subjectCatalog(page);await open(page);await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});await library.locator('[data-subject-cards] .group').filter({hasText:'摄影师主体'}).hover();await library.getByRole('button',{name:'查看',exact:true}).click();const editor=page.getByRole('dialog',{name:'编辑主体',exact:true});
-    await editor.getByRole('button',{name:'编辑文字',exact:true}).click();const text=page.getByRole('dialog',{name:'编辑主体文字',exact:true});await text.getByLabel('文字正文').fill('\n  我的新设定\n');catalog.change(group=>{group.items[0].text='其他窗口的新设定';});
-    await text.getByRole('button',{name:'保存文字',exact:true}).click();await text.locator('[role=status]').filter({hasText:'其他窗口'}).waitFor();assert.equal(await text.getByLabel('文字正文').inputValue(),'\n  我的新设定\n');
-    await text.getByRole('button',{name:'读取最新版本',exact:true}).click();await text.locator('[role=status]').filter({hasText:'其他窗口的新设定'}).waitFor();await text.getByRole('button',{name:'按当前草稿保存',exact:true}).click();await text.waitFor({state:'detached'});assert.equal(catalog.catalogs.PERSONAL.groups[0].items[0].text,'\n  我的新设定\n');assert.deepEqual(errors,[]);
 });
 
 test('subject batch preview refreshes the catalog and rejects changes during the review window',async t=>{

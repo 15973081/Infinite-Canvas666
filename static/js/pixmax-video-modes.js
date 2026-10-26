@@ -49,11 +49,10 @@
     const references=(node,config)=>PixmaxReshootReferences.plan(node,{configuration:config}).entries.filter(entry=>entry.media).map(entry=>entry.media);
     function options(node,config,definitions){
         const native=definitions?.find(model=>model.modelCode===modelCode(config)),values=native?.fields.find(field=>field.name==='referModel')?.options.map(option=>option.value)||['textToVideo','referToVideo','imageToVideo','firstAndLastFrame',...(canEdit(config)?['videoEdit']:[])];
-        // All explicit modes use upstream inputs; only first/last keeps duplicate image slots.
-        // Scope this reuse to one menu calculation so changed edges cannot leave stale inputs.
-        let normalRefs,frameRefs;
-        return ['auto',...values,...(canEdit(config)?['extend_backward','extend_forward']:[])].map(value=>{
-            const next={...config,videoReferenceMode:value,videoTaskMode:'auto'},refs=value==='auto'?[]:value==='firstAndLastFrame'?(frameRefs??=references(node,next)):(normalRefs??=references(node,next)),tooltip=reason(next,refs,value);
+        // Scope reference reuse to one menu calculation so changed edges cannot leave stale inputs.
+        let normalRefs;
+        return ['auto',...values,...(canEdit(config)?['extend_backward','extend_forward']:[])].filter(value=>value!=='firstAndLastFrame').map(value=>{
+            const next={...config,videoReferenceMode:value,videoTaskMode:'auto'},refs=value==='auto'?[]:(normalRefs??=references(node,next)),tooltip=reason(next,refs,value);
             return {value,label:labels[value]||value,disabled:!!tooltip,tooltip};
         });
     }

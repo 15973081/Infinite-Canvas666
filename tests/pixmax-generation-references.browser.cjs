@@ -28,10 +28,6 @@ test('native disconnect removes one source from generation while retaining its c
     const result=await page.evaluate(()=>({refs:buildPromptRequest(referenceTarget).refs.length,source:nodes.find(node=>node.id===referenceSources[0].id).images.length,blocked:referenceTarget.blockedInputRefs.length}));assert.deepEqual(result,{refs:1,source:1,blocked:1});assert.deepEqual(errors,[]);
 });
 
-test('native first and last frame labels retain two independent slots for an identical image',async t=>{
-    const {page,errors}=await setup(t,['image','image'],{same:true});await page.getByRole('tablist',{name:'视频生成模式'}).getByRole('tab',{name:'首尾帧',exact:true}).click();assert.equal(await cards(page).count(),2);assert.equal(await area(page).getByRole('button',{name:/引用 首帧/}).count(),1);assert.equal(await area(page).getByRole('button',{name:/引用 尾帧/}).count(),1);assert.equal(await area(page).getByText('图片',{exact:true}).count(),2);assert.deepEqual(errors,[]);
-});
-
 test('native inputs disable editing and disconnect actions after edit ownership is lost',async t=>{
     const {page,errors}=await setup(t,['image']);await page.evaluate(()=>MemberCanvasEdit.setEditable(false));await page.waitForFunction(()=>[...document.querySelectorAll('.pixmax-native-generation-references button')].every(button=>button.disabled));assert.equal(await page.evaluate(()=>referenceTarget.blockedInputRefs),undefined);assert.deepEqual(errors,[]);
 });
@@ -41,8 +37,8 @@ test('native cards disconnect a text input and invalidate its existing rich ment
     const result=await page.evaluate(()=>{try{buildPromptRequest(referenceTarget);return 'unexpected';}catch(error){return error.message;}});assert.match(result,/失效参考/);assert.equal(await page.evaluate(()=>nodes.some(node=>node.id===referenceSources[0].id)),true);assert.deepEqual(errors,[]);
 });
 
-test('native cards from a subject disconnect the complete subject and its hidden input nodes',async t=>{
-    const {page,errors}=await setup(t,[]),catalog=await subjects(page);await page.getByRole('button',{name:'主体库',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});await library.getByText('摄影师主体',{exact:true}).waitFor();await library.locator('[data-subject-cards] .group').hover();await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'});assert.equal(await cards(page).count(),4);await cards(page).first().hover();await cards(page).first().getByRole('button',{name:'断开参考连接',exact:true}).click();assert.equal(await cards(page).count(),0);assert.equal(await page.evaluate(()=>nodes.filter(node=>node.subjectReference).length),0);assert.equal(await page.evaluate(()=>referenceTarget.nativePrompt.subjects.length),0);assert.ok(catalog.id);assert.deepEqual(errors,[]);
+test('legacy cards from a subject disconnect the complete subject and its hidden input nodes',async t=>{
+    const {page,errors}=await setup(t,[]),catalog=await subjects(page);await page.evaluate(group=>{PixmaxNativePrompt.dispose();referenceTarget.nativePrompt={schemaVersion:1,prompt:'',subjects:[]};PixmaxSubjects.select(referenceTarget,group,'PERSONAL');render();PixmaxNativePrompt.sync();},catalog.catalogs.PERSONAL.groups[0]);assert.equal(await cards(page).count(),4);await cards(page).first().hover();await cards(page).first().getByRole('button',{name:'断开参考连接',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.pixmax-native-generation-references [data-source-node-order-item]').length===0);assert.equal(await cards(page).count(),0);assert.equal(await page.evaluate(()=>nodes.filter(node=>node.subjectReference).length),0);assert.equal(await page.evaluate(()=>referenceTarget.nativePrompt.subjects.length),0);assert.ok(catalog.id);assert.deepEqual(errors,[]);
 });
 
 test('native reference cards release the old composer on selection and restore the legacy area on close',async t=>{
@@ -52,10 +48,10 @@ test('native reference cards release the old composer on selection and restore t
 async function moveFirstRight(page){
     const item=cards(page).first().locator('xpath=ancestor-or-self::*[@tabindex][1]');await item.focus();await page.keyboard.press('Space');await page.keyboard.press('ArrowRight');await page.keyboard.press('Space');
 }
-test('native keyboard sorting changes frame roles while the rich mention keeps its original source',async t=>{
-    const {page,errors}=await setup(t,['image','image']);await page.getByRole('tablist',{name:'视频生成模式'}).getByRole('tab',{name:'首尾帧',exact:true}).click();await area(page).getByRole('button',{name:/引用 首帧/}).click();await moveFirstRight(page);
+test('native keyboard sorting changes reference order while the rich mention keeps its original source',async t=>{
+    const {page,errors}=await setup(t,['image','image']);await area(page).getByRole('button',{name:/引用 图片1/}).click();await moveFirstRight(page);
     await page.waitForFunction(()=>PixmaxReshootReferences.plan(referenceTarget).entries[0].nodeId===referenceSources[1].id,null,{timeout:2500});
-    const result=await page.evaluate(async()=>{const request=buildPromptRequest(referenceTarget);return {prompt:referenceTarget.nativePrompt.prompt,source:referenceSources[0].id,payload:await runApiVideoGeneration(request.prompt,request.refs,referenceTarget.runSettings,null,{preview:true})};});assert.ok(result.prompt.includes(result.source));assert.match(result.payload.images[0].url,/ref=1/);assert.deepEqual(result.payload.images.map(image=>image.role),['first_frame','last_frame']);assert.deepEqual(errors,[]);
+    const result=await page.evaluate(async()=>{const request=buildPromptRequest(referenceTarget);return {prompt:referenceTarget.nativePrompt.prompt,source:referenceSources[0].id,payload:await runApiVideoGeneration(request.prompt,request.refs,referenceTarget.runSettings,null,{preview:true})};});assert.ok(result.prompt.includes(result.source));assert.match(result.payload.images[0].url,/ref=1/);assert.deepEqual(result.payload.images.map(image=>image.role),['reference_image','reference_image']);assert.deepEqual(errors,[]);
 });
 
 test('native text sorting updates the actual prompt order and keeps a typed mention bound to its source',async t=>{

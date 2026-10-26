@@ -1060,8 +1060,7 @@ function renderVideoAdvancedControl(includeFrameRoles=false){
     const options=[
         ['videoEnhancePrompt','提示词增强'],['videoEnableUpsample','高清'],
         ['videoGenerateAudio','生成音频'],['videoCameraFixed','镜头固定'],
-        ['videoWatermark','水印'],['videoMultimodal','智能多参'],
-        ...(includeFrameRoles ? [['videoUseFrameRoles','首尾帧']] : [])
+        ['videoWatermark','水印'],['videoMultimodal','智能多参']
     ];
     const enabled=options.filter(([key])=>settings[key]).length + Number(!!settings.videoTrustedAsset);
     return `<details class="smart-control composer-advanced">
