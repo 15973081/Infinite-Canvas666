@@ -1,68 +1,34 @@
 # Infinite-Canvas
 
-当前 PostgreSQL + 本地 TOS 模拟版本的启动、配置、运行、备份与项目搬迁，请阅读 [项目操作手册](docs/project-operations-manual.md)。下方旧版介绍保留历史背景。
-Supports comfyui/API calls/modelscope calls
+基于 FastAPI 的画布工作台，包含图片、视频、对话、素材管理，以及独立的成员、供应商和费用管理平台。
 
-详细教程：[https://youtu.be/1y9ShTvgC_w](https://youtu.be/r_y_9ALr7fg)
+当前本地交付环境使用 PostgreSQL 保存业务数据，文件系统模拟 TOS 保存素材，由画布服务、管理服务和 worker 配合运行。
 
-由于最近很多API网址关停，我找到一个稳定的网址：
+## 运行与维护
 
-https://apimart.ai/register?aff=1uyAbb  （包含所有生图模型/视频模型/LLM模型）
+启动、配置、备份、恢复和项目搬迁请阅读 [项目操作手册](docs/project-operations-manual.md)。手册中的交付日期、目录、数据库、端口和账号示例属于当时的本地环境；实际运行以本机配置及 `.local/cloud/runtime/active-delivery.json` 为准。
 
-https://www.fhl.mom/register?aff=86L574B4T2N9  （包含codex和GPT image 2模型）
+- `tools/delivery_service.py`：交付环境的画布、管理端及 worker 启动入口。
+- `main.py`：画布后端应用。
+- `management_main.py`：独立管理后端应用。
+- `requirements.txt`、`requirements-cloud.txt`：应用与云存储相关依赖。
+- `storage.env.example`：存储配置示例。
 
-功能请求/功能更新/视频教程/联系我，都可以在B站评论或私信：https://space.bilibili.com/78652351
+更新代码前，在管理平台进入维护，等待任务结束并保存画布，再停止相关服务。具体操作见手册。
 
-----
+## 项目目录
 
-项目不提供远程热更新。维护代码前，请在服务器本机通过“更多设置 → 维护管理”发布停服通知，等待生成任务归零，再按 Ctrl+C 关闭服务并手动更新代码。
+| 目录 | 用途 |
+| --- | --- |
+| `app/` | 后端业务、接口与存储 |
+| `static/` | 工作台静态资源 |
+| `management/` | 独立管理平台前端 |
+| `tools/` | 启动、构建、迁移与维护工具 |
+| `tests/` | 自动化测试 |
+| `docs/` | 功能说明、架构、运维与变更记录 |
 
-The project does not perform remote hot updates. Before changing the code, use “More settings → Maintenance” on the server host, wait for active generation tasks to finish, then stop the service with Ctrl+C and update the code manually.
+ComfyUI 与 ModelScope 专用集成已移除，具体边界见 [弃用集成记录](docs/retired-integrations.md)。历史画布、素材和旧配置可能仍用于展示或迁移，不能按普通缓存清理。
 
-----
+## 来源与许可
 
-支持的功能：
-1. 支持几乎所有OpenAI协议的API/异步协议/Gemini协议/方舟协议
-3. 火山引擎调用（人脸认证还在修复bug）
-4. Modelscope免费LLM模型和图像模型调用
-6. 支持调用本地局域网的ComfyUI
-7. 扩展图片/360全景图预览截图/视频帧抽取/循环节点等诸多功能
-
---------
-
-已经申请著作权，禁止商业用途
-
-Commercial use is prohibited.
-
-
-* 可以自己使用和公司使用，禁止用于任何形式的修改封装成商业产品，商用须取得授权。
-
-* 根据代码二次开发的软件必须保持开源并注明来源作者
-
-* This software is for personal and company use only, but is prohibited from being modified or packaged into commercial products in any way. Commercial use requires authorization.
-
-* Software developed based on this code must remain open source and the original author must be credited.
-
---------
-
-<img width="2079" height="665" alt="image" src="https://github.com/user-attachments/assets/8469923b-f7a2-403c-9c37-e6e789211f28" />
-
-<img width="1865" height="1503" alt="image" src="https://github.com/user-attachments/assets/f4030201-67c6-4845-b08b-b6fdf304afaa" />
-
-
-<img width="1696" height="1350" alt="b68e144c5b04a322bfd035da4d89aba3" src="https://github.com/user-attachments/assets/0a6090fb-a8dd-4c3d-adee-b1f9233a2d91" />
-
-   
-<img width="1525" height="1473" alt="image" src="https://github.com/user-attachments/assets/6f61fcf9-746c-425b-9e36-cfc8d252da7c" />
-
-   <img width="1261" height="864" alt="image" src="https://github.com/user-attachments/assets/57f3e230-3134-488f-8179-d97e7d15383a" />
-<img width="1530" height="858" alt="image" src="https://github.com/user-attachments/assets/9990e42d-22d5-4a10-a1e1-ad35a634edd2" />
-
-<img width="1735" height="1400" alt="image" src="https://github.com/user-attachments/assets/d8328ff8-bbe0-4f1c-9ffa-7b56e8a1a51d" />
-<img width="2258" height="969" alt="image" src="https://github.com/user-attachments/assets/4a752d99-885d-4ba9-8b86-91b495786b5c" />
-
-
-<img width="1531" height="1374" alt="image" src="https://github.com/user-attachments/assets/0af79e38-0955-4740-9e65-5c9bb057f58c" />
-
-<img width="2196" height="1040" alt="image" src="https://github.com/user-attachments/assets/6d823668-cde2-4836-8332-1858efe5f520" />
-<img width="2214" height="771" alt="image" src="https://github.com/user-attachments/assets/52e10958-753f-45ba-a50e-3bbec27be436" />
+本项目基于 Infinite-Canvas 持续开发。原作者主页：[Bilibili](https://space.bilibili.com/78652351)。使用与分发须遵守 [LICENSE](LICENSE) 中的许可和署名要求。
