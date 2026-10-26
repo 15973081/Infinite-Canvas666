@@ -150,7 +150,7 @@ def permissions(path, method):
         return ('canvas.read', 'canvas.edit', 'generation.submit', 'provider.use')
     if re.fullmatch(r'/api/canvases/[^/]+/generation-preview', path) and method == 'POST':
         return ('canvas.read', 'provider.use', 'generation.submit')
-    if re.fullmatch(r'/api/canvas-(?:image|video|llm|audio|model)-tasks(?:/[^/]+)?', path):
+    if re.fullmatch(r'/api/canvas-(?:image|video|llm|audio|model|mediakit)-tasks(?:/[^/]+)?', path):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:
         return ('canvas.read',) if method == 'GET' else ('canvas.create',) if method == 'POST' and path == '/api/canvases' else None
@@ -272,6 +272,12 @@ def public_provider_config():
         provider = {k: v for k, v in public_models(source).items() if k in keys}
         provider['billing_authority'] = 'server'
         provider['video_capabilities'] = {'native_roles': is_volcengine_provider(source) and not bool(urlparse(video_api_root(source)).path.rstrip('/'))}
+        if source.get('protocol') == 'mediakit':
+            provider['mediakit_tools'] = [model for model in provider.get('video_models', []) + provider.get('chat_models', [])
+                                          if model in {'enhance-video', 'erase-video-subtitle', 'video-understand-router'}]
+            # Processing tools belong to the video toolbar, not generation selectors.
+            provider['video_models'] = []
+            provider['chat_models'] = []
         providers.append(provider)
     return {'api_providers': providers, 'providers': providers,
             'chat_models': list(dict.fromkeys(m for p in providers for m in p.get('chat_models', []))),

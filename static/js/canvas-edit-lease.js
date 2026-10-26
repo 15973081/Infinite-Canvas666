@@ -283,7 +283,7 @@
                     const data = await response.clone().json().catch(() => ({}));
                     if (epoch !== this.epoch) throw new Error('页面编辑资格已改变，请保留当前草稿。');
                     if (!response.ok) {
-                        const taskSubmission = /^\/api\/canvas-(image|video|llm|audio|model)-tasks$/.test(new URL(path, 'http://canvas.local').pathname);
+                        const taskSubmission = /^\/api\/canvas-(image|video|llm|audio|model|mediakit)-tasks$/.test(new URL(path, 'http://canvas.local').pathname);
                         const rejectedModel = taskSubmission && response.status === 403 && ['model_not_available','model_resolution_not_allowed'].includes(data.detail?.code);
                         const changedDelivery = wholeCanvas && new URL(path,'http://canvas.local').pathname.endsWith('/delta')
                             && response.status===409 && data.detail?.code==='canvas_delta_delivery_changed';

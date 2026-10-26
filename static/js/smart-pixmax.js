@@ -52,14 +52,15 @@ function pixmaxConnectionMenuTypes(node,port){
 }
 function pixmaxCanConnect(from,to){return !!window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(from)]?.source.includes(pixmaxNativeNodeType(to));}
 
-const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','continuation','erase','upscale']);
+const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','continuation']);
 function pixmaxVideoToolbarActions(node){
     const editing=!isSmartCanvasLocked();
     const later=(key,label,icon)=>({key,label,icon,enabled:false,hint:label+' · 后续接入',deferred:true});
+    const mediaKit=(key,label,icon)=>({key,label,icon,enabled:editing&&!!window.CanvasSession?.enabled,hint:!editing?'请先开始编辑画布':!window.CanvasSession?.enabled?'请在成员画布中使用':window.PixmaxMediaKit?.available(key)?'使用火山 MediaKit '+label:'需配置火山 MediaKit API Key'});
     return [
         later('compliance','合规检测','shield-check'),{key:'annotation',label:'标记',icon:'pencil',enabled:editing,hint:editing?'标记视频画面':'请先开始编辑画布'},
         later('continuation','智能续写','history'),{key:'reshoot',label:'片段重拍',icon:'camera',enabled:editing&&!!window.PixmaxSegmentReshoot?.available(),hint:!editing?'请先开始编辑画布':window.PixmaxSegmentReshoot?.available()?'选择片段并使用 Seedance 2.5 视频编辑':'请在成员画布中配置 Seedance 2.5 视频编辑模型'},
-        {key:'parse',label:'解析',icon:'layout-grid',enabled:editing&&!!window.CanvasSession?.enabled&&pixmaxChatProviders().length>0,hint:editing&&window.CanvasSession?.enabled?'将视频解析为分镜脚本':'请在成员画布中开始编辑并配置可用文本模型'},later('erase','字幕擦除','captions'),later('upscale','超分','scan'),
+        {key:'parse',label:'解析',icon:'layout-grid',enabled:editing&&!!window.CanvasSession?.enabled&&pixmaxChatProviders().length>0,hint:editing&&window.CanvasSession?.enabled?'将视频解析为分镜脚本':'请在成员画布中开始编辑并配置可用文本模型'},mediaKit('understand','视频理解','brain'),mediaKit('erase','字幕擦除','captions'),mediaKit('upscale','超分','scan'),
         {key:'depth-video',label:'深度视频',icon:'layers',enabled:editing,hint:editing?'深度视频 · 本地提取':'请先开始编辑画布'},
         {key:'audio-separate',label:'音频分离',icon:'audio-lines',enabled:editing,hint:editing?'音频分离 · 提取静音视频和音轨':'请先开始编辑画布'},
         {key:'tags',label:'标签',icon:'tag',enabled:true,compact:true}, {key:'video-history',label:'生成历史',icon:'history',enabled:!!window.CanvasSession?.enabled,compact:true,hint:window.CanvasSession?.enabled?'查看生成素材历史':'请在成员画布中查看生成历史'},

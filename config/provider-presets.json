@@ -31,6 +31,19 @@
   ],
   "quickstart": [
     {
+      "id": "mediakit",
+      "description": "火山 MediaKit：视频超分、字幕擦除和视频理解。使用独立的 MediaKit API Key，保存后分配到协作空间。",
+      "config": {
+        "name": "火山 MediaKit",
+        "base_url": "https://mediakit.cn-beijing.volces.com",
+        "protocol": "mediakit",
+        "enabled": true,
+        "image_models": [],
+        "video_models": ["enhance-video", "erase-video-subtitle"],
+        "chat_models": ["video-understand-router"]
+      }
+    },
+    {
       "id": "apimart",
       "description": "沿用旧版 APIMART 的地址与异步协议，保存 Key 后可拉取模型。",
       "config": {

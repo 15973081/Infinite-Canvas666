@@ -200,7 +200,7 @@ def recover_expired(*, all_workspaces=False):
                         conn.execute("UPDATE tasks SET status='polling',error_message=NULL,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=%s", (row["id"],))
         # An upstream id is enough to resume polling. An uncertain paid submission
         # is never automatically sent again, including interrupted image calls.
-        conn.execute("UPDATE tasks SET status=CASE WHEN kind IN ('video','model') AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE id=ANY(%s) AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())", ([row['id'] for row in candidates],))
+        conn.execute("UPDATE tasks SET status=CASE WHEN (kind IN ('video','model') OR request->>'mediakit'='true') AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE id=ANY(%s) AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())", ([row['id'] for row in candidates],))
 
 
 def claim(owner, seconds=90, *, all_workspaces=False):

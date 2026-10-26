@@ -43,7 +43,7 @@
     if(row.builtin && !row.version)form.append(node('div','内置平台 · 已准备默认配置，填写 Key 后保存即可。','provider-guide'));
     const basic=section('基本信息','平台名称与连接配置'),grid=node('div',undefined,'provider-fields');basic.append(grid);
     field(grid,'name','平台名称',config.name||'',{required:true,placeholder:'例如：团队 API'});
-    const protocol=select(grid,'protocol','接口协议',[['openai','OpenAI 兼容'],['apimart','APIMART 异步协议'],['gemini','Gemini 原生协议'],['volcengine','火山引擎 · 方舟'],['minimax','MiniMax · 语音 / 音乐'],['hunyuan3d','腾讯混元 · 3D']],config.protocol||'openai');
+    const protocol=select(grid,'protocol','接口协议',[['openai','OpenAI 兼容'],['apimart','APIMART 异步协议'],['gemini','Gemini 原生协议'],['volcengine','火山引擎 · 方舟'],['mediakit','火山引擎 · MediaKit'],['minimax','MiniMax · 语音 / 音乐'],['hunyuan3d','腾讯混元 · 3D']],config.protocol||'openai');
     if(row.builtin) {protocol.disabled=true;const hidden=node('input');hidden.type='hidden';hidden.name='protocol';hidden.value=config.protocol;grid.append(hidden);}
     const base=field(basic,'base_url','请求地址',config.base_url||'',{type:'url',required:true,placeholder:'https://api.example.com/v1'});
     if(row.id)basic.append(node('small','平台 ID：'+row.id+' · 创建后保持不变','muted'));else field(basic,'id','平台 ID','api-'+crypto.randomUUID().slice(0,8),{required:true,hint:'已自动生成，也可自定义；之后改名不会改变 ID。'}).maxLength=40;

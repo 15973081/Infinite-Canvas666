@@ -59,14 +59,18 @@ async def _execute_scoped(row):
                 return
             from app.storage.image_receipts import recoverable
             image_recovery = row["kind"] == "online-image" and row["status"] in {"polling", "finalizing"} and recoverable(row)
-            if row["status"] in {"polling", "finalizing"} and not image_recovery and (row["kind"] not in {"video","model"} or not row["upstream_task_id"]):
+            mediakit = (row.get('request') or {}).get('mediakit') is True
+            if row["status"] in {"polling", "finalizing"} and not image_recovery and ((row["kind"] not in {"video","model"} and not mediakit) or not row["upstream_task_id"]):
                 current = tasks.get(task_id)
                 current.update(status="needs_review", error="缺少可恢复的上游任务信息，请人工核对；未重新提交生成")
                 tasks.save(current)
                 return
             from app.storage.task_requests import validate_execution
             request = await asyncio.to_thread(validate_execution, row)
-            if row["kind"] == "video":
+            if mediakit:
+                from app.services.canvas_mediakit_tasks import run_task
+                await run_task(task_id, request)
+            elif row["kind"] == "video":
                 payload = CanvasVideoRequest(**request)
                 if row["upstream_task_id"]:
                     await resume_canvas_video_task(task_id, payload)

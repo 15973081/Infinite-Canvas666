@@ -21,9 +21,10 @@ test('video toolbar is selected-only, uses native actions, remains readable on z
  assert.equal(await toolbar.getByRole('button',{name:'音频分离',exact:true}).isEnabled(),true);
  assert.equal(await toolbar.getByRole('button',{name:'标签',exact:true}).isEnabled(),true);
  assert.equal(await toolbar.getByRole('button',{name:'标记',exact:true}).isEnabled(),true);
- for(const name of ['合规检测','智能续写','字幕擦除','超分']){
+ for(const name of ['合规检测','智能续写']){
   const button=toolbar.getByRole('button',{name,exact:true});assert.equal(await button.isDisabled(),true);assert.match(await button.getAttribute('title'),/后续接入/);
  }
+ for(const name of ['字幕擦除','超分','视频理解']){const button=toolbar.getByRole('button',{name,exact:true});assert.equal(await button.isDisabled(),true);assert.match(await button.getAttribute('title'),/成员画布/);}
  assert.equal(await toolbar.getByRole('button',{name:'片段重拍',exact:true}).isDisabled(),true);assert.match(await toolbar.getByRole('button',{name:'片段重拍',exact:true}).getAttribute('title'),/Seedance 2.5/);
  assert.equal(await toolbar.getByRole('button',{name:'生成历史',exact:true}).isDisabled(),true);assert.match(await toolbar.getByRole('button',{name:'生成历史',exact:true}).getAttribute('title'),/成员画布/);
  assert.equal(await toolbar.getByRole('button',{name:'解析',exact:true}).isDisabled(),true);assert.match(await toolbar.getByRole('button',{name:'解析',exact:true}).getAttribute('title'),/成员画布/);

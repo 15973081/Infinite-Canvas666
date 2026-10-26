@@ -702,7 +702,7 @@
                 const entry=active;
                 return entry.lease.remove(async()=>entry===active&&validEntry(entry)&&await entry.options.flush(),transport);
             }
-            if(url.origin===location.origin && /^\/api\/canvas-(image|video|llm|audio|model)-tasks$/.test(url.pathname) && init.method?.toUpperCase()==='POST') {
+            if(url.origin===location.origin && /^\/api\/canvas-(image|video|llm|audio|model|mediakit)-tasks$/.test(url.pathname) && init.method?.toUpperCase()==='POST') {
                 const id=JSON.parse(init.body || '{}').canvas_id;
                 if(id) {
                     if(!active || id!==active.id) return Promise.reject(new Error('生成任务与当前编辑画布不一致。'));

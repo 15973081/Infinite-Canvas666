@@ -240,6 +240,33 @@ class CanvasLLMTaskRequest(BaseModel):
         return self
 
 
+class CanvasMediaKitTaskRequest(BaseModel):
+    model_config = {'extra': 'forbid'}
+    mediakit: Literal[True] = True
+    canvas_id: str = Field(min_length=1, max_length=96)
+    client_task_id: str = Field(pattern=r'^canvas_mediakit_[A-Za-z0-9_-]{8,64}$')
+    canvas_target: CanvasTaskTarget
+    provider_id: str = Field(min_length=1, max_length=96)
+    model: Literal['enhance-video', 'erase-video-subtitle', 'video-understand-router']
+    videos: List[str] = Field(min_length=1, max_length=1)
+    prompt: str = Field(default='', max_length=10000)
+    resolution: Literal['', '720p', '1080p', '2k', '4k', '8k'] = ''
+    tool_version: Literal['standard', 'professional'] = 'standard'
+    level: Literal['Economy', 'Balanced', 'Quality'] = 'Economy'
+
+    @model_validator(mode='after')
+    def validate_tool_inputs(self):
+        if not self.videos[0].strip() or len(self.videos[0]) > 4096:
+            raise ValueError('请选择一个已保存的视频')
+        if self.model == 'video-understand-router' and not self.prompt.strip():
+            raise ValueError('请填写视频理解要求')
+        if self.model != 'enhance-video' and (self.resolution or self.tool_version != 'standard'):
+            raise ValueError('当前工具不支持超分参数')
+        if self.model != 'video-understand-router' and self.level != 'Economy':
+            raise ValueError('当前工具不支持理解档位')
+        return self
+
+
 class CanvasModelTaskRequest(BaseModel):
     model_config = {'extra': 'forbid'}
     canvas_id: str = Field(min_length=1, max_length=96)
@@ -658,7 +685,7 @@ __all__ = [
     "OnlineImageRequest", "ImageTaskQueryRequest",
     "CanvasVideoRequest", "SmartCanvasVideoTrimRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "ApiProviderPayload",
-    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasAudioVoiceRegistration", "CanvasAudioVoiceDelete", "CanvasModelTaskRequest",
+    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasAudioVoiceRegistration", "CanvasAudioVoiceDelete", "CanvasModelTaskRequest", "CanvasMediaKitTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
     "CanvasFolderUpdateRequest", "CanvasDirectoryPlacement", "CanvasFolderTreeProof", "CanvasFolderTreeDelete", "CanvasMoveRequest",

@@ -2163,6 +2163,7 @@ function runSmartNodeToolbarAction(nodeId, action){
     const kind = mediaKindForItem(item);
     if(action==='tags')return window.PixmaxTags.openPicker([nodeId],world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="tags"]`));
     if(PIXMAX_VIDEO_DEFERRED.has(action))return;
+    if(['understand','erase','upscale'].includes(action)&&kind==='video')return window.PixmaxMediaKit?.open(nodeId,index,action);
     if(action==='video-history'||action==='image-history')return window.PixmaxGenerationHistory?.openNode(node,world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="${action}"]`));
     if(['auth','asset','depth-video','audio-separate','annotation','parse','reshoot'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
     smartSelection.toolbarImage(nodeId, index);

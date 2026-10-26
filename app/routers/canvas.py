@@ -951,6 +951,18 @@ def create_canvas_model_task(payload: CanvasModelTaskRequest):
     return create(payload)
 
 
+@router.post('/api/canvas-mediakit-tasks')
+def create_canvas_mediakit_task(payload: CanvasMediaKitTaskRequest):
+    from app.services.canvas_mediakit_tasks import create
+    return create(payload)
+
+
+@router.get('/api/canvas-mediakit-tasks/{task_id}')
+def get_canvas_mediakit_task(task_id: str):
+    from app.services.canvas_mediakit_tasks import get
+    return get(task_id)
+
+
 @router.get('/api/canvas-model-tasks/{task_id}')
 def get_canvas_model_task(task_id: str):
     from app.services.canvas_model_tasks import get
