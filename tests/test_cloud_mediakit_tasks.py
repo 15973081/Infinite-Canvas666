@@ -37,14 +37,18 @@ def prepare(world, platform, model):
     path, canvas = setup_canvas(world, 'smart')
     lease = acquire(world, path)
     node = {'id': 'source', 'x': 0, 'y': 0, 'w': 320, 'images': [{'url': url, 'kind': 'video', 'name': 'input.mp4'}]}
+    task_id = 'canvas_mediakit_' + uuid.uuid4().hex
     target = {'id': 'target', 'x': 400, 'y': 0, 'w': 320, 'images': [], 'outputKind': 'video'}
+    if model == 'video-understand-router':
+        target.update(type='smart-prompt', text='', x=380, y=0, mediakitTaskId=task_id, pendingTasks=[{'taskId': task_id, 'kind': 'mediakit'}])
     saved = world['editor'].put(path, headers=proof(world, lease), json={
-        'nodes': [node, target], 'connections': [{'from': 'source', 'to': 'target'}], 'base_revision': canvas['revision']})
+        'nodes': [node, target, {'id': 'unrelated-far-away', 'x': 12000, 'y': 0, 'images': []}],
+        'connections': [{'from': 'source', 'to': 'target'}], 'base_revision': canvas['revision']})
     assert saved.status_code == 200, saved.text
     canvas = saved.json()['canvas']
-    body = {'mediakit': True, 'canvas_id': canvas['id'], 'client_task_id': 'canvas_mediakit_' + uuid.uuid4().hex,
+    body = {'mediakit': True, 'canvas_id': canvas['id'], 'client_task_id': task_id,
             'provider_id': pid, 'model': model, 'videos': [url],
-            'canvas_target': {'source_node_id': 'source', 'target_node_id': 'source' if model == 'video-understand-router' else 'target',
+            'canvas_target': {'source_node_id': 'source', 'target_node_id': 'target',
                               'base_revision': canvas['revision']}}
     if model == 'video-understand-router':
         body.update(prompt='描述视频中的动作', level='Balanced')
@@ -148,6 +152,20 @@ def test_mediakit_contract_owned_results_and_polling_recovery(world, platform, m
     document = world['viewer'].get(path, headers=headers(world['a'])).json()['canvas']
     assert next(node for node in document['nodes'] if node['id'] == 'source')['images'][0]['url'] == body['videos'][0]
     assert ('视频中人物沿街行走。' if model == 'video-understand-router' else task['result']['videos'][0]) in str(document)
+    if model == 'video-understand-router':
+        output = next(node for node in document['nodes'] if node.get('result_task_id') == task['id'])
+        assert output['id'] == 'target' and output['x'] == 380 and output['y'] == 0
+        assert not output['pendingTasks']
+        assert {'from': 'source', 'to': 'target'} in document['connections']
+        second = {**body, 'client_task_id': 'canvas_mediakit_' + uuid.uuid4().hex}
+        assert submit(world, lease, second).status_code == 200
+        with Supplier(model).context():
+            assert execute(world, second['client_task_id'])['status'] == 'succeeded'
+        updated = world['viewer'].get(path, headers=headers(world['a'])).json()['canvas']
+        next_output = next(node for node in updated['nodes'] if node.get('result_task_id') == second['client_task_id'])
+        assert next_output['id'] != 'target'  # Never overwrite an occupied or different-task text node.
+        assert next_output['x'] == 380 and next_output['y'] == 0
+        assert next(node for node in updated['nodes'] if node['id'] == 'target')['result_task_id'] == task['id']
     assert KEY not in str(task) and 'upload-only' not in str(task)
 
 

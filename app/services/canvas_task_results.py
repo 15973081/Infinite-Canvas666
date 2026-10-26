@@ -15,6 +15,16 @@ from app.storage.workspace import current_workspace
 PERMISSIONS = ('canvas.read', 'task.read', 'asset.read')
 
 
+def place_beside_source(node, source, nodes):
+    """Legacy fallback: keep results beside the source, like depth-video nodes."""
+    def number(value, fallback):
+        return float(value) if type(value) in {int, float} and math.isfinite(value) else fallback
+
+    x = number(source.get('x'), 0) + max(48, number(source.get('w', source.get('width')), 320)) + 60
+    node.update(x=x, y=number(source.get('y'), 0), w=400, h=280,
+                title='视频理解结果', label='视频理解结果')
+
+
 def apply_delivery(document, delivery):
     """Append trusted server output only; never replace prompts or reference media."""
     task_id, result_node = delivery['task_id'], delivery['node']
@@ -23,7 +33,12 @@ def apply_delivery(document, delivery):
     if not delivery_present(document, delivery):
         target = next((n for n in nodes if n.get('id') == delivery.get('target_id') and
                        n.get('type') in {'output', 'smart-image', 'smart-audio', 'smart-model'}), None)
-        if target is not None and result_node.get('images'):
+        text_target = next((n for n in nodes if n.get('id') == delivery.get('target_id')
+                            and n.get('type') in {'prompt', 'smart-prompt'}
+                            and n.get('mediakitTaskId') == task_id and not (n.get('text') or '').strip()), None)
+        if result_node.get('mediakitTaskId') == task_id and not result_node.get('images') and text_target is not None:
+            text_target.update(text=result_node['text'], result_task_id=task_id)
+        elif target is not None and result_node.get('images'):
             existing = {media.id_from_ref(item) for node in nodes for item in (node.get('images') or [])}
             target['images'] = [*(target.get('images') or []),
                                 *(copy.deepcopy(item) for item in items if item['media_asset_id'] not in existing)]
@@ -110,6 +125,11 @@ def deliver_completed(conn, task_id, *, only_pending=False):
     if task['kind'] == 'llm':
         node.update(type='smart-prompt' if canvas['kind'] == 'smart' else 'prompt', text=items[0]['text'])
         node.pop('images')
+        if request.get('mediakit') is True and task.get('model') == 'video-understand-router':
+            source = next((item for item in nodes if item.get('id') == binding.get('source_node_id')), None)
+            node['mediakitTaskId'] = task_id
+            if source:
+                place_beside_source(node, source, nodes)
     if task['kind'] == 'model' and canvas['kind'] == 'smart':
         node.update(type='smart-model', pixmaxSourceType='BASE_3D')
     registry['version'] += 1

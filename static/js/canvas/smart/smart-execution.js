@@ -129,6 +129,7 @@ function stripOutpaintDisplaySettings(settingsObj, node=null){
 }
 
 function smartGenerationKind(node){
+    if(isSmartVideoAssetNode(node))return '';
     return isSmartImageNode(node) && ['image','video'].includes(node.generationKind) ? node.generationKind : '';
 }
 
@@ -1802,6 +1803,7 @@ function smartTaskUiGuard(){
 }
 
 async function runGeneration(){
+    if(isSmartVideoAssetNode(selectedNode()))return toast('请使用视频生成节点进行生成');
     if(['comfy', 'modelscope'].includes(settings.engine)) { toast("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。"); return; }
     if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const node = selectedNode();

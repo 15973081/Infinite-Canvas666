@@ -42,8 +42,9 @@ function pixmaxNativeNodeType(node){
     if(node?.pixmaxSourceType==='BASE_3D')return 'Base3D';
     const native={'smart-prompt':'GenerateText','smart-director':'StageEditor','smart-editor':'VideoEditor','smart-storyboard':'StoryboardScript','smart-audio':'GenerateAudio','smart-model':'Generate3D'}[node?.type];
     if(native)return native;
-    const kind=node?.generationKind||mediaKindForItem(node?.images?.[0]||{});
-    return (node?.generationKind?'Generate':'Base')+({video:'Video',audio:'Audio',model:'3D'}[kind]||'Image');
+    const generation=smartGenerationKind(node);
+    const kind=generation||node?.outputKind||mediaKindForItem(node?.images?.[0]||{});
+    return (generation?'Generate':'Base')+({video:'Video',audio:'Audio',model:'3D'}[kind]||'Image');
 }
 function pixmaxConnectionMenuTypes(node,port){
     const kinds=window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(node)]?.[port==='out'?'source':'target']||[];

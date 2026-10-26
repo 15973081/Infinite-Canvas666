@@ -4,6 +4,21 @@ const assert=require('node:assert/strict');
 const {capture,pending:pendingError}=require('../static/js/canvas-task-results.js');
 const {mergeDeliveries}=require('../static/js/canvas-task-results.js');
 
+test('MediaKit fills its linked text placeholder in place and preserves moved or edited nodes',()=>{
+ const delivery={task_id:'mk',version:1,target_id:'placeholder',node:{id:'fallback',type:'smart-prompt',text:'分析结果',mediakitTaskId:'mk',result_task_id:'mk'}};
+ for(const scenario of ['empty','edited','deleted','different-task']){
+  const target={id:'placeholder',type:'smart-prompt',x:42,y:63,text:scenario==='edited'?'用户文字':'',mediakitTaskId:scenario==='different-task'?'other':'mk',pendingTasks:[{taskId:'mk',kind:'mediakit'}]};
+  const document={id:'c',nodes:scenario==='deleted'?[]:[target]};
+  const response={canvas_id:'c',result_version:1,deliveries:[delivery]};
+  mergeDeliveries(document,response);
+  if(scenario==='empty'){
+   assert.equal(document.nodes.length,1);assert.equal(target.text,'分析结果');assert.equal(target.result_task_id,'mk');
+   assert.equal(target.x,42);assert.equal(target.y,63);
+  }else{assert.equal(document.nodes.at(-1).id,'fallback');assert.equal(target.text,scenario==='edited'?'用户文字':'');}
+  assert.deepEqual(mergeDeliveries(document,response),[],'replayed deliveries cannot duplicate the text');
+ }
+});
+
 for(const type of ['output','smart-image','smart-audio','smart-model'])test(type+' server delivery preserves drafts, siblings and deleted targets without duplicates',()=>{
  const make=(id,version)=>({task_id:id,version,target_id:'out',node:{id:'result_'+id,type,images:[{media_asset_id:'ast_'+id,url:'/api/media/ast_'+id+'/original'}],result_task_id:id}});
  const document={id:'c',nodes:[{id:'out',type,promptDraftText:'unsaved prompt',images:[],_pending:[{canvasTaskId:'a'},{canvasTaskId:'b'}],pendingTasks:[{taskId:'a'},{taskId:'b'}]}]};

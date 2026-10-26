@@ -142,7 +142,10 @@
                     target.images=[...(target.images || []),...clone(missing)];affected.add(target.id);
                 }
             }else if(!nodes.some(node=>node.result_task_id===taskId && node.text===result.text)){
-                append(result);
+                const target=result.mediakitTaskId===taskId&&nodes.find(node=>node.id===delivery.target_id&&
+                    ['prompt','smart-prompt'].includes(node.type)&&node.mediakitTaskId===taskId&&!node.text?.trim());
+                if(target){target.text=result.text;target.result_task_id=taskId;affected.add(target.id);}
+                else append(result);
             }
             clearPending(nodes,[taskId]).forEach(id=>affected.add(id));
         }

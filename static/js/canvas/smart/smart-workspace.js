@@ -135,6 +135,15 @@ function isSmartImageNode(node){
     return Boolean(node && (node.type === 'smart-image' || !node.type));
 }
 
+function isSmartVideoAssetNode(node){
+    if(!isSmartImageNode(node)||node.mediaRole==='generator')return false;
+    if(node.outputKind==='video')return true;
+    const media=node.images||[];
+    if(!media.length||!media.every(item=>mediaKindForItem(item)==='video'))return false;
+    // Legacy documents used generationKind for uploaded clips as well.
+    return node.mediaRole==='asset'||!(node.nativePrompt?.prompt?.trim()||node.promptDraftText?.trim());
+}
+
 function isHistoryGroupNode(node){
     return Boolean(isSmartImageNode(node) && (node.isHistoryGroup || node.historyFor));
 }
@@ -495,8 +504,9 @@ function imageLayout(images, scale=1, node=null){
         const explicitW = Number(node?.w);
         const explicitH = Number(node?.h);
         const generationKind = smartGenerationKind(node);
-        const fallbackW = generationKind==='video'?300:generationKind ? MEDIA_NODE_DEFAULT_SIZE : EMPTY_UPLOAD_NODE_WIDTH;
-        const fallbackH = generationKind === 'image' ? MEDIA_NODE_DEFAULT_SIZE : generationKind === 'video' ? MEDIA_NODE_VIDEO_HEIGHT : EMPTY_UPLOAD_NODE_HEIGHT;
+        const video= generationKind==='video'||isSmartVideoAssetNode(node);
+        const fallbackW = video?300:generationKind ? MEDIA_NODE_DEFAULT_SIZE : EMPTY_UPLOAD_NODE_WIDTH;
+        const fallbackH = video?MEDIA_NODE_VIDEO_HEIGHT:generationKind === 'image' ? MEDIA_NODE_DEFAULT_SIZE : EMPTY_UPLOAD_NODE_HEIGHT;
         return {
             cols:1,
             rows:1,
@@ -645,7 +655,7 @@ function renderSmartNodeHtml(node){
     const faceVerified = isImageNode && imgs.length > 0 && imgs.every(img => smartFaceAuthState(img).ready);
     const faceVerifying = isImageNode && !faceVerified && imgs.some(img => ['Queued','Uploading','Processing'].includes(smartFaceAuthState(img).status));
     const isPending = ((pendingCount || isQueued) && imgs.length === 0);
-    const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : '';
+    const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : isSmartVideoAssetNode(node)?'video':'';
     const body = nodeBodyHtml(node, layout);
     return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         ${!isPrompt ? pixmaxNodeCaption(node,singleMediaKind==='audio'?'audio':generationKind==='video'||singleMediaKind==='video'?'video':'image',node.localDepth?'视频生成节点-深度':generationKind?generationTitle:singleMediaKind==='video'?'视频节点':singleMediaKind==='audio'?'音频节点':'图像节点') : ''}
@@ -2059,6 +2069,7 @@ function restoreMediaPlaybackStates(states){
 }
 
 function promptNodeBodyHtml(node){
+    const mediaTask=window.PixmaxMediaKit?.body(node);if(mediaTask)return mediaTask;
     const task=window.PixmaxTextGeneration?.body(node);if(task)return task;
     return `<div class="prompt-node-card">
         <div class="pixmax-text-view ${node.text?.trim()?'':'empty'}" role="presentation">${escapeHtml(node.text || '双击开始输入...')}</div>
@@ -2116,6 +2127,7 @@ function smartNodeMediaBodyHtml(node, layout){
         ${pixmaxSvg(generationKind==='video'?'video-fill':'image-fill')}
         <span>点击输入提示词</span>
     </button><button class="media-node-upload" type="button" data-node-upload aria-label="上传${generationKind === 'video' ? '视频' : '图片'}" title="上传${generationKind === 'video' ? '视频' : '图片'}，也可直接拖入"><i data-lucide="upload" aria-hidden="true"></i></button>`;
+    if(isSmartVideoAssetNode(node))return `<button class="node-drop" type="button" data-node-upload aria-label="上传视频">${pixmaxSvg('video-fill')}</button>`;
     return `<button class="node-drop" type="button" data-upload-action="files" aria-label="上传图片、视频或音频">${pixmaxSvg('image-fill')}</button>`;
 }
 
@@ -4202,7 +4214,7 @@ function createSmartComposer(){
         if(!lastComposerNodeId || canvas?.id!==targetCanvasId) return null;
         const id = String(lastComposerNodeId).split(':')[0] || '';
         const node = nodes.find(n => n.id === id);
-        return isSmartImageNode(node) && (!activeComposerSubject || activeComposerSubject===node) ? node : null;
+        return isSmartImageNode(node) && !isSmartVideoAssetNode(node) && (!activeComposerSubject || activeComposerSubject===node) ? node : null;
     }
 
     function persistActiveSmartSettings(){
@@ -4371,7 +4383,7 @@ function createSmartComposer(){
 
     function updateComposer(){
         const node = selectedNode();
-        if(node?.localDepth){close();return;}
+        if(node?.localDepth||isSmartVideoAssetNode(node)){close();return;}
         if(lastComposerNodeId && (canvas?.id!==targetCanvasId || (activeComposerSubject && !nodes.includes(activeComposerSubject))))documentReplaced();
         if(smartCascadeSilentSelection && !activeComposerSubject){
             composer.classList.remove('open');

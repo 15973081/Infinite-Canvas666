@@ -32,7 +32,7 @@ async function host(t,{priced=false}={}){
     await f.page.evaluate(()=>{apiProviders=[{id:'p',name:'原生表单',has_key:true,enabled:true,image_models:['gpt-image-2']}];Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});window.formHost=createGenerationNodeAt({x:400,y:100},'image');Object.assign(formHost.runSettings,{engine:'api',apiKind:'image',provider_id:'p',model:'gpt-image-2'});render();});await f.page.locator('.pixmax-native-generation-form [role=textbox]').waitFor();return {...f,quotes};
 }
 
-for(const generator of [false,true])test(`standalone ${generator?'generation':'media'} video uses native mode tabs and reference cards instead of the legacy composer`,async t=>{
+for(const generator of [false,true])test(`standalone ${generator?'generation video keeps native controls':'media video hides generation controls'}`,async t=>{
     const {page,errors,writes}=await fixture(t,'smart',false,{secureOrigin:true});
     await page.evaluate(generator=>{
         apiProviders=[{id:'p',name:'视频平台',enabled:true,has_key:true,protocol:'volcengine',video_models:['doubao-seedance-2-5-pro']}];
@@ -42,6 +42,12 @@ for(const generator of [false,true])test(`standalone ${generator?'generation':'m
         const source={id:'video-reference',type:'smart-image',x:40,y:80,images:[{url:'/output/reference.mp4',poster:'/test-image.svg',kind:'video',name:'参考视频',duration:8}]};
         nodes.push(source);canvas.connections.push({from:source.id,to:videoFormNode.id,kind:'input'});render();
     },generator);
+    if(!generator){
+        assert.equal(await page.evaluate(()=>composer.classList.contains('open')),false);
+        assert.equal(await page.evaluate(()=>activeComposerNode()),null);
+        assert.equal(await page.evaluate(()=>pixmaxNativeNodeType(videoFormNode)),'BaseVideo');
+        assert.deepEqual(errors,[]);return;
+    }
     const modes=page.getByRole('tablist',{name:'视频生成模式'});
     await modes.waitFor({timeout:2500}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(await page.evaluate(()=>({selected:smartSelection.nodeId,config:videoFormNode.runSettings,resolved:smartSettingsForNode(videoFormNode),composer:composer.className,notices:document.getElementById('toast').textContent})))+'; '+JSON.stringify(errors));});assert.equal(await page.locator('#composer > .composer-card').isVisible(),false);
     assert.equal(await modes.getByRole('tab',{name:'文生视频',exact:true}).isDisabled(),true);

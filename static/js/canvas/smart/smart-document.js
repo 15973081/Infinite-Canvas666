@@ -359,7 +359,7 @@ function normalizeLegacySmartNode(node){
     if(node.type === 'smart-image') delete node.imageMode;
     if(node.type === 'smart-image' && node.historyFor) node.isHistoryGroup = true;
     // Retain legacy IDs, prompts and connections; empty upload slots become image nodes.
-    if(node.type === 'smart-image' && !node.generationKind && !(node.images || []).length && !node.isHistoryGroup && !node.localDepth && !node.running && !node.pending && !(node.pendingTasks || []).length){
+    if(node.type === 'smart-image' && !node.generationKind && node.outputKind!=='video' && !(node.images || []).length && !node.isHistoryGroup && !node.localDepth && !node.running && !node.pending && !(node.pendingTasks || []).length){
         node.generationKind = node.runSettings?.apiKind === 'video' ? 'video' : 'image';
         if(Number(node.w) === 208 && Number(node.h) === 128){delete node.w;delete node.h;}
     }
@@ -367,6 +367,7 @@ function normalizeLegacySmartNode(node){
 }
 
 function newSmartMediaKind(images=[], options={}){
+    if(options.mediaKind==='video')return '';
     if(['image','video'].includes(options.generationKind)) return options.generationKind;
     if(!images.length) return 'image';
     const kinds = new Set(images.map(mediaKindForItem));
@@ -652,6 +653,9 @@ function createNode(x, y, images=[], options={}){
     if(!options.skipUndo) pushUndo();
     const nodeImages = (images || []).map(img => ({...img}));
     const node = {id:options.id||uid('smart'), type:'smart-image', x, y, title:nodeImages.length > 1 ? 'Group' : nodeImages.length ? 'Image' : '上传节点', images:nodeImages, created_at:Date.now()};
+    if(options.generationKind)node.mediaRole='generator';
+    else if(options.mediaKind==='video'||nodeImages.length&&nodeImages.every(item=>mediaKindForItem(item)==='video'))node.mediaRole='asset';
+    if(options.mediaKind==='video'){node.outputKind='video';node.title='视频节点';}
     const generationKind = newSmartMediaKind(nodeImages, options);
     if(nodeImages.length===1&&nodeImages[0].name)node.label=nodeImages[0].name.replace(/\.[^.]+$/,'');
     else if(!nodeImages.length&&generationKind)node.label=pixmaxUniqueNodeLabel(generationKind==='video'?'视频生成节点':'图像生成节点');
