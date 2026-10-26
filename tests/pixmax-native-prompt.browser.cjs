@@ -57,7 +57,7 @@ for(const kind of ['image','video'])test('native '+kind+' form repairs a stale m
         render();
     },kind);
     const modelButton=page.getByRole('button',{name:'生成模型',exact:true});await modelButton.waitFor();
-    assert.match(await modelButton.innerText(),/可用供应商/);
+    assert.match(await page.getByRole('button',{name:'生成厂商',exact:true}).innerText(),/可用供应商/);
     assert.equal(await page.evaluate(kind=>repairNode.runSettings[kind==='video'?'videoProvider':'provider_id'],kind),'ready');
     assert.equal(await page.getByText(/此模型当前不可用/).count(),0);
     await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('保留这段提示词');

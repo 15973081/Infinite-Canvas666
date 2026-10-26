@@ -2002,7 +2002,11 @@ body.smart-node-drag .node-port {
 [data-native-generation-options]{min-width:0;max-width:100%;height:auto;flex-wrap:wrap}
 [data-native-generation-options]>span{max-width:100%}
 [data-native-generation-options] button{max-width:100%}
-@media (min-width:768px){.pixmax-native-prompt button[aria-label="生成模型"]{min-width:320px;max-width:100%}}
+.pixmax-native-prompt button[aria-label="生成厂商"]{min-width:110px;max-width:180px}
+.pixmax-native-prompt button[aria-label="生成模型"]{min-width:180px;max-width:min(320px,100%)}
+.pixmax-native-form-model-options{min-width:min(340px,calc(100vw - 32px));max-width:calc(100vw - 32px)}
+.pixmax-native-form-model-options [data-select-option]{white-space:normal;overflow-wrap:anywhere}
+.pixmax-native-form-model-options [data-select-option] .truncate{white-space:normal;overflow:visible;text-overflow:clip}
 
 
 

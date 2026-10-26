@@ -5,9 +5,6 @@
         const definitions=await PixmaxGenerationParameters.definitions();if(!valid())return;
         const target=document.createElement('div');target.className='pixmax-native-generation-form pixmax-native-prompt';composer.append(target);onRoot(target,true);
         let closed=false,handle,signature,quoteStamp,quoteTimer,quoteVersion=0,generateLabel='生成',surface;
-        const choose=document.createElement('button');choose.type='button';choose.textContent='搜索 / 切换模型';composer.insertBefore(choose,target);onRoot(choose,true);
-        choose.onclick=()=>{if(!allowed())return;const config=PixmaxGenerationParameters.configuration(node),kind=config.apiKind;
-            const picker=CanvasCore.openModelPicker({providers:()=>apiProviders,kind,value:{provider_id:kind==='video'?config.videoProvider:config.provider_id,model:kind==='video'?config.videoModel:config.model},valid:allowed,onSelect:value=>{const form=PixmaxGenerationParameters.formData(node,definitions).value;changed({...form,model:JSON.stringify([value.provider_id,value.model])});}});onRoot(picker,true);picker.addEventListener('close',()=>onRoot(picker,false),{once:true});};
         const current=()=>!closed&&target.isConnected&&valid(),allowed=()=>current()&&editable();
         const plan=()=>PixmaxReshootReferences.plan(node);
         function graphData(currentPlan,values){
@@ -16,6 +13,10 @@
         }
         function data(){
             const base=PixmaxGenerationParameters.formData(node,definitions),refs=plan();base.value.prompt=raw();
+            const [providerValue]=JSON.parse(base.value.model),available=base.modelOptions.filter(option=>!option.disabled);
+            const providerOptions=apiProviders.filter(provider=>available.some(option=>JSON.parse(option.value)[0]===provider.id)).map(provider=>({value:provider.id,label:provider.name||provider.id}));
+            base.providerValue=providerValue;base.providerOptions=providerOptions;
+            base.modelOptions=available.filter(option=>JSON.parse(option.value)[0]===providerValue).map(option=>({...option,label:JSON.parse(option.value)[1],text:JSON.parse(option.value)[1]}));
             let message;try{PixmaxGenerationParameters.validate(node);PixmaxReshootReferences.validate(node,refs);}catch(error){message=error.message;}
             const issues=PixmaxGenerationParameters.inputIssues(node,undefined,refs),summary=[...(message?[{errMsg:message,support:''}]:[]),...issues];
             const sourceDetails=Object.create(null);for(const issue of issues)for(const id of issue.sourceIds)(sourceDetails[id]||=[]).push(issue);
@@ -38,6 +39,15 @@
             const config=PixmaxGenerationParameters.applyForm(node,value);
             pushUndo();node.runSettings=settingsForStorage(config);settings={...settings,...config};
             persistActiveSmartSettings();scheduleSave();
+        }
+        function selectProvider(providerId){
+            if(!allowed())return;
+            const base=PixmaxGenerationParameters.formData(node,definitions),[,model]=JSON.parse(base.value.model);
+            const options=base.modelOptions.filter(option=>!option.disabled&&JSON.parse(option.value)[0]===providerId);
+            const option=options.find(option=>JSON.parse(option.value)[1]===model)||options.find(option=>option.subtitle.startsWith('空间默认'))||options[0];
+            if(!option)return;
+            const schema=base.schema.find(item=>item.modelCode===option.value);
+            changed({...base.value,...Object.fromEntries(schema.filedConfig.map(field=>[field.name,field.default])),model:option.value,prompt:raw()});
         }
         async function quote(key){
             const version=quoteVersion;
@@ -82,12 +92,12 @@
         const key=window.CanvasSession?.storageKey?.('pixmax-camera-preferences-v1')||'pixmax-camera-preferences-v1';
         try{
             repairModelSelection();
-            handle=await api.mountGenerationForm(target,{data:data(),nodeId:node.id,formVariant:smartSettingsForNode(node).apiKind==='video'?'video-gen':'default',showCameraParamsEntry:smartSettingsForNode(node).apiKind==='image',showCamerawork:false,viewport,disabled:!editable(),fieldLabelOverrides:{watermark:'水印',enhancePrompt:'提示词增强',enableUpsample:'超分辨率',cameraFixed:'固定镜头',quality:'画质',duration:'时长',customWidth:'宽度',customHeight:'高度',customRatioWidth:'比例宽',customRatioHeight:'比例高'},canPreview:source=>!String(source.data.url||'').startsWith('asset://'),subjectApi:PixmaxSubjects.adapter(node,current),subjectMediaUrl:url=>displayMediaUrl({url}),atMentionPicker:{getModel:mentionModel,connect:id=>allowed()&&PixmaxReshootReferences.connect(node,id)},enabledProtocols:['at-mention','hash-rich','subject-reference'],graphActions,onChange:changed,onSubmit:async()=>{if(allowed())await runGeneration();},onNotice:toast,onOpenAssets:assets,onOpenSubjects:subjects,
+            handle=await api.mountGenerationForm(target,{data:data(),nodeId:node.id,formVariant:smartSettingsForNode(node).apiKind==='video'?'video-gen':'default',showCameraParamsEntry:smartSettingsForNode(node).apiKind==='image',showCamerawork:false,viewport,disabled:!editable(),fieldLabelOverrides:{watermark:'水印',enhancePrompt:'提示词增强',enableUpsample:'超分辨率',cameraFixed:'固定镜头',quality:'画质',duration:'时长',customWidth:'宽度',customHeight:'高度',customRatioWidth:'比例宽',customRatioHeight:'比例高'},canPreview:source=>!String(source.data.url||'').startsWith('asset://'),subjectApi:PixmaxSubjects.adapter(node,current),subjectMediaUrl:url=>displayMediaUrl({url}),atMentionPicker:{getModel:mentionModel,connect:id=>allowed()&&PixmaxReshootReferences.connect(node,id)},enabledProtocols:['at-mention','hash-rich','subject-reference'],graphActions,onProviderChange:selectProvider,onChange:changed,onSubmit:async()=>{if(allowed())await runGeneration();},onNotice:toast,onOpenAssets:assets,onOpenSubjects:subjects,
                 readCameraPreferences:()=>{try{const value=JSON.parse(localStorage.getItem(key)||'null'),indices=value?.indices;if(!indices||Object.entries(PixmaxPromptCatalog).some(([name,items])=>!Number.isInteger(indices[name])||indices[name]<0||indices[name]>=items.length))return null;return {indices};}catch{return null;}},writeCameraPreferences:indices=>{if(allowed())localStorage.setItem(key,JSON.stringify({indices}));},
                 onFormRoot:(root,fullscreen)=>{surface=root;queueMicrotask(()=>{if(!current()||!root.isConnected)return;if(fullscreen){root.parentElement.classList.add('pixmax-native-generation-fullscreen');onRoot(root.parentElement,true);}positionComposerForNode(node);})}});
             if(!current()){destroy();return;}composer.classList.add('pixmax-native-form-active');refresh();positionComposerForNode(node);return {refresh,destroy,flush:()=>{if(allowed()){const value=handle.instance.getSerializedPrompt();if(typeof value==='string'&&value!==raw())project(value);}},updateViewport:()=>{if(current())handle.setViewport(viewport);},surface:()=>surface};
         }catch(error){destroy();throw error;}
-        function destroy(){if(closed)return;closed=true;quoteVersion++;clearTimeout(quoteTimer);handle?.destroy();target.remove();choose.remove();onRoot(choose,false);onRoot(target,false);composer.classList.remove('pixmax-native-form-active');}
+        function destroy(){if(closed)return;closed=true;quoteVersion++;clearTimeout(quoteTimer);handle?.destroy();target.remove();onRoot(target,false);composer.classList.remove('pixmax-native-form-active');}
     }
     window.PixmaxGenerationForm=Object.freeze({mount});
 })();

@@ -1,5 +1,32 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {fixture}=require('./helpers/canvas-browser.cjs');
+for(const kind of ['image','video'])test(kind+' provider and model selectors stay independent and submit the selected pair',async t=>{
+    const {page,errors}=await fixture(t,'smart',true);
+    const first=kind==='image'?'gpt-image-2':'doubao-seedance-2-5-pro',second=kind==='image'?'gpt-image-1':'doubao-seedance-2-0-260128';
+    await page.evaluate(({kind,first,second})=>{
+        apiProviders=[{id:'p',name:'厂商甲',enabled:true,has_key:true,[kind+'_models']:[first]},
+            {id:'q',name:'厂商乙',enabled:true,has_key:true,[kind+'_models']:[first,second],workspace_defaults:{[kind]:second}},
+            {id:'empty',name:'未配置厂商',enabled:true,has_key:false,[kind+'_models']:[first]}];
+        window.splitNode=createGenerationNodeAt({x:400,y:100},kind);
+        Object.assign(splitNode.runSettings,{engine:'api',apiKind:kind,provider_id:'p',model:first,videoProvider:'p',videoModel:first});render();
+    },{kind,first,second});
+    const provider=page.getByRole('button',{name:'生成厂商',exact:true}),model=page.getByRole('button',{name:'生成模型',exact:true});
+    await provider.waitFor();assert.equal(await provider.innerText(),'厂商甲');assert.equal(await model.innerText(),first);
+    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('保留草稿');
+    await provider.click();assert.equal(await page.locator('[data-select-option]').filter({hasText:'未配置厂商'}).count(),0);
+    await page.locator('[data-select-option]').filter({hasText:'厂商乙'}).click();assert.equal(await model.innerText(),first);
+    await model.click();assert.equal(await page.locator('[data-select-option]').count(),2);
+    await page.locator('[data-select-option]').filter({hasText:second}).click();assert.equal(await model.innerText(),second);
+    let request=await page.evaluate(kind=>PixmaxBatchExecution.prepare(splitNode,kind),kind);assert.equal(request.provider_id,'q');assert.equal(request.model,second);assert.equal(request.prompt,'保留草稿');
+    await page.getByRole('button',{name:'全屏',exact:true}).click();const modal=page.getByRole('dialog',{name:'全屏',exact:true});await modal.waitFor();
+    assert.equal(await modal.getByRole('button',{name:'生成厂商',exact:true}).innerText(),'厂商乙');
+    await modal.getByRole('button',{name:'生成厂商',exact:true}).click();await page.locator('[data-select-option]').filter({hasText:'厂商甲'}).click();
+    await modal.getByRole('button',{name:'生成模型',exact:true}).filter({hasText:first}).waitFor();
+    await page.keyboard.press('Escape');await modal.waitFor({state:'detached'});
+    request=await page.evaluate(kind=>PixmaxBatchExecution.prepare(splitNode,kind),kind);assert.equal(request.provider_id,'p');assert.equal(request.model,first);assert.equal(request.prompt,'保留草稿');
+    if(kind==='video')await page.screenshot({path:'.local/provider-model-split.png'});
+    assert.deepEqual(errors,[]);
+});
 async function host(t,{priced=false}={}){
     const f=await fixture(t,'smart',true,{secureOrigin:true});const quotes=[];await f.page.route('**/api/canvases/*/generation-preview**',route=>{quotes.push(route.request().postDataJSON());return route.fulfill({json:{cost:priced?{status:'estimated',currency:'CNY',amount_micros:150000,base_amount_micros:200000}:{status:'unknown'}}});});
     await f.page.evaluate(()=>{apiProviders=[{id:'p',name:'原生表单',has_key:true,enabled:true,image_models:['gpt-image-2']}];Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});window.formHost=createGenerationNodeAt({x:400,y:100},'image');Object.assign(formHost.runSettings,{engine:'api',apiKind:'image',provider_id:'p',model:'gpt-image-2'});render();});await f.page.locator('.pixmax-native-generation-form [role=textbox]').waitFor();return {...f,quotes};
