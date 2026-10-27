@@ -104,7 +104,13 @@
         let retained=false;
         const pageJob={pending:()=>!closed && (busy || saving || Boolean(result && !retained)),dispose:()=>{stop();saving=false;close();}};
         pageJobs.add(pageJob);
-        if(options.background){const config=settings(options.config);q('[data-resolution]').value=config.resolution;q('[data-fps]').value=config.fps;q('[data-source]').value=config.source;modelFiles=localModelFiles;}
+        const config=options.background?settings(options.config):getSettings();
+        q('[data-source]').value=config.source;modelFiles=localModelFiles;
+        if(options.background){q('[data-resolution]').value=config.resolution;if(!isImage)q('[data-fps]').value=config.fps;}
+        if(modelFiles){
+            q('[data-source]').disabled=true;q('[data-local]').textContent='改用在线模型';
+            q('[data-model-note]').textContent='沿用控制中心选择的本地模型，仅在当前浏览器读取。';
+        }
         function message(text, error=false) {if(closed) return; status.textContent = text; status.classList.toggle('local-depth-error', error);options.onProgress?.({text,progress:progress.hasAttribute('value')?Number(progress.value):null,error});}
         function stop() {
             controller?.abort(); worker?.terminate(); worker = null;
@@ -136,12 +142,15 @@
             return new Promise((resolve,reject) => {pending.set(id,{resolve,reject}); worker.postMessage({type,id,...data},transfer);});
         }
         async function loadModel(check) {
+          for(let runtimeIndex=0;;runtimeIndex++){
+            check();
             worker = new Worker('/static/js/local-depth-video-worker.js', {type:'module'});
             worker.onmessage = ({data}) => {
                 if(data.type === 'progress') {
                     const p = data.progress;
                     const label = {modelscope:'ModelScope',huggingface:'Hugging Face',local:'本地目录'}[p.source] || '';
-                    if(p.status === 'progress') {progress.value = Number(p.progress) || 0; message(`${label} 加载模型 ${p.file || ''} · ${Math.round(Number(p.progress) || 0)}%`);}
+                    if(p.status === 'runtime') {progress.removeAttribute('value');message(`正在加载推理运行库 · ${p.source}`);}
+                    else if(p.status === 'progress') {progress.value = Number(p.progress) || 0; message(`${label} 加载模型 ${p.file || ''} · ${Math.round(Number(p.progress) || 0)}%`);}
                     else if(p.status === 'source') {progress.value = 0; message(`从 ${label} 加载 ${p.file}`);}
                     else if(p.status === 'fallback') message(`当前下载源失败，正在切换 ${label} · ${p.file}`);
                     else if(p.status === 'cache') message(`复用已校验的浏览器缓存 · ${p.file}`);
@@ -150,10 +159,16 @@
                     return;
                 }
                 const task = pending.get(data.id); if(!task) return; pending.delete(data.id);
-                data.type === 'error' ? task.reject(new Error(data.message)) : task.resolve(data);
+                data.type === 'error' ? task.reject(Object.assign(new Error(data.message),{stage:data.stage,retryRuntime:data.retryRuntime})) : task.resolve(data);
             };
-            worker.onerror = event => {for(const task of pending.values()) task.reject(new Error(event.message || '模型加载失败')); pending.clear();};
-            message('加载模型与推理运行库…'); await request('load',{files:modelFiles,source:q('[data-source]').value}); check();
+            worker.onerror = event => {for(const task of pending.values()) task.reject(Object.assign(new Error(event.message || '无法启动本地推理线程'),{stage:'worker'})); pending.clear();};
+            message(runtimeIndex?'正在切换备用推理运行库…':'加载模型与推理运行库…');
+            try {await request('load',{files:modelFiles,source:q('[data-source]').value,runtimeIndex});check();return;}
+            catch(error){
+                worker?.terminate();worker=null;check();
+                if(!error.retryRuntime || runtimeIndex>=2)throw error;
+            }
+          }
         }
         function drawDepth(frame,render) {
             const gray = depthCanvas ||= document.createElement('canvas'); gray.width = frame.width; gray.height = frame.height;
@@ -193,12 +208,16 @@
             q('[data-resolution]').disabled = q('[data-source]').disabled = true; if(!isImage) q('[data-fps]').disabled = true;
             controller = new AbortController(); const signal = controller.signal;
             const check = () => {if(signal.aborted || closed) throw abortError();options.check?.();};
+            let stage='capability';
             try {
                 if(!isSecureContext || !navigator.gpu || (!isImage && !window.VideoEncoder)) throw new Error(isImage ? '需要 HTTPS 与本机 WebGPU 支持，请使用新版 Chrome / Edge。' : '需要 HTTPS、本机 WebGPU 与 WebCodecs 支持，请使用新版 Chrome / Edge。');
                 const adapter = await navigator.gpu.requestAdapter(); check();
                 if(!adapter?.features.has('shader-f16')) throw new Error('当前显卡不支持 WebGPU fp16，无法运行此模型。');
                 message(`正在读取${isImage ? '图片' : '视频'}…`); progress.removeAttribute('value');
-                const response = await fetch(options.url, {signal}); check();
+                stage='media';
+                // Image previews can cache a TOS response without CORS headers.
+                // Pixel reads need a fresh CORS response, not that preview cache entry.
+                const response = await fetch(options.url, {signal,cache:'no-store'}); check();
                 if(!response.ok) throw new Error('素材读取失败，请重新打开或检查访问权限。');
                 const sizeError = () => new Error(isImage ? '图片超过 32 MB，请先压缩。' : '视频超过 256 MB，请先裁剪。');
                 if(Number(response.headers.get('content-length')) > byteLimit) {await response.body?.cancel(); throw sizeError();}
@@ -206,7 +225,7 @@
                 const reader = response.body.getReader(), chunks = []; let bytes = 0;
                 for(;;) {const {done,value} = await reader.read(); check(); if(done) break; bytes += value.byteLength; if(bytes > byteLimit) {await reader.cancel(); throw sizeError();} chunks.push(value);}
                 inputUrl = URL.createObjectURL(new Blob(chunks, {type:response.headers.get('content-type') || (isImage ? 'image/png' : 'video/mp4')})); chunks.length = 0;
-                if(isImage) {await processImage(signal,check);return;}
+                if(isImage) {stage='image';await processImage(signal,check);return;}
                 decoder = document.createElement('video'); decoder.muted = true; decoder.playsInline = true; decoder.preload = 'auto';
                 await waitEvent(decoder,'loadeddata',signal,() => {decoder.src = inputUrl; decoder.load();}); check();
                 const duration = decoder.duration, fps = Number(q('[data-fps]').value);
@@ -214,8 +233,11 @@
                 const [width,height] = dimensions(decoder.videoWidth,decoder.videoHeight,Number(q('[data-resolution]').value));
                 const support = await VideoEncoder.isConfigSupported({codec:'avc1.42001f',width,height,framerate:fps,bitrate:2000000}); check();
                 if(!support.supported) throw new Error('当前浏览器不支持此尺寸的 H.264 导出。');
+                stage='encoder';
                 const media = await import('https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/dist/bundles/mediabunny.mjs'); check();
+                stage='initialization';
                 await loadModel(check);
+                stage='inference';
                 const capture = document.createElement('canvas'), render = document.createElement('canvas');
                 [capture.width,capture.height] = dimensions(decoder.videoWidth,decoder.videoHeight,518);
                 render.width = width; render.height = height;
@@ -241,7 +263,11 @@
                 await output.finalize(); check();
                 await complete(new Blob([output.target.buffer],{type:'video/mp4'}),width,height,duration); output = null;
             } catch(error) {
-                message(error.name === 'AbortError' ? '已取消，可重新开始。' : `提取失败：${error.message}。可重试、更换模型下载源或选择本地目录；运行库仍需 CDN 连接。`,error.name !== 'AbortError');
+                progress.value=0;
+                const failedStage=error.stage||stage;
+                const label={media:'源素材读取失败',runtime:'推理运行库加载失败',model:'模型文件加载失败',initialization:'模型初始化失败',worker:'推理线程启动失败',encoder:'视频导出库加载失败',image:'图片处理失败',inference:'深度推理失败'}[failedStage]||'提取失败';
+                const hint={media:'请检查原素材是否可访问及网络连接。',runtime:'已尝试备用 CDN，请检查网络后重试；切换模型源不会改变运行库连接。',model:'可更换模型下载源或选择本地模型目录。',worker:'请刷新页面后重试。',initialization:'请检查 WebGPU 状态后重试。'}[failedStage]||'请重试；问题持续时请保留此错误信息。';
+                message(error.name === 'AbortError' ? '已取消，可重新开始。' : `${label}：${error.message}。${hint}`,error.name !== 'AbortError');
                 options.onError?.(error);
             } finally {
                 if(output) {try {await output.cancel();} catch(_) {} output = null;}
