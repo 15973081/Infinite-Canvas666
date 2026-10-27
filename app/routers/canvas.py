@@ -23,6 +23,7 @@ from app.services.canvas_tasks import (
 )
 from app.services.volcengine_billing import pricing_context, video_accounting
 from app.services.canvas_ledger import task_billing_fields
+from app.services import seedance_drafts
 router = APIRouter()
 
 _canvas_video_recovery_started = False
@@ -31,6 +32,9 @@ _canvas_video_recovery_tasks = set()
 
 def _canvas_video_payload_dict(payload: CanvasVideoRequest) -> dict:
     data = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload.dict()
+    for key in ("draft", "draft_source_task_id"):
+        if not data.get(key):
+            data.pop(key, None)
     if not data.get('image_tool'):
         data.pop('image_tool', None)
         data.pop('image_tool_revision', None)
@@ -141,6 +145,11 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
 def _prepare_canvas_video_task(payload: CanvasVideoRequest):
     if postgres_enabled():
         payload.provider_id = get_api_provider(payload.provider_id)["id"]
+    if payload.draft_source_task_id:
+        # Admission/duration policies inspect the inherited duration, while the
+        # upstream upgrade body still contains only draft_task and resolution.
+        source_request = get_canvas_task_request(payload.draft_source_task_id)
+        payload.duration = source_request.get("duration", payload.duration)
     if payload.canvas_id:
         load_canvas(payload.canvas_id)
     requested_task_id = str(payload.client_task_id or "").strip()
@@ -166,6 +175,8 @@ def _prepare_canvas_video_task(payload: CanvasVideoRequest):
             CANVAS_TASKS[task_id] = existing
             return {"task_id": task_id, "status": existing.get("status") or "queued",
                     **({"canvas_binding": existing["canvas_binding"]} if existing.get("canvas_binding") else {})}, False
+        if payload.draft or payload.draft_source_task_id:
+            seedance_drafts.validate(payload, get_api_provider(payload.provider_id))
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
@@ -256,6 +267,7 @@ async def canvas_video(payload: CanvasVideoRequest):
 
 async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     provider = get_api_provider(payload.provider_id)
+    draft_source = seedance_drafts.validate(payload, provider)
     base_url = video_api_root(provider)
     if not base_url:
         raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider['id']} 未配置 Base URL")
@@ -301,7 +313,9 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     try:
         async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
             # --- 构造图片载荷 ---
-            if is_apimart:
+            if draft_source:
+                body = {"model": payload.model, "content": [{"type": "draft_task", "draft_task": {"id": draft_source["task_id"]}}], "resolution": "1080p"}
+            elif is_apimart:
                 # APIMart 只接受 http/https 或 asset:// URL，先上传本地图片取回网络 URL
                 image_with_roles = []
                 invalid_images = []  # 每项为 (原始 URL, 失败原因)
@@ -460,6 +474,8 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                     # 火山方舟视频接口（含 Seedance 2.0 图生视频）均通过 body 的 duration 字段控制时长；
                     # 之前对 seedance-2.0 + 参考图的情况省略了 duration，导致接口回退到默认 5s。
                     body["duration"] = duration
+                    if payload.draft:
+                        body["draft"] = True
                     if ratio:
                         body["ratio"] = ratio
                     if resolution:
@@ -750,8 +766,9 @@ def _volcengine_video_pricing(payload, provider):
 
 async def _finish_canvas_video(payload, provider, raw, upstream_task_id, context=None):
     result = {"videos": [], "task_id": upstream_task_id, "raw": raw}
+    result.update(seedance_drafts.result_metadata(payload, raw, upstream_task_id, provider))
     if context is not None:
-        result.update(video_accounting(raw, _canvas_video_payload_dict(payload), provider, context))
+        result.update(video_accounting(raw, seedance_drafts.accounting_request(payload), provider, context))
         # Save usage and the price snapshot before any local download can fail.
         if payload.client_task_id:
             _update_video_task_record(payload.client_task_id, result=result, upstream_status="succeeded")

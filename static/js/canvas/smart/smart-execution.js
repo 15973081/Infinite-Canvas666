@@ -2643,16 +2643,19 @@ function smartTaskUiGuard(){
     return ()=>smartSelection.nodeId===selection && activeComposerNode()===composer && promptInput?.innerHTML===html && JSON.stringify(settingsForStorage(settings))===config;
 }
 
-async function runGeneration(){
+async function runGeneration(options={}){
     if(['comfy', 'modelscope'].includes(settings.engine)) { toast("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。"); return; }
     if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const node = selectedNode();
     if(!node) return;
+    const draftSource = options.draftSource;
+    if(draftSource && !window.SeedanceDrafts.available(draftSource)){toast('样片已过期，请重新生成。');return;}
     const previousSettings = cloneSmartSettings(settings);
     const runSettings = smartSettingsForNode(node);
     settings = {...settings, ...cloneSmartSettings(runSettings || {})};
+    if(draftSource) settings = {...settings, engine:'api', apiKind:'video', videoProvider:draftSource.provider_id, videoModel:draftSource.model, videoResolution:'1080p', videoDraft:false};
     let request;
-    try { request = buildPromptRequest(node, null, true, smartLoopContext); }
+    try { request = draftSource ? {prompt:'样片升级为 1080p 正式视频', refs:[]} : buildPromptRequest(node, null, true, smartLoopContext); }
     catch(error){ settings = previousSettings; toast(error.message || '素材引用无效'); return; }
     const prompt = request.prompt.trim();
     const refs = request.refs;
@@ -2737,7 +2740,7 @@ async function runGeneration(){
             return;
         }
         if(isApiLikeEngine(generationSettings.engine) && generationSettings.apiKind === 'video'){
-            const taskResult = await runApiVideoGeneration(prompt, refs, generationSettings, inputBinding);
+            const taskResult = await runApiVideoGeneration(prompt, refs, generationSettings, inputBinding, draftSource);
             writeGuard.check(); inputBinding?.check();
             const pendingResult = await queueAndResumeSmartApiTasks(pendingNode, taskResult, {
                 kind:'video',
@@ -2859,9 +2862,9 @@ async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=
     return {taskIds:tasks.map(task => task.task_id).filter(Boolean), count:tasks.length, providerId:payload.provider_id, model:payload.model,inputBinding};
 }
 
-async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBinding=null){
+async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBinding=null,draftSource=null){
     if(!runSettings.videoModel) throw new Error('请先选择视频模型');
-    if(!smartVideoResolutions(runSettings).includes(runSettings.videoResolution || '')) throw new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
+    if(!draftSource && !smartVideoResolutions(runSettings).includes(runSettings.videoResolution || '')) throw new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
     try {
         const targetPlatform = videoProviderPlatform(runSettings.videoProvider || 'comfly');
         const targetProvider = targetPlatform === 'volcengine'
@@ -2884,12 +2887,12 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             }
             return item;
         });
-        const manualVideo = manualSmartVideoLink(runSettings)?.url || '';
+        const manualVideo = draftSource ? '' : manualSmartVideoLink(runSettings)?.url || '';
         const refVideos = manualVideo ? manualSmartMediaLinks(runSettings).map(item => item.url).filter(Boolean) : videoRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean);
         const refAudios = audioRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean);
         const usesTrustedVolcengineAssets = [...refImages.map(item => item.url), ...refVideos, ...refAudios]
             .some(url => String(url || '').startsWith('asset://'));
-        const payload = {
+        const payload = draftSource ? window.SeedanceDrafts.upgradePayload(draftSource) : {
             prompt,
             provider_id: runSettings.videoProvider || 'comfly',
             model: runSettings.videoModel || 'veo3-fast',
@@ -2906,7 +2909,8 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             generate_audio: Boolean(runSettings.videoGenerateAudio),
             multimodal: Boolean(runSettings.videoMultimodal),
             trusted_asset: usesTrustedVolcengineAssets,
-            task_mode: runSettings.videoTaskMode || 'auto'
+            task_mode: runSettings.videoTaskMode || 'auto',
+            ...(runSettings.videoDraft && window.SeedanceDrafts.supported((apiProviders || []).find(p=>p.id===runSettings.videoProvider),runSettings.videoModel) ? {draft:true,resolution:'480p'} : {})
         };
         if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
         const taskId = uid('canvas_vid');
@@ -3159,7 +3163,7 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={},
     const additions = (images || []).map((item, i) => {
         const url = typeof item === 'string' ? item : item?.url || '';
         const itemKind = (typeof item === 'object' && item.kind) || kind;
-        return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:itemKind, generatedResult:true, ...window.VolcengineVideoBilling?.metadata(result)}));
+        return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:itemKind, generatedResult:true, ...window.VolcengineVideoBilling?.metadata(result), ...window.SeedanceDrafts?.metadata(result)}));
     }).filter(item => item.url);
     node.images = [...(node.images || []).map(img => stripImageGenerationMeta(img)), ...additions];
     const pendingRun = smartPendingTaskRun(node, task, kind);

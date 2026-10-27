@@ -218,7 +218,10 @@ def public_provider_config():
     # project. This is scope metadata, not a credential.
     keys = {'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'model_prices', 'model_policies', 'avatar_registration', 'volcengine_project_name'}
     from app.services.model_commercial import public_models
-    providers = [{k: v for k, v in public_models(p).items() if k in keys} for p in load_api_providers()]
+    from app.services.seedance_drafts import supports_drafts
+    providers = [{**{k: v for k, v in public_models(p).items() if k in keys},
+                  'seedance_draft': supports_drafts(p, 'doubao-seedance-2-5-260628')}
+                 for p in load_api_providers()]
     for provider in providers: provider['billing_authority'] = 'server'
     return {'api_providers': providers, 'providers': providers,
             'chat_models': list(dict.fromkeys(m for p in providers for m in p.get('chat_models', []))),

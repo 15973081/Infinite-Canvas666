@@ -205,8 +205,11 @@ def outputs(conn, task):
     assets = {a['id']: a for a in conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=ANY(%s) AND status='ready' AND deleted_at IS NULL AND role<>'task-result-source' ORDER BY id FOR SHARE", (current_workspace(), ids))}
     if any(asset_id not in assets for asset_id in ids):
         return []
+    draft_metadata = {'seedance_draft': copy.deepcopy(result['seedance_draft'])} if result.get('seedance_draft') else {}
+    if result.get('draft_source_task_id'):
+        draft_metadata['draft_source_task_id'] = result['draft_source_task_id']
     return [{'media_asset_id': aid, 'url': media.stable_url(assets[aid]),
-             'name': assets[aid]['display_name'], 'kind': assets[aid]['kind'], 'generatedResult': True}
+             'name': assets[aid]['display_name'], 'kind': assets[aid]['kind'], 'generatedResult': True, **draft_metadata}
             for aid in dict.fromkeys(ids)]
 
 

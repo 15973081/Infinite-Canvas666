@@ -973,6 +973,21 @@ function renderVideoDurationControl(){
     </div>`;
 }
 
+function renderSeedanceDraftControl(){
+    const provider=(apiProviders || []).find(p=>p.id===settings.videoProvider);
+    const supported=window.SeedanceDrafts.supported(provider,settings.videoModel);
+    const drafts=(selectedNode()?.images || []).map(img=>img.seedance_draft).filter(Boolean);
+    if(!supported && !drafts.length) return '';
+    return `<div class="smart-control model-control">
+        <button class="smart-pill" type="button"><span>${supported && settings.videoDraft ? '480p 样片' : '样片 / 升级'}</span></button>
+        <div class="smart-popover compact-popover">
+            <div class="smart-popover-title">样片有效期 7 天，两步分别计费</div>
+            ${supported ? `<button type="button" class="direct-option" data-smart-param="videoDraft" data-smart-value="${settings.videoDraft ? 'off' : 'on'}">${settings.videoDraft ? '关闭样片模式' : '开启 480p 样片（默认 5 秒）'}</button>` : ''}
+            ${drafts.map((draft,i)=>`<button type="button" class="direct-option" data-draft-upgrade="${i}" ${window.SeedanceDrafts.available(draft) ? '' : 'disabled'}>${window.SeedanceDrafts.available(draft) ? `确认样片 ${i+1}，升级 1080p（另计费）` : `样片 ${i+1} 已过期`}</button>`).join('')}
+        </div>
+    </div>`;
+}
+
 function renderVideoAspectControl(){
     let options = [
         ['16:9','16:9'], ['9:16','9:16'], ['1:1','1:1'], ['4:3','4:3'], ['3:4','3:4'],
@@ -993,6 +1008,9 @@ function renderVideoAspectControl(){
 }
 
 function renderVideoResolutionControl(){
+    if(settings.videoDraft && window.SeedanceDrafts.supported((apiProviders || []).find(p=>p.id===settings.videoProvider),settings.videoModel)){
+        return '<div class="smart-control"><button class="smart-pill" type="button" disabled>480p · 样片</button></div>';
+    }
     const options = normalizeSmartVideoResolution().map(value => [value, value ? value.toUpperCase() : '自动']);
     const value = settings.videoResolution || '';
     const labelMap = Object.fromEntries(options);
@@ -1078,6 +1096,11 @@ function renderDynamicParams(persist=true){
     }
     else if(settings.engine === 'modelscope') renderMsParams();
     else renderComfyParams();
+    // Recovered task outputs can have no composer settings. Their saved draft
+    // identity must remain usable even when the composer defaults to images.
+    if(settings.apiKind !== 'video' && (selectedNode()?.images || []).some(img=>img.seedance_draft)){
+        dynamicParams.insertAdjacentHTML('beforeend',renderSeedanceDraftControl());
+    }
     const advanced=dynamicParams.querySelector('.composer-advanced');
     if(advanced) advanced.open=advancedOpen;
     bindDynamicParams();
@@ -1115,6 +1138,7 @@ function renderApiVideoParams(){
         ${renderVideoProviderControl(providers)}
         ${renderVideoModelControl(models)}
         ${renderSeedance25TaskModeControl()}
+        ${renderSeedanceDraftControl()}
         ${renderVideoResolutionControl()}
         ${renderVideoAspectControl()}
         ${renderVideoDurationControl()}
@@ -1153,6 +1177,7 @@ function renderVolcengineVideoParams(){
         ${renderVideoProviderControl(providers)}
         ${renderVideoModelControl(models)}
         ${renderSeedance25TaskModeControl()}
+        ${renderSeedanceDraftControl()}
         ${renderVideoResolutionControl()}
         ${renderVideoAspectControl()}
         ${renderVideoDurationControl()}
@@ -1513,6 +1538,11 @@ function smartComfyRandomValue(field){
 }
 
 function setDynamicSetting(key, value){
+    if(key === 'videoDraft'){
+        settings.videoDraft = value === 'on';
+        if(settings.videoDraft){settings.videoResolution='480p';settings.videoDuration=5;}
+        persistActiveSmartSettings();renderDynamicParams();scheduleSave();return;
+    }
     const numericKeys = new Set(['count','width','height','videoDuration','enhanceStrength','enhanceUpscaleRes','editUpscaleRes','customRatioWidth','customRatioHeight','customWidth','customHeight','msCustomRatioWidth','msCustomRatioHeight','msCustomWidth','msCustomHeight']);
     const layoutKeys = new Set(['provider_id','model','resolution','ratio','msgenModel','msCustomModel','msResolution','msRatio','videoProvider','videoModel','videoTaskMode','videoAspect','videoResolution','comfyMode','comfyWorkflow','quality','count','enhanceUpscaleRes','editUpscaleRes']);
     settings[key] = numericKeys.has(key) && value !== '' ? Number(value) : value;
@@ -1584,6 +1614,14 @@ function bindDynamicParams(){
             event.stopPropagation();
             setDynamicSetting(btn.dataset.smartParam, btn.dataset.smartValue);
             if(btn.dataset.smartParam === 'videoDuration') renderDynamicParams();
+        };
+    });
+    dynamicParams.querySelectorAll('[data-draft-upgrade]').forEach(btn=>{
+        btn.onclick=event=>{
+            event.preventDefault();event.stopPropagation();
+            const drafts=(selectedNode()?.images || []).map(img=>img.seedance_draft).filter(Boolean);
+            const draftSource=drafts[Number(btn.dataset.draftUpgrade)];
+            if(draftSource) runGeneration({draftSource});
         };
     });
     dynamicParams.querySelectorAll('[data-param]').forEach(input => {

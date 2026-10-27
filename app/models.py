@@ -119,6 +119,8 @@ class CanvasVideoRequest(BaseModel):
     multimodal: bool = False
     trusted_asset: bool = False
     task_mode: str = "auto"
+    draft: bool = False
+    draft_source_task_id: str = Field(default="", max_length=96)
 
 
 class SmartCanvasVideoTrimRequest(BaseModel):

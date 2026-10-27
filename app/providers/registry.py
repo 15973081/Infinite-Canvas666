@@ -533,9 +533,11 @@ def save_api_providers(providers):
 
 
 def public_provider(provider):
+    from app.services.seedance_drafts import supports_drafts
     key = provider_env_key_value(provider["id"])
     item = {
         **provider,
+        "seedance_draft": supports_drafts(provider, "doubao-seedance-2-5-260628"),
         "has_key": bool(key),
         "key_preview": mask_secret(key),
         "key_env": provider_key_env(provider["id"]),

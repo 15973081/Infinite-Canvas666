@@ -1,4 +1,4 @@
-from canvas_source import read_canvas_source
+from canvas_source import read_canvas_source, canvas_function_source
 from pathlib import Path
 import unittest
 
@@ -60,11 +60,7 @@ class SmartCanvasVideoResumeTest(unittest.TestCase):
         self.assertIn("kind === 'video' ? resultMediaUrls(result)", resume_node)
 
     def test_regular_and_cascade_video_runs_persist_pending_tasks(self):
-        regular_run = _source_between(
-            self.source,
-            "async function runGeneration(",
-            "async function runPromptLLMNode(",
-        )
+        regular_run = canvas_function_source(self.source, "runGeneration")
         cascade_step = _source_between(
             self.source,
             "async function runCascadeStepIntoNode(",

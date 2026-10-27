@@ -1435,6 +1435,17 @@ function bindOutputWrap(wrap, node){
     const download = wrap.querySelector('.output-download');
     const del = wrap.querySelector('.output-del');
     const recoverQuery = wrap.querySelector('.output-recover-query');
+    const upgrade=wrap.querySelector('.output-draft-upgrade');
+    if(upgrade){
+        const sourceId=upgrade.dataset.draftSource;
+        const item=(node.images || []).find(media=>outputUrlValue(media)===wrap.dataset.outputUrl && media?.seedance_draft?.source_task_id===sourceId);
+        const state=classicOutputDraftState(item);
+        upgrade.disabled=!item || Boolean(!state.final && (state.busy || state.expired));
+        upgrade.textContent=state.final ? '查看 1080p' : state.busy ? '升级中…' : state.expired ? '样片已过期' : '升级 1080p';
+        upgrade.title=state.final ? '查看这条样片对应的正式视频' : '确认这条样片并生成 1080p 正式视频，另行计费';
+        upgrade.onmousedown=e=>{e.preventDefault();e.stopPropagation();};
+        upgrade.onclick=e=>{e.preventDefault();e.stopPropagation();upgradeClassicOutputDraft(node.id,wrap.dataset.outputUrl,sourceId);};
+    }
     if(img){
         img.draggable = true;
         img.ondragstart = e => {
@@ -2587,6 +2598,7 @@ function renderVideoBody(node){
     const imageInputs = ordered.filter(src => src.refs?.length);
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
     const isSeedance25 = isVolcengineSeedance25VideoNode(node);
+    const supportsDraft = window.SeedanceDrafts.supported(apiProviders.find(p=>p.id===node.apiProvider),node.model);
     const durationRange = videoNodeDurationRange(node);
     wrap.innerHTML = `
         <div class="generation-section-title">提示词</div>
@@ -2629,9 +2641,10 @@ function renderVideoBody(node){
             </div>
         </div>
         <div class="gen-run-row">
-            <button class="gen-btn ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="clapperboard" class="w-4 h-4"></i>${node.running ? '生成中' : '视频生成'}</button>
+            <button class="gen-btn ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="clapperboard" class="w-4 h-4"></i>${node.running ? '生成中' : supportsDraft && node.draft ? '生成 480p 样片' : '视频生成'}</button>
             ${cascadeBtnHtml(node)}
         </div>
+        ${supportsDraft ? `<div class="video-draft-options"><label><input type="checkbox" class="video-draft" ${node.draft ? 'checked' : ''}>先生成 480p 样片</label><p>默认 5 秒；确认画面后升级 1080p。样片有效期 7 天，两步分别计费。</p></div>` : ''}
         ${retryBarHtml(node)}
     `;
     const providerSelect = wrap.querySelector('.video-provider');
@@ -2645,6 +2658,13 @@ function renderVideoBody(node){
     aspectSelect.value = node.aspectRatio || '16:9';
     resolutionSelect.value = node.resolution || '';
     resolutionSelect.disabled = !allowedVideoResolutions(node).length;
+    if(supportsDraft && node.draft){resolutionSelect.value='480p';resolutionSelect.disabled=true;}
+    const draftToggle=wrap.querySelector('.video-draft');
+    if(draftToggle){
+        draftToggle.onmousedown=e=>e.stopPropagation();
+        draftToggle.onclick=e=>e.stopPropagation();
+        draftToggle.onchange=e=>{node.draft=e.target.checked;if(node.draft){node.resolution='480p';node.duration=5;}refreshNodes([node.id]);scheduleSave();};
+    }
     if(taskModeSelect) taskModeSelect.value = node.taskMode || 'auto';
     [providerSelect, modelSelect, durationSelect, aspectSelect, resolutionSelect, taskModeSelect].filter(Boolean).forEach(input => {
         input.onmousedown = e => e.stopPropagation();
@@ -3362,7 +3382,8 @@ function renderOutputMedia(item, useGridLayout=false){
         return `<div class="output-img-wrap" data-output-url="${safe}" data-missing-url="${safe}"${gridStyle}>${missingAssetHtml(url, true)}${timePill}<button class="output-del" title="删除">×</button></div>`;
     }
     if(kind === 'video'){
-        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-download" type="button" title="下载"><i data-lucide="download"></i></button><button class="output-del" title="删除">×</button></div>`;
+        const draftAction=meta.seedance_draft ? `<div class="output-draft-actions"><span class="output-video-badge">480p 样片</span><button class="output-draft-upgrade" type="button" data-draft-source="${escapeAttr(meta.seedance_draft.source_task_id)}">升级 1080p</button></div>` : `<div class="output-video-badge">${meta.draft_source_task_id ? '1080p 正式视频' : 'VIDEO'}</div>`;
+        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button>${draftAction}<button class="output-download" type="button" title="下载"><i data-lucide="download"></i></button><button class="output-del" title="删除">×</button></div>`;
     }
     if(kind === 'audio'){
         return `<div class="output-img-wrap output-audio-wrap" data-output-url="${safe}"${gridStyle}><div class="output-audio-card"><i data-lucide="file-audio" class="w-7 h-7"></i><span>${escapeHtml(meta.name || outputImageName(url))}</span><small><i data-lucide="play"></i>打开播放器</small></div>${timePill}<button class="output-del" title="删除">×</button></div>`;

@@ -1110,16 +1110,18 @@ async function runVideoNode(nodeId, opts={}){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || (node.running && !opts.cascade)) return;
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
-    if(!allowedVideoResolutions(node).includes(node.resolution || '')){
+    const draftSource = opts.draftSource;
+    if(draftSource && !window.SeedanceDrafts.available(draftSource)){showErrorModal('样片已过期，请重新生成。');return;}
+    if(!draftSource && !allowedVideoResolutions(node).includes(node.resolution || '')){
         const error = new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
         if(opts.cascade) throw error;
         showErrorModal(error.message); return;
     }
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
-    const sources = orderedSources(node, generatorSources(node, opts.loopContext));
-    const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
+    const sources = draftSource ? [] : orderedSources(node, generatorSources(node, opts.loopContext));
+    const prompt = draftSource ? '样片升级为 1080p 正式视频' : sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const allRefs = sources.flatMap(s => s.refs || []);
-    const providerId = resolveVideoProviderId(node.apiProvider || 'comfly');
+    const providerId = draftSource?.provider_id || resolveVideoProviderId(node.apiProvider || 'comfly');
     const isVolcengineVideo = canvasAvatarPlatform(apiProviders.find(provider => provider.id === providerId)) === 'volcengine';
     const mediaRefs = applyUploadedUrlToRefs(allRefs, node).map(ref => {
         if(!isVolcengineVideo) return ref;
@@ -1149,7 +1151,7 @@ async function runVideoNode(nodeId, opts={}){
     try {inputBinding=classicTaskInputBinding(node,out||node,writeGuard);}
     catch(error){showErrorModal(error.message);if(opts.cascade)throw error;return;}
     const run = runSnapshot(node, prompt, refs);
-    const payload = {
+    const payload = draftSource ? window.SeedanceDrafts.upgradePayload(draftSource) : {
         prompt,
         provider_id:providerId,
         model:node.model || 'veo3-fast',
@@ -1168,7 +1170,8 @@ async function runVideoNode(nodeId, opts={}){
         generate_audio:Boolean(node.generateAudio),
         multimodal:Boolean(node.multimodal),
         trusted_asset:usesTrustedVolcengineAssets,
-        task_mode:node.taskMode || 'auto'
+        task_mode:node.taskMode || 'auto',
+        ...(node.draft && window.SeedanceDrafts.supported(apiProviders.find(p=>p.id===providerId),node.model) ? {draft:true, resolution:'480p'} : {})
     };
     run.providerId = payload.provider_id;
     run.billingModel = payload.model;
@@ -1247,6 +1250,75 @@ async function runVideoNode(nodeId, opts={}){
             node.running = false;
             refreshRunNodes(node, out);
         }
+    }
+}
+
+function classicOutputDraftState(item){
+    const id=item?.seedance_draft?.source_task_id;
+    if(!id) return {};
+    for(const out of nodes){
+        const final=(out.images || []).find(media=>media?.draft_source_task_id===id);
+        if(final) return {final,out};
+    }
+    const busy=nodes.some(out=>(out._pending || []).some(p=>p.draftSourceTaskId===id) ||
+        (out.images || []).some(media=>media?.seedance_draft?.source_task_id===id && media._draftSubmitting));
+    return {busy,expired:!window.SeedanceDrafts.available(item.seedance_draft)};
+}
+
+async function upgradeClassicOutputDraft(outId,url,sourceId){
+    const out=nodes.find(n=>n.id===outId && n.type==='output');
+    const item=(out?.images || []).find(media=>outputUrlValue(media)===url && media?.seedance_draft?.source_task_id===sourceId);
+    if(!item)return;
+    const state=classicOutputDraftState(item);
+    if(state.final){openOutputLightbox(outputUrlValue(state.final),state.out);return;}
+    if(isCanvasLockedByOther() || (window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit))return;
+    if(state.busy)return;
+    if(state.expired){showErrorModal('样片已过期，请重新生成。');return;}
+    const draft=item.seedance_draft,writeGuard=canvasTaskWriteGuard(out);
+    const taskId=uid('canvas_vid'),pendingId=uid('p');
+    // Non-enumerable: submitting state must not change the bound graph input.
+    Object.defineProperty(item,'_draftSubmitting',{value:true,writable:true,configurable:true});
+    refreshNodes([out.id]);
+    let inputBinding=null,accepted=false,submitting=false;
+    const run=runSnapshot({id:out.id,type:'video',apiProvider:draft.provider_id,model:draft.model,resolution:'1080p'},'样片升级为 1080p 正式视频');
+    run.providerId=draft.provider_id;run.billingModel=draft.model;
+    try {
+        writeGuard.check();
+        inputBinding=classicTaskInputBinding(out,out,writeGuard);
+        const payload={...window.SeedanceDrafts.upgradePayload(draft),client_task_id:taskId};
+        if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
+        out._pending=[...(out._pending || []),attachClassicTaskBinding(makePending(pendingId,run,{
+            canvasTaskId:taskId,canvasTaskType:'video',providerId:draft.provider_id,model:draft.model,
+            draftSourceTaskId:sourceId
+        }),inputBinding)];
+        refreshNodes([out.id]);scheduleSave();
+        await saveCanvas();
+        writeGuard.check();inputBinding?.check();
+        submitting=true;
+        const task=await createCanvasVideoTask(payload);
+        accepted=true;inputBinding?.remember(task);
+        writeGuard.check();inputBinding?.check();
+        await saveCanvas();
+        writeGuard.check();inputBinding?.check();
+        await pollCanvasVideoTask(taskId,{inputBinding});
+    } catch(error){
+        if(!writeGuard.valid())return;
+        if(error?.resultPending || accepted){
+            const pending=(out._pending || []).find(p=>p.canvasTaskId===taskId);
+            if(pending)pending.paused=true;
+            setStatus('升级任务已保留，可通过任务恢复查看结果。');
+        }else if(!submitting || (error.status && error.status<500)){
+            out._pending=(out._pending || []).filter(p=>p.canvasTaskId!==taskId);
+            showErrorModal(error.message || '样片升级失败');
+        }else{
+            // Submission may have reached the server. Keep its client ID so a
+            // refresh/query recovers it instead of creating another paid task.
+            showErrorModal(error.message || '提交结果暂未确认，请查询任务状态。');
+        }
+        scheduleSave();
+    } finally {
+        delete item._draftSubmitting;
+        if(writeGuard.valid())refreshNodes([out.id]);
     }
 }
 
@@ -2095,7 +2167,7 @@ function mergeGeneratedOutputs(node, outputs, append=false){
                 ? 'video'
                 : mediaKindForOutputItem(item);
         if(!keepGeneratedMedia && kind !== 'image') return null;
-        return kind === 'image' ? url : {url, kind};
+        return kind === 'image' ? url : {url, kind, ...window.SeedanceDrafts?.metadata(item)};
     }).filter(Boolean);
     if(!append){
         node.generatedOutputs = clean;
@@ -2148,7 +2220,10 @@ async function createCanvasImageTask(payload, options={}){
 async function createCanvasVideoTask(payload, options={}){
     payload = {...payload, canvas_id:canvas?.id || ''};
     const res = await window.CanvasApi.createCanvasVideoTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
-    if(!res.ok) throw new Error(await responseErrorMessage(res, '视频生成失败'));
+    if(!res.ok){
+        const error=new Error(await responseErrorMessage(res, '视频生成失败'));
+        error.status=res.status;throw error;
+    }
     return res.json();
 }
 
@@ -2402,7 +2477,7 @@ function videoOutputsFromResult(result){
     return resultMediaUrls(result).map(item => {
         const url = outputUrlValue(item);
         const media = item && typeof item === 'object' ? {...item, url, kind:item.kind || 'video'} : {url, kind:'video'};
-        return {...media, ...window.VolcengineVideoBilling?.metadata(result)};
+        return {...media, ...window.VolcengineVideoBilling?.metadata(result), ...window.SeedanceDrafts?.metadata(result)};
     }).filter(item => item.url);
 }
 
@@ -2422,7 +2497,7 @@ function completeCanvasVideoTask(taskId, result, record=null){
     const outputs = videoOutputsFromResult(result);
     out._pending = (out._pending || []).filter(p => p.id !== pending.id);
     appendOutputImages(out, outputs, meta.run?.refs?.[0], [meta]);
-    const gen = nodes.find(n => n.id === meta.run?.node?.id);
+    const gen = pending.draftSourceTaskId ? null : nodes.find(n => n.id === meta.run?.node?.id);
     if(gen){
         mergeGeneratedOutputs(gen, outputs, Boolean(pending.appendGenerated));
         gen.runStatus = outputs.length ? 'done' : 'failed';
@@ -2444,7 +2519,7 @@ function failCanvasVideoTask(taskId, message, taskData={}){
     Object.assign(run, window.VolcengineVideoBilling?.metadata(taskData.result || {}));
     if(taskData.result) run.request = requestMetaFromResult(taskData.result);
     const runMs = nowMs() - Number(pending.startedAt || nowMs());
-    const gen = nodes.find(n => n.id === run?.node?.id);
+    const gen = pending.draftSourceTaskId ? null : nodes.find(n => n.id === run?.node?.id);
     out._pending = (out._pending || []).filter(p => p.id !== pending.id);
     if(gen){
         gen.runStatus = 'failed';
@@ -2649,6 +2724,7 @@ function appendOutputImages(out, images, compareRef, metas=[], layout=null){
         const meta = metas[i] || metas[0] || {};
         const source = url && typeof url === 'object' ? url : {};
         const item = {url:outputUrlValue(url), viewed:false, runMs:meta.runMs || 0, run:meta.run || null};
+        Object.assign(item, window.SeedanceDrafts?.metadata(source));
         if(source.name) item.name = source.name;
         if(source.kind || source.mediaKind) item.kind = source.kind || source.mediaKind;
         if(meta.kind) item.kind = meta.kind;
