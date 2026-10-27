@@ -1,0 +1,5430 @@
+{
+  "captured_at_utc": "2026-10-27T02:35:12.594824+00:00",
+  "release": "/srv/projects/infinite-canvas/releases/4d79ab3-domain2",
+  "source_baseline": "aaf8c68b43f520b83b871869e624c10121d7a036",
+  "source_checkout_branch": "main",
+  "source_checkout_commit": "f1a213e91022d941ee69a222795a873878556d10",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "ef2141372d5b76745bc3180e4c0726faba22a249913e21bea3150a7836516a92",
+      "bytes": 69,
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "c7ea98b3dbd9c30de7b963b05da470d23e70a74bce62fff4b33f1db80dd96f67",
+      "bytes": 544,
+      "mode": "100644"
+    },
+    {
+      "path": "MAC-使用说明.md",
+      "sha256": "e0357a781487fb97004965cb4f8d81e94aeda7bcd7532d647e1deedc04ef259f",
+      "bytes": 2091,
+      "mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "sha256": "88b66c576d85f7a1d261400aa69c30c17c7a8f6f8a0b43327b273a0536f1b44c",
+      "bytes": 3601,
+      "mode": "100644"
+    },
+    {
+      "path": "VERSION",
+      "sha256": "42391e19cfdcc2132357cb3b1c73d4e9374d483c273fe0b0ef45ba985bae157a",
+      "bytes": 12,
+      "mode": "100644"
+    },
+    {
+      "path": "app/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "app/config.py",
+      "sha256": "cc03230fde5ee801cd92e602cd5292d8ae113db1cb9377280699880e551cdf23",
+      "bytes": 8880,
+      "mode": "100644"
+    },
+    {
+      "path": "app/management/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "app/management/application.py",
+      "sha256": "5d4819ee61975819497bb44f14cf571b2051d81754c20900887c835782467e7a",
+      "bytes": 25253,
+      "mode": "100644"
+    },
+    {
+      "path": "app/management/queries.py",
+      "sha256": "82a0f6bdb1cf182a674eb1f9b0116bf3974da37484c2bf56eb1c0e8edc11e290",
+      "bytes": 10182,
+      "mode": "100644"
+    },
+    {
+      "path": "app/management/resources.py",
+      "sha256": "af8fe86510f05e9deef9b7a0eaa9a1dfa512af40a2cf46b066180a9ecb9f7eb3",
+      "bytes": 5717,
+      "mode": "100644"
+    },
+    {
+      "path": "app/models.py",
+      "sha256": "2c61a846e55a9bda5e13d11a83959e1f02a165378eec0f0743a9123cda17b963",
+      "bytes": 13557,
+      "mode": "100644"
+    },
+    {
+      "path": "app/providers/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "app/providers/registry.py",
+      "sha256": "7036b6e4744432a05bf6bd2bde5e977770042d1637c70ab149b06dc6f5e78c11",
+      "bytes": 38770,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/account_billing.py",
+      "sha256": "304a7d704a60348d25cb307b498ac9c3abeba4b278d4e089eab35b17f258c7ca",
+      "bytes": 949,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/account_data.py",
+      "sha256": "89e6add2667d00df55f08c0ed625dec8d55bca7eab91937d732059c97f317e21",
+      "bytes": 1585,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/assets.py",
+      "sha256": "460a7498ea8e58e70dce842b1d5b04a7d3e19e60fd5eaa22bf8643de1f8bb862",
+      "bytes": 52052,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/canvas.py",
+      "sha256": "f14834fcdd4f3e1fd0fbeacf4004db83e2c4f874cf238a02ae4e4c19a69f00a9",
+      "bytes": 83488,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/canvas_ledger.py",
+      "sha256": "7a75a9c0610a5c3e84a33900e589e481b8d7ac64cce47dffbaccb324410f6fd1",
+      "bytes": 2457,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/canvas_pages.py",
+      "sha256": "ccaa6017594240008b10f93a105ec8d717b942d87936919d0e61d55e8cd89eeb",
+      "bytes": 1009,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/chat.py",
+      "sha256": "196a9caa50f7cb4c7cacc2745095b16c1f7653edf531de60fe3c6a0c67fb518a",
+      "bytes": 11593,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/cloud_media.py",
+      "sha256": "3ae2061f9c9a3e4dc1290c57e0b6acb4b7ace0a720791c92161c90ca550484f8",
+      "bytes": 10280,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/collaboration.py",
+      "sha256": "37ee7af6a236ec85c3dedf739d229a7ec602954beb6f8a46fcae46d2d2950376",
+      "bytes": 3917,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/conversation.py",
+      "sha256": "eb413468ec3e7bc544851c4c64ff949a0824ae5964b8825dca53c69aeab2861a",
+      "bytes": 4585,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/history.py",
+      "sha256": "bb0664e438acf9d3ac27416912ffac11d2f7f6efa3a7855e0a78b5b60ccdd066",
+      "bytes": 7313,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/image.py",
+      "sha256": "3d4e72c41b29df2e160ecbeb421a6f5bbb30940b8e528f34f4796ee903039ec4",
+      "bytes": 5419,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/maintenance.py",
+      "sha256": "563a6b797d9bbfa293394e7ced42342388da03d036eea64a12d1cd3f97c0db1f",
+      "bytes": 1257,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/prompt.py",
+      "sha256": "96554654c550c26895a442edd00bdbef9a4d510a85dc287e0bf6fee3a3a88fc5",
+      "bytes": 9395,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/providers.py",
+      "sha256": "705be369de09c19465929c6161c66ef4d1f71a73e2b65a8dea2b9c7d5ec2cda3",
+      "bytes": 6280,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/skills.py",
+      "sha256": "a11af1bf06dd36accb3eea9c87555f07d0c20bf8aaf4f78d1470455862397f0c",
+      "bytes": 2530,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/upload.py",
+      "sha256": "4949ef3cc08c50044608e4ca33ae3d593fdcab4d27aa0ff229fe89c98d89e8c1",
+      "bytes": 7882,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/video.py",
+      "sha256": "a51eb4ec3ad304343a6532b2ed60179af0cadbf7e8a708ff62a02dc7ad67e858",
+      "bytes": 929,
+      "mode": "100644"
+    },
+    {
+      "path": "app/routers/websocket.py",
+      "sha256": "ea7dc1663ffab695924a0171163e83702682be2fd9d5d1feb932340dfc52cad8",
+      "bytes": 1053,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/account_billing.py",
+      "sha256": "83ddbec35fb6ddbb850599176730a508c89a3cfabc11713f6a4c7d4d013d051d",
+      "bytes": 8452,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/account_closure.py",
+      "sha256": "a7ac5baef096b21aaca2e3835dee92f33b52955557d3a5d9c9a470ba8b5ba12e",
+      "bytes": 11447,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/account_data.py",
+      "sha256": "1114af8b5a7a639d5b96f09739eda0e5545e86ec64725ae4c1ded3da44b29302",
+      "bytes": 6852,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/assets.py",
+      "sha256": "b3dbdfc1c0a320682cb324d28bef5cd9752ecda1e1367dd30deb9194eab1fbfb",
+      "bytes": 37785,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/attachment_preview.py",
+      "sha256": "28af48348c1c53e3cd255cbdcdd5bd09b23f22b40fb7ed77edd02072efb46a27",
+      "bytes": 4635,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/auth.py",
+      "sha256": "d395e2da0d21cdbaef5f2bba4031d78b7e9014cbc648d079a3ecfa39e154db8d",
+      "bytes": 14949,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/authorization.py",
+      "sha256": "7757e0a2f25b22767a7df34f2c15bbfd1278a21691def222bdfaeff09bfffe80",
+      "bytes": 8422,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/backup_control.py",
+      "sha256": "72270b0090b0ca76a48550240eaf7fac21f31ebcaf2dc68776f7932eb33221a3",
+      "bytes": 8068,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/billing_assignment.py",
+      "sha256": "0c3f5f3a5f183c946b720d859b1df3a9aa1a899acb2964d22203382a2a962c6f",
+      "bytes": 5035,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas.py",
+      "sha256": "dd481497c3ffc7afcb8c1a9685c8b454282057c7811e8486da2a9670b4307242",
+      "bytes": 24385,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_asset_catalog.py",
+      "sha256": "68cc73a94e85e7532bf0a2285f29c109d1c8126a4cebde1225508a09d050f90a",
+      "bytes": 8939,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_asset_page.py",
+      "sha256": "6a31a984a6f5fb1300a204c9349846194a98eecac531993ed42928ba7fb786cd",
+      "bytes": 8065,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_asset_purge.py",
+      "sha256": "66587945062976b30cad62ec2f0f7f03435d1c76ee639e206d041f1593ef567b",
+      "bytes": 11039,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_cover.py",
+      "sha256": "19e0c55704498e4c234abbce08d9ec9739f31ffe1703faeb93e1feff54d2aa02",
+      "bytes": 4340,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_draft_copies.py",
+      "sha256": "0219111d4ce046f814e035b836ce9dae6e064120fd55fcb7567bcd35d790e947",
+      "bytes": 3504,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_leases.py",
+      "sha256": "fdd3c31ea7b9b58fa515f53f08e224aa2cb62cbbdcc6cea068724fd9d0d07e0c",
+      "bytes": 17025,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_ledger.py",
+      "sha256": "848592885d2e3429f7b2027e09ae1f09806662a6cb48de6c3b39fd3d8b1ced61",
+      "bytes": 27486,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_ledger_recovery.py",
+      "sha256": "adc2e6af3d274883357aed0f9c8ecf59c126da83330c9762f9bf7573736da2be",
+      "bytes": 6601,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_llm_tasks.py",
+      "sha256": "76cdfae36b0c85949eb40290c76c7399f8b8292e14a004b7a7486872ea0226ce",
+      "bytes": 2652,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_occupancy.py",
+      "sha256": "9aaf9435026c0c53de6890ccc660e64494669d48175057ac30acc434d088855c",
+      "bytes": 3825,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_page_reports.py",
+      "sha256": "7a5a34e4e0c503f20be2ae97e5dbf34c0e7bdaf3ba02fbfb5abd6a3ef8395029",
+      "bytes": 6586,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_pages.py",
+      "sha256": "8b07edf0e82f01990789413262c06005013e378ad684de082193bf72308b4047",
+      "bytes": 1144,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_subscriptions.py",
+      "sha256": "bf435e0e768c88b6ad0b8a6d26056cc192d5392595354eda7d6ff5897db8d0a3",
+      "bytes": 3777,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_task_results.py",
+      "sha256": "17256301451ebca93095bcae443d895faea0ccc564ec417870fae506b6bdd509",
+      "bytes": 16971,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/canvas_tasks.py",
+      "sha256": "9c9ea8dcee64ed99e05126b26db130c0cb2aee2a3b77e7e2c9596041b53e6ccf",
+      "bytes": 10154,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/chat.py",
+      "sha256": "da885870bb336ddd0577956b0957d28e80bf9c915807ac4d2877613850f1557c",
+      "bytes": 5149,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/chat_attachment_cleanup.py",
+      "sha256": "a15ae9e607a0ddb3d9af9d1a5e8dd12b6b3a09226a330988daf6b02c1832f45d",
+      "bytes": 5767,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/chat_attachments.py",
+      "sha256": "af33b2962b011dbc50a2bdf690078cca6681edf2a66c196fe1d9199ca03a39f0",
+      "bytes": 12895,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/chat_billing.py",
+      "sha256": "002ae8cffaba7f64445b42a0409ccccff517912e2e4f9f4400630a715b4ab07e",
+      "bytes": 9841,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/chat_context_budget.py",
+      "sha256": "1628067493891310b2d39bce0b2a365a82f36483e0a09dc49817354753811eed",
+      "bytes": 2367,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/database_control.py",
+      "sha256": "f62872133a6490d2dcd0b904bc1d7b986ebf91e7e8dddb033a1f5cf9ff1e5cef",
+      "bytes": 6951,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/document_attachments.py",
+      "sha256": "eb2ca990e61266ec7649e7c2a4ff22ce45ffea74e42e10306ca426c9371615f1",
+      "bytes": 7812,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/image_tools.py",
+      "sha256": "31838ae5f216c22546f479a39119838249e3c7e5325d61ead5f2b1b030421436",
+      "bytes": 7876,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/maintenance.py",
+      "sha256": "25cd1146596428b15ae33757954a52def2b3a0698f914197bda1dd0823829006",
+      "bytes": 6921,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/maintenance_control.py",
+      "sha256": "26caa6ff270fd6b138813f5126014bd843d7cf2657ea8d658e379d72785ae2a9",
+      "bytes": 14156,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/maintenance_readiness.py",
+      "sha256": "bd7e602e763b863620769e2cfbe7bd04f9a4e41e9839f95c5ba739fa3c2ac84c",
+      "bytes": 2746,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/management_entry.py",
+      "sha256": "84dcf657af616d48a7ac252cdfd9529c3aab30462eb6fdc95498202edc041b2b",
+      "bytes": 705,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/media.py",
+      "sha256": "78524591e2f26b41ca69dd4d960319c5e4813d5ab6023816724e904eae991fce",
+      "bytes": 136866,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/member_context.py",
+      "sha256": "a4139107c936fa62d191b63c5d1d905d4b37aa6d4bf5ede0299ad68fd46f0da2",
+      "bytes": 1562,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/member_gateway.py",
+      "sha256": "0ac2dc865abcd453be7d9c744a0e7fae6fae1a8a7414ed4848b47a66a77a8c5f",
+      "bytes": 17477,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/member_presence.py",
+      "sha256": "cbf0973ee59c7073c529b556dcbe3d5290386bc8650ebb6cddacd4f53d31314f",
+      "bytes": 7285,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/members.py",
+      "sha256": "4252fb59cab6758eb52166691f09137b445bd89fc0d8fa79123d427eb663d103",
+      "bytes": 24458,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/model_commercial.py",
+      "sha256": "e156ed8d6ea069b0811b4a45fbb2aace0f745e512197ed475087e62f08743924",
+      "bytes": 8093,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/online_inbox.py",
+      "sha256": "27640ec4c5a317a8a56fac6138e6540bf37200d633aabb74367c4d0f1367fac9",
+      "bytes": 11623,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/online_inbox_purge.py",
+      "sha256": "d40ecd6360a38a07ecfae7f87edf569426eacf9594d5dbaf21d9c5c75a9af2f1",
+      "bytes": 9582,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/online_inbox_references.py",
+      "sha256": "64a61e7619d20a3e1d88130423af91ec5f9d0d38e11fabd1c60d0595e96dae1c",
+      "bytes": 4569,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/prompt.py",
+      "sha256": "09f6d498813a3b749ad4281cb171654ce1099850e42505969e1334d8309766c0",
+      "bytes": 8548,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/prompt_skills.py",
+      "sha256": "d32bbd0bc04baff4c6fba01a73872f53633cb67a014f4e785ce7b3bb94344063",
+      "bytes": 20579,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/prompt_templates.py",
+      "sha256": "31364fbe0c3c00b800c5c4e5b1af84b17cd854f7bd6314ba2b498cab09d89842",
+      "bytes": 5120,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/provider_control.py",
+      "sha256": "2cb9943bd1b2a6d6884d476a5273193cffac793caa377ce349bddf7c88f90d33",
+      "bytes": 15986,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/provider_diagnostics.py",
+      "sha256": "7fc44588ff4c22a86a597c4ce80e7a20dc5da07110a5956e7d9efdfda178acf3",
+      "bytes": 5312,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/provider_imports.py",
+      "sha256": "96cc14fd684c7b44ef861ed9d089a9d7d16893653dcea305f085b60f68613e16",
+      "bytes": 9995,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/provider_presets.py",
+      "sha256": "ef074b12472691fdb896782d750a2e764eb6e3ad89c4c46d2edb9a8367a6508d",
+      "bytes": 601,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/provider_probes.py",
+      "sha256": "4ede127a4b24500082d41d37e066387f311d6f52f3d0689bc348ae7139b64bd6",
+      "bytes": 6799,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/static_pages.py",
+      "sha256": "adce2c48d2eb16bd89f143e31415a70a5426e2ba2bf82541fc82fbd62d5026b2",
+      "bytes": 16196,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/storage_control.py",
+      "sha256": "af56477cfc198d186703ac549dd007551472f23454234167bb67a98b9c95beca",
+      "bytes": 6442,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/task_reviews.py",
+      "sha256": "7758fcf1f89c2eda4f94fae70abc8adb0cbaf80c08666763955d1b5f6588b22b",
+      "bytes": 9050,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/volcengine_billing.py",
+      "sha256": "1d4850e0435e622ec91c8c47a8ed81ab5491ddcc284db5f2319f2bc64e6e9de2",
+      "bytes": 7312,
+      "mode": "100644"
+    },
+    {
+      "path": "app/services/workspace_storage.py",
+      "sha256": "315f572bb629927336e778b9f527ef1e6501cd1b4562d51597f0f7b2ba143c4c",
+      "bytes": 1972,
+      "mode": "100644"
+    },
+    {
+      "path": "app/state.py",
+      "sha256": "7b7b4b0d632bddb065feaec050835dbe9657fe52843b2afd0772889cb6916aba",
+      "bytes": 6135,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/__init__.py",
+      "sha256": "92f57333947e9c1b1d6accfb715b9ff9202a747dccabf02ccd95dc99c68793b1",
+      "bytes": 78,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/backup.py",
+      "sha256": "1fb41e5a9d362e4d88bc4983239a364be90854fad1281464cb4ccde9dd71c338",
+      "bytes": 9835,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/backups.py",
+      "sha256": "acb1e0fcb3e2a657965abca98700a8f22d00d1781f3019d2dbcdb2b59f859b64",
+      "bytes": 2046,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/canvas_asset_groups.py",
+      "sha256": "5b1109a5f0c35130398abe3ead8880a360e0765a16932a59915c2655c4da8c0c",
+      "bytes": 4436,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/canvases.py",
+      "sha256": "7839b2600498adc08d4a31f1532d0ddc1453828bb469f004e76b6217806be1b5",
+      "bytes": 9358,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/database.py",
+      "sha256": "a0f5caae5ccd2dfd458ad74863594079b3d5ee04cd9310704cbeafa005b0ff17",
+      "bytes": 3943,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/deletion_ledger.py",
+      "sha256": "f463142040519f4b1a70402ac7c9604ecba3dca3c1242f687efad69c9674fb06",
+      "bytes": 9423,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/documents.py",
+      "sha256": "3d73b45db86fb5726fba644f486cd0205333cb60705de46403b82b498b98b787",
+      "bytes": 4824,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/exports.py",
+      "sha256": "99280a017affce2d25c1ddac4cb8305febf8901c8f871323b6752ddeca8da2d1",
+      "bytes": 8703,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/finalization.py",
+      "sha256": "836dc303f41b3f0c8f926a98525b80b99c92606ce5ef747458958ea1ba7ed254",
+      "bytes": 7104,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/generation_outputs.py",
+      "sha256": "f33bf6d6e01062904a903563a3b252d850edbfa5dcfb30deecb3b0ecabac7ac4",
+      "bytes": 2748,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/history.py",
+      "sha256": "8b427cc0fc304b23bf5c8fff357a46e1c7ffef05ea6d32c5586f02b0b86c3065",
+      "bytes": 3073,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/image_receipts.py",
+      "sha256": "d6cb435a55b97fb81d60dadc056cfeff0549e85170068116c295e0b10b89ca29",
+      "bytes": 5563,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/ledger.py",
+      "sha256": "42c4026284bb8efd5e9fff66c8c78669f9a0ef624ad7c81bcf4dce66533fadc4",
+      "bytes": 5737,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/media.py",
+      "sha256": "bd705f642c15c9fb0f1f8c333f8bde66066a1a6c473e30987f85f3eb245e189d",
+      "bytes": 31341,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/media_presence.py",
+      "sha256": "f1d3a67f13b8bd3c5a3b87b737f7110960ed5876ae49ba1ecb66706407184b20",
+      "bytes": 1447,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/middleware.py",
+      "sha256": "9bbc273290ff35656d191249f17547711d77a581fac72f970c7761ea72039a03",
+      "bytes": 538,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migration.py",
+      "sha256": "c40ee73d214417dd1153c2b597a1d91c15d5e0bd098e7f15b8d9e322d71da54e",
+      "bytes": 13914,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migration_audit.py",
+      "sha256": "bd203f9a58b8015802025289723c0da4984d162d11f87ceecda2fd09373637cc",
+      "bytes": 9270,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/001_shared_workspace.sql",
+      "sha256": "992e9feaec6061d384a26e1666819b58bcffaa22476672c9dda9f87870a64e87",
+      "bytes": 9757,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/002_staged_uploads.sql",
+      "sha256": "18e7ab3a5c4ad2146423500a512aad0964228baa5e9e110b5218ff4e2197aaa3",
+      "bytes": 1279,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/003_history_paging.sql",
+      "sha256": "da18299b4aaec03df50eea03ca2a448d666346df71a2dfba5e63e38a5b768494",
+      "bytes": 226,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/004_members_and_roles.sql",
+      "sha256": "481d7adae65e0eb8a6a2de4a33986136f348d275d8d76f1ec4fd7784536dc82e",
+      "bytes": 4569,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/005_workspace_uploads.sql",
+      "sha256": "acba13e2e2488107f1575f80ff2156ff4d4300e452cdb8be9b5e3660c74ac15f",
+      "bytes": 747,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/006_task_requester.sql",
+      "sha256": "006e0d828eca29677b5c673af9cfbaf16e74b141ebde6508d2382fd7661579df",
+      "bytes": 278,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/007_maintenance_control.sql",
+      "sha256": "264737cabfe3e5c4a07cba4e1130b09bcac943471c3d0d7dd917bd5606593e1f",
+      "bytes": 2599,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/008_canvas_edit_leases.sql",
+      "sha256": "7cb488d8b1e8574352433f264f18481ea1826877a31cfe29da515820a6d5d60a",
+      "bytes": 3622,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/009_canvas_draft_copies.sql",
+      "sha256": "bffac71af62abe7c213d5856ce2a0215a3f2155eb2ebe138cec2cfc98fa2e36c",
+      "bytes": 605,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/010_canvas_page_reports.sql",
+      "sha256": "ffd1d1241cf4897e40345df82160ac321055e7618c915c18b1dd1d803cd855a2",
+      "bytes": 899,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/011_canvas_page_reviews.sql",
+      "sha256": "537ddc37479f3834c1c89bfe9c2183bd2aa6b7e03bf97a740167b1a373cac655",
+      "bytes": 1019,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/012_managed_providers.sql",
+      "sha256": "20072ea680e6f9447f2e23908c80fadf966a4ebdc72a9a39d86f4ba6ad309452",
+      "bytes": 961,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/013_provider_import_previews.sql",
+      "sha256": "88794139698bebd3ecc04fa0e99dece9e0364a58b57e79c60fa3e50177efcb1d",
+      "bytes": 1078,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/014_task_reviews.sql",
+      "sha256": "2a2ba2037490ca366debe2f7240de518e5a316419a1fc6b1ee08d308b9d97c7b",
+      "bytes": 1283,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/015_backup_jobs.sql",
+      "sha256": "3e0bd60e9c3ef99560a5c91f9424d53b94f4f750504fcd4452c98faacb696e82",
+      "bytes": 972,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/016_member_presence.sql",
+      "sha256": "5b5e4d89dcdd54e80dc784ab298440e670f307b1b4d5a2f63b0852dc8c6ea34b",
+      "bytes": 699,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/017_managed_storage.sql",
+      "sha256": "18a4cdba7fd454aa89a25d1b5af8074ababe3fe5114f8ec4703927a6e4f9983f",
+      "bytes": 337,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/018_database_connections.sql",
+      "sha256": "bb5a8b40dcc8d60bf9b7e7a20a477f9a2978a94da1c49ddb718da6531fb863c4",
+      "bytes": 325,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/019_canvas_asset_catalog.sql",
+      "sha256": "7a2d9df2af24c4bc4719b0debba6c6f9a4215bcdaf09aad2e33289438596e227",
+      "bytes": 357,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/020_canvas_asset_groups.sql",
+      "sha256": "2b8a163a694aa25383b73864877dd364a9b4b808602e333ddd69b278b4b261e7",
+      "bytes": 863,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/021_account_billing.sql",
+      "sha256": "a4af40f69725e657d28086d70bcbefd71b3f61ae77d0ccbdff932cbc489abb27",
+      "bytes": 2503,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/022_manual_billing_assignment.sql",
+      "sha256": "7fbb04bc54385a774ed6faf8c572a9c2bc39d1e0640ba758f3a4bc1c98491592",
+      "bytes": 1720,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/023_upload_cleanup.sql",
+      "sha256": "8f7a8319387cb55ffc227fa1e0aa3211efa4246bcb6f63c8ef8fce00d9cb7957",
+      "bytes": 893,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/024_canvas_asset_index.sql",
+      "sha256": "34fe3d072772ed5928b2bf57a1bb348abf3576963e3ddf3673970396411d3bde",
+      "bytes": 1275,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/025_prompt_skills.sql",
+      "sha256": "feb43c93a5273067e11c4aeb1f57e0b2f8c2ec79b4c165e6f96342eb2bb3e1ed",
+      "bytes": 2312,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/026_chat_billing.sql",
+      "sha256": "88aa9d53cca82837386fb2f5fa1aa7c5ca49165ea27a373fbea4594a58d0795b",
+      "bytes": 1084,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/027_online_inbox.sql",
+      "sha256": "51a3c8f409f95c63cf6cb53e858f23fad0b5157940cb900c769a38fb6cc9d991",
+      "bytes": 4191,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/028_online_inbox_cloud_refs.sql",
+      "sha256": "5ee32d032548fc4c76fe0cfa9c78eb3b07f8ce3dcd91e411ff9cadc485842b7e",
+      "bytes": 468,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/029_generation_output_attribution.sql",
+      "sha256": "6ce07b641746f808dab25d13adf3a0e885c3165f45c1450b4fbe1c2b3e2fb27f",
+      "bytes": 1005,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/030_private_chat_attachments.sql",
+      "sha256": "2a87edecae34209debd2f9a70ed20985d79a875bd8383de5ea4f0802327ef7e5",
+      "bytes": 352,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/031_chat_attachment_lifecycle.sql",
+      "sha256": "a5d5c59768518ec45823baa45d6b13bab00911794c101731c3316cccda78c396",
+      "bytes": 1120,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/032_account_closure.sql",
+      "sha256": "6ba74ddab4bf69d449d70e95b3475029d3116e8f88b481235dd5dba8ae3c5704",
+      "bytes": 434,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/migrations/033_asset_reference_lookup.sql",
+      "sha256": "de637f724724f36dcf5d904717e2f141c04b77a80a2ee159dadbb3f6e36e0d66",
+      "bytes": 1344,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/restore.py",
+      "sha256": "82fd3a9374d8942278f007b712d6462a3dc29383dfe5afc98776603c4a45a9b3",
+      "bytes": 18011,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/settings.py",
+      "sha256": "ea830568985466ec0d490d8471e3dd023275015473310dd0d48faf3aae4fa5b0",
+      "bytes": 2807,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/submission.py",
+      "sha256": "353e3e3c46e6609055c9979740e2f809ec176d583996041db2bb4052ff03d211",
+      "bytes": 4425,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/task_canvas_bindings.py",
+      "sha256": "c0a2cbd726c85c5b7f8fbeba8dbb8c9108dabf5616ff8a485eb448185c962bdc",
+      "bytes": 8738,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/task_requests.py",
+      "sha256": "0dc58e944705828377c12bebe1ced2f014e68fc29712a2f896eaf643c0221db9",
+      "bytes": 9683,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/tasks.py",
+      "sha256": "ee3dd781f7f2304ca6e22d335550a0adcc4ce1ebfa34019a3495df5e77e45f2d",
+      "bytes": 15647,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/upload_cleanup.py",
+      "sha256": "cf436a9a0af0198afb5b192740a0a32eeec1d45e8298aab7a8d9384dbfd659fe",
+      "bytes": 16454,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/uploads.py",
+      "sha256": "5e1e9e5d76f4e038278b0628a8c0c65cff4029372db4419354b242a72e25937c",
+      "bytes": 19394,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/worker.py",
+      "sha256": "0a35aa74d03f3a126161dfed0d32711ded03fd634087f501edf6464bb4de6427",
+      "bytes": 7509,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/workspace.py",
+      "sha256": "31e4faf9fb40670844fddd3f2db29555dd0d18098f45f9cbe4877af69519e808",
+      "bytes": 1056,
+      "mode": "100644"
+    },
+    {
+      "path": "app/storage/workspace_export.py",
+      "sha256": "16ca95653672050361d589151645d17358ddc383ae1bd34cdd472c30f8e2c970",
+      "bytes": 7127,
+      "mode": "100644"
+    },
+    {
+      "path": "app/utils.py",
+      "sha256": "378f9e4cc85786688ec0fca250364509bba08e4116bcd7a0ecf8bde3c7e0f014",
+      "bytes": 3144,
+      "mode": "100644"
+    },
+    {
+      "path": "config/provider-presets.json",
+      "sha256": "341b7ecd2d3d2585ea978743dadbacd954bec2879936f7e226b14ab76d5617f2",
+      "bytes": 2902,
+      "mode": "100644"
+    },
+    {
+      "path": "deploy/systemd/infinite-canvas-upload-cleanup.service",
+      "sha256": "a0779ac1713c27c40f257fd3efce12f41f8401264e1380d9be01f51d87ddd97d",
+      "bytes": 1108,
+      "mode": "100644"
+    },
+    {
+      "path": "deploy/systemd/infinite-canvas-upload-cleanup.timer",
+      "sha256": "ae3a23f4f4160b6d476a99c0ff602ac15d8d78c5cccb9b7e7b1ac539ef44e0b5",
+      "bytes": 227,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/account-billing.md",
+      "sha256": "067c283df557ea43a43cdbb4d22a12c0a05f20cabf68f62b426cd7eb5a383e25",
+      "bytes": 6639,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/account-closure.md",
+      "sha256": "06a13de0cdd15c6e82c487593641c561ced90ea2bac4c56848596aa5b5162de7",
+      "bytes": 2966,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/account-data-export.md",
+      "sha256": "18221793d9dc357acef6a3a0b9eb7b3f9e40c8263245124a40aa0b14da1e2a4a",
+      "bytes": 2538,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/asset-manager-consistency-plan.md",
+      "sha256": "e801ed224bde8903d177eb609245606aafa6d452b2c3cbf703650dd4d87ef535",
+      "bytes": 5846,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/asset-manager-member-media-local.md",
+      "sha256": "3d6842ca1e65103ede8ec9521ce4a11001dee2558fc0e6924e9ec7898f8478d0",
+      "bytes": 2676,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/attachment-reference-lookup.md",
+      "sha256": "da0b07d6fe1ff13019ae9794d7755af50c48ba49cd40b65458572532f549641e",
+      "bytes": 1473,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-asset-catalog.md",
+      "sha256": "d1fbca96bc7538a97064fd693533557891a398f47d00b118cbc994ca1666ce25",
+      "bytes": 2624,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-asset-panel-ownership.md",
+      "sha256": "22220ca40c0845619187a944fb015b92ac202107a3816104bd348f4b11c78725",
+      "bytes": 9385,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-asset-permanent-delete.md",
+      "sha256": "1a3b4b269a4f11caa97bedf5160c201c3c645d2b379621bc8fe8a9346282e3a3",
+      "bytes": 1403,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-availability-fix-20260918.md",
+      "sha256": "df46e3d509d09a10e68948b9e0fcc1b3367d8479741e70ef1979c67e76fab9ef",
+      "bytes": 1596,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-background-sync.md",
+      "sha256": "5f4791d7cc92c938847922e132a7fcc9839a60abeeb00493a64a11461a81b139",
+      "bytes": 2000,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-classic-image-editor-ownership.md",
+      "sha256": "25fa1231308fc3a4512ed78faaee7190c6f9023dc21017cadf70f878fbd4dd62",
+      "bytes": 10796,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-classic-library-manager-ownership.md",
+      "sha256": "72bc36e66f092f83d6f932d9776935a1da22a359f58555f66b5ccd100fe1ddbd",
+      "bytes": 4103,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-classic-output-preview-ownership.md",
+      "sha256": "84225ec40c67aa3cb28c2a1f7119d8c4aed5c1c088c1509f6d344a8995fda8c3",
+      "bytes": 9077,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-eight-module-refactor.md",
+      "sha256": "fbf1a444d200ecb1f781c16136745f20b485b021d3a9b74bd8a7307ea9f3f3a1",
+      "bytes": 14074,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-frontend-performance-2026-10-05.json",
+      "sha256": "37988d93cde14de8cae5fcf5600846946ca6d354473a3d38aecbfbd3d286ebfb",
+      "bytes": 14465,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-global-state-inventory.json",
+      "sha256": "a096c4102b1046c43a1a902ef238d00512f0a1b5be28762d750d5b068453b198",
+      "bytes": 227440,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-global-state-reassessment-2026-10-04.json",
+      "sha256": "16a8d1a697842c3ad9699addb9484eeeffa74018874190daefa19c22fd0e1609",
+      "bytes": 790052,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-global-state-review-2026-10-05.json",
+      "sha256": "54b3e39c15e0a2e2ccaf095e4db308239d9b83eb147b5cbdb8eddd8bfa28ccd7",
+      "bytes": 831367,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-interaction-performance-2026-10-05.json",
+      "sha256": "106a31f0ebc90f7a3d132deb9d4e91ed14529f201d737d98f2ad878e3ac70165",
+      "bytes": 115528,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-interaction-performance-diagnosis-2026-10-05.md",
+      "sha256": "c29d254130d8bb3cc4d95e2dd2af1f0f97390bb3199aa11b90bbeeb0b83423bd",
+      "bytes": 14266,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-leases-local.md",
+      "sha256": "11cb1400fe696d62770e7566a68818a5a9b63e443c0a8d6def5b50f40904428b",
+      "bytes": 6058,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-ledger.md",
+      "sha256": "767193d53f80ed275d0bc48b9e6dc155ee9ca5de841cdf773d01779fb7488162",
+      "bytes": 4465,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-llm-tasks-local.md",
+      "sha256": "1a497c72b6ae33b134de5f1be1d9d6b360d79a2807489b53d006fe68f8f5a207",
+      "bytes": 4672,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-management-ui-boundary.md",
+      "sha256": "b20967ff5ce637626a7acecc3dcdc5fe13e29e446eebff27fb20f6254d20a79e",
+      "bytes": 2771,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-metadata-fix-20260918.md",
+      "sha256": "bb31e658484833bb0d40c5fbd0c020b7ec2cb8620c16e144fdd2cda8ce734bc5",
+      "bytes": 1753,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-minimap-ownership.md",
+      "sha256": "82231e8413bed6128bbad2931e925cf4e70ef53e810a08ac6b927ae80531d86b",
+      "bytes": 5858,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-occupancy-local.md",
+      "sha256": "ed5c540b485a97093f6ee3bb6f10a4ce337bb01f6c98020d36990e53b03adb24",
+      "bytes": 4868,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-performance-phase1.md",
+      "sha256": "6fe600e662d8b6261c9ef03fa56050f998031c3471cda9f4de671b5960b78805",
+      "bytes": 2886,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-performance-taskbook.md",
+      "sha256": "a84e3f03b187cca023643230c593f98a5e0650cb43c64df751b9bde6b516a41c",
+      "bytes": 6079,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-prompt-panel-ownership.md",
+      "sha256": "a3c64a756e13e871cde7d7f0bb1893e010c9c9191b074a0a8bb50b0bdee0d1a9",
+      "bytes": 9531,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-rendering-and-asset-pagination-20260918.md",
+      "sha256": "f6cd2fe830dfd7a824c6d4c69ce7eec2368ea31a9d3cc03e82c549f94f01ce74",
+      "bytes": 4071,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-shared-cost-display.md",
+      "sha256": "539bb8ee65cdbbb3d26707d42c8fd9469bcccc76b029de05fc4ceac952fb1eb3",
+      "bytes": 2549,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-audio-preview-ownership.md",
+      "sha256": "3a606dad0ece954d2e51eb5bea1ddb2975e7a9bfc0efc2d513bdefd1da6e81d9",
+      "bytes": 7897,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-composer-session-ownership.md",
+      "sha256": "5856a7a276d9973c277f3459cd17501e44a25c609e13bd35e41d214926203a11",
+      "bytes": 5672,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-image-editor-ownership.md",
+      "sha256": "6193723c21f8c28b649f853ea94cc7dda50a553070014d219c3e90820bd45e52",
+      "bytes": 9024,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-input-application-ownership.md",
+      "sha256": "d63b2f8b46406f41abd0470199d14243ceb1da96d4758489107d013134db865b",
+      "bytes": 4366,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-panorama-ownership.md",
+      "sha256": "140798cda5f5923f25fe16acc0b8c27932b90d09f453647135d84525d7a99a43",
+      "bytes": 7369,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-preview-ownership.md",
+      "sha256": "b98d974b709f3148cf8e3159d1ea3e9e9bf3345c309ae65773de148e29216619",
+      "bytes": 6359,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-selection-command-ownership.md",
+      "sha256": "bdda6fcae275a566eee60486d0af2720c906aaf241c47861aa67764d6f6b1e39",
+      "bytes": 7023,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-selection-composer-boundary.md",
+      "sha256": "6fc30779aedd054646d0ba759a2d2ac3214b5ecfab261f71905b772f7a830cd5",
+      "bytes": 3724,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-smart-video-trim-ownership.md",
+      "sha256": "f9612574908e4ebae934f5011d23a51e44fe39690ffa30b25f1abffccb3e503d",
+      "bytes": 6553,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-state-reassessment-2026-10-04.md",
+      "sha256": "ba2c0ea6dfbbffc45d6f9bb6be8d1a055b937879f933166502c4d947745ba922",
+      "bytes": 9392,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-state-review-2026-10-05.md",
+      "sha256": "b5a26911b9c678a628e997cf74d9250a95c939ae249f8eb7d4a724d78c4bb61c",
+      "bytes": 7601,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-subscriptions-local.md",
+      "sha256": "57437626179305bfd24f5a0be0afebe216257dfabac9c9c0db5a75289c330e8e",
+      "bytes": 3953,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-task-results-local.md",
+      "sha256": "0a252c0a8de78cbf59b03e4b2340326c6ec45f0b0d01a2510ebcf7aa6f68bda5",
+      "bytes": 4685,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-task-write-guards-local.md",
+      "sha256": "bfbc33067ae1f10e6c83689f6ccd84a56bd3cb8ac98de01e0c4569b58426f487",
+      "bytes": 3758,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-viewer-media-local.md",
+      "sha256": "3eda3be252ebe4071f91e920318d9813d00f20aa209d913b7e75cba8776582c2",
+      "bytes": 4814,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-workspace-cache-boundary.md",
+      "sha256": "2992b83a8019f2745f0f0903855446b6b69d67332675d8de4706286da3353cc9",
+      "bytes": 2563,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/canvas-workspace-cache-ownership.md",
+      "sha256": "422a654d542b9d00c12983fa09640096912a9b2f1741b56ebafd389e679faff5",
+      "bytes": 5331,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/chat-billing.md",
+      "sha256": "deb875fc017638ee183029f3b3064c3f69973770c78ce2ab45140697fae6fe45",
+      "bytes": 4739,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/chat-context-budget.md",
+      "sha256": "4b3632ba31127d700fa2e5eafcc3c04a2caec11ecefca0252292eaaf5e2fe868",
+      "bytes": 2217,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/chat-data-boundaries.md",
+      "sha256": "692aea363179b04d197d44f7a260fc21f91a8a5d089b7cc72f2cac7ab0da9c55",
+      "bytes": 8615,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/chat-deletion-ledger.md",
+      "sha256": "b59693d960ae733273864163ced0be5107b9bfb4aa94bbb16e8783373556ad48",
+      "bytes": 3221,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/chat-document-attachments.md",
+      "sha256": "617872041989e41f3373ce153b61a21ddc3b7bbb15068ffa31b5cc82e7b0673a",
+      "bytes": 2178,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/chat-document-preview.md",
+      "sha256": "f3cfa2815c052d0277c196b9155a79be12748db93eab3db444b8c6133006f5a2",
+      "bytes": 2289,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-box-selection-optimization-2026-10-05.md",
+      "sha256": "caadcd99b949816903cb8e5b093a713fed62fd639ad3e16c9934355223487229",
+      "bytes": 7368,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-box-selection-performance-2026-10-05.json",
+      "sha256": "3e44b4233c819be9fee933998ed0d23ead6db4b39775a4567258ff0dc7637276",
+      "bytes": 166424,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-canvas-video-trim.md",
+      "sha256": "5820cbd2c6c1a2c885f20a2a487683833f4c7f9f2b27a64e3f614e6f4d4e984c",
+      "bytes": 2262,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-gate-computation-presentation.md",
+      "sha256": "016ba1dddd03ca084c728f7ac559a8f2ca1aec8cbd899e244c6c726a093462d5",
+      "bytes": 4047,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-selection-link-diagnosis-2026-10-05.json",
+      "sha256": "a0bca7cc725806cac75c1bbaa2b51d93d2550e95f54787fc8303d9df4e2d6bc3",
+      "bytes": 122647,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-selection-link-diagnosis-2026-10-05.md",
+      "sha256": "9af012dd7bd2501abb2b0d6075aafb13a155b4718f13aa93c8c83ccc0ed8b15e",
+      "bytes": 13555,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-selection-port-reads-2026-10-05.md",
+      "sha256": "32d6e333ef1fbc0c509243206ba5581309e1fe060c96c7008749257d4bacc0a7",
+      "bytes": 8453,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-selection-ports-performance-2026-10-05.json",
+      "sha256": "0f2fb66dee41edb14a7b2c6069962071aa7fd9fc6c171a9605c7a7f0aeb6bf2d",
+      "bytes": 482428,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/classic-task-input-bindings-local.md",
+      "sha256": "a58ab61c53b7ae63d1a9adcac0071ee888630dbc6e36d02df5c8d10b82e62c7a",
+      "bytes": 4874,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/database-connection-management.md",
+      "sha256": "31361845305701ba0b597599abbd55340c8f8ed801809a4485151426bc4df1f8",
+      "bytes": 1356,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/database-restore-local.md",
+      "sha256": "91e20674a0c9d8ed8b4cfb190aaeafeab1f60dfe7a73697cee3629af3e40b5fa",
+      "bytes": 6985,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/README.md",
+      "sha256": "7426a76c4f991b162c8dd33e2e8ff3f9cccece743aacc76bd6d7057e93141393",
+      "bytes": 3485,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/classic-cover-dark.png",
+      "sha256": "1dc169bbf40944a092dcf84f3284f5c8abc273b1add60bf8a2ac978103c091a0",
+      "bytes": 99833,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/classic-cover-light.png",
+      "sha256": "aa7053784e1ae7c7c753453926e4ecad56bbb30ac2e4fc51b5493c3e7944f14d",
+      "bytes": 112560,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/classic-cover-mobile.png",
+      "sha256": "7c2f7339b6a2e0e0742d3b8a02ccb12730ed59ba3022c71b95ff7eb3cd4b31fb",
+      "bytes": 66970,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/live-classic-cover-empty-dark.jpg",
+      "sha256": "344e7b823949d52190a9339615498a38d16221c003c468b19c8024f503c2972c",
+      "bytes": 47093,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/live-home-cover-dark.jpg",
+      "sha256": "a0c4887d351d7f620118eefeecc789e405b3be0295e8b1fe3bff45075e6cacdc",
+      "bytes": 67529,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/live-smart-cover-dark.jpg",
+      "sha256": "356502838211f569c7079c5b2b427c4dab8141b2fd57da63c97f353481d136b3",
+      "bytes": 54257,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/smart-cover-dark.png",
+      "sha256": "cc8074d59843189ee0cde7a8a69ce7c93a71f72e1c241e14a63ae7c04eb16ccd",
+      "bytes": 95241,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/smart-cover-light.png",
+      "sha256": "a25336d8948aeea1e635ff871464ede65f39590908ca27ce8263385a71ad2d2a",
+      "bytes": 109379,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/canvas-covers/smart-cover-mobile.png",
+      "sha256": "f2a06345cc07496a8e5c237eb092063bc2aa9bc24e4dcc1aa08d7c8fd15ba1dd",
+      "bytes": 62817,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/README.md",
+      "sha256": "b599f05592b54aa1aea442edb23038f0df01bccf5621cefd8065b77ae1987b3d",
+      "bytes": 5705,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/after-dark-desktop.png",
+      "sha256": "752755468916cef50e521a9597a60bb8f77e53703cd2ced269ad4f9f09ba8f25",
+      "bytes": 109899,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/after-dark-menu.png",
+      "sha256": "7c49a0048fa3fff374874d7b11d01d4f48d8dd3d252a31b77e89d4a308dc3d35",
+      "bytes": 111064,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/after-light-desktop.png",
+      "sha256": "d47747abe1481b6cfdf0a681612ff8218a92f6f870dc6161bcb96c1ea83410e6",
+      "bytes": 92970,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/after-light-mobile-nav.png",
+      "sha256": "8e27d7ed4a2da6a78a65f40f3ba0bbd63ed0bd7c53a1be7a0c620b6b7c040264",
+      "bytes": 22882,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/after-light-mobile-search.png",
+      "sha256": "092b4bde97d31963293ab0dc1082418e0ca603481b7f06abab65587aaf5b0b4d",
+      "bytes": 29424,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/before-dark-desktop.png",
+      "sha256": "74c654bcf8476bcf7e1f7b80763960beecc6a8e665702216bb719eba229bbfa2",
+      "bytes": 122846,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/before-light-desktop.png",
+      "sha256": "6f685410fe99915dfc098c6c3802807d659a45ce69af86a4dee92f039a853c13",
+      "bytes": 205023,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/cyber/performance.json",
+      "sha256": "506f84166a0991b5d7a8a880e1663a532d674bc188d15816174fd6ef06428994",
+      "bytes": 705,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/README.md",
+      "sha256": "a10db881b4a7e32410f525c515d1f9f82a1444b59b6e00b5b9ce5b70c36f40f6",
+      "bytes": 3487,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/after-classic-cards-dark.png",
+      "sha256": "bfb748fd0c4bc32b98c9b236a571afbbb9bf675602b4d50010d02a919c21784f",
+      "bytes": 55188,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/after-classic-cards-light.png",
+      "sha256": "270d6b20369a50913b468c2dcd8ce3da98c9d999edae1f5789aaf253fa193926",
+      "bytes": 55936,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/after-classic-trim-dark.png",
+      "sha256": "91ac055825865863e5883d5ab92a24b6407047c19f3b9d0fc3d8828ee9b92b9f",
+      "bytes": 32193,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/after-classic-trim-light.png",
+      "sha256": "1c80f395a9ba51aed72fe5b77a37caa37eb1556e2ed8f7b493cacef379de4f49",
+      "bytes": 37220,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/after-smart-cards-dark.png",
+      "sha256": "20d788b996a4a5bf99336fd83e159dc988dd8a34c070cd5915ade6ed09402566",
+      "bytes": 47631,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/after-smart-cards-light.png",
+      "sha256": "1eb6ab13812556321de71b1cdd2dc2f2540c96dd2f7055a2e0a9c48f23a14197",
+      "bytes": 44790,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/after-smart-trim-dark.png",
+      "sha256": "bfd72fed459cfcadc2963218d0d5cc2a884ffd30b694ab672193d0aa335e385e",
+      "bytes": 34545,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/after-smart-trim-light.png",
+      "sha256": "b784966720f6d83d5a22cc518be29923b10fcfbe0d8e0dd7aeed1557df7fed93",
+      "bytes": 39972,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/before-classic-cards-dark.png",
+      "sha256": "d7cbcbc4d91c7032bcc5acb089fd44f40ba787ee01dad0d663572e9d0f3442ac",
+      "bytes": 57801,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/before-classic-cards-light.png",
+      "sha256": "b510e764a0a82fde61bb44e667e28532978c41ed2ba583b8ab91864652f56f50",
+      "bytes": 58367,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/before-classic-trim-dark.png",
+      "sha256": "70ece3d33e0eac3f6e6cd6a118e729cdf4db71f4381afb5ad681dd7d05f68cf4",
+      "bytes": 46651,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/before-classic-trim-light.png",
+      "sha256": "f338873d652bf3a21d51cef2b1ff9ea45a4702ebd082ca4381de7a2735ff71f1",
+      "bytes": 56886,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/before-smart-cards-dark.png",
+      "sha256": "19f44d0a128beb2841426cadb004fe792533c5c13accad44cea852de3c1fdb9d",
+      "bytes": 42814,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/before-smart-cards-light.png",
+      "sha256": "4ea4d1d17b6aa175b340c5f73a8903908df3d3465a6cf452574295e4085ce46b",
+      "bytes": 39451,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/before-smart-trim-dark.png",
+      "sha256": "31c9a9ab5951dcdbbfd440fd46365c12e457b47ee41c23ff92f648f36d4772a5",
+      "bytes": 43548,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/media-palette/before-smart-trim-light.png",
+      "sha256": "307cd71de0f744998c8a5c04a811f1f4a4f394600734d54953aa06e0e38aac8a",
+      "bytes": 51387,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/studio-concept.html",
+      "sha256": "1dc5b1fa04b887cf4e7715a9fd2ad1245e1ce295b7f0a169b225ea9cc9a126f1",
+      "bytes": 18821,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/studio-design-proposal.md",
+      "sha256": "d144778ca42602a0d0c89dbdf07b138bb682af798d3bfe113aa9d36c441842fd",
+      "bytes": 3278,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/transfer-states/README.md",
+      "sha256": "8e8f18c5c0523baf764d3baa4872e87e7c0e0866ba8b9edbacf4348e67ba92e1",
+      "bytes": 2106,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/transfer-states/classic-loading-dark.png",
+      "sha256": "47f0bdb16bbe3161b12734182a8f1bc72ee37819734cfec9b217e7780f353db0",
+      "bytes": 48473,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/transfer-states/classic-loading-light.png",
+      "sha256": "5e64e448503a4a42c2b0437b2286313a6a6d71d5061c7b95ac5a9b2bf81d1474",
+      "bytes": 49737,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/transfer-states/classic-upload.png",
+      "sha256": "d14be072eecfe5149f7173839ee738a79a3e67d284c64b67b713147c16b6f08a",
+      "bytes": 33022,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/transfer-states/live-classic.png",
+      "sha256": "a5c52f47245767f851997498de07a2f2b9a2ec5fd182ed9bc88b16a7f679eed4",
+      "bytes": 78469,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/transfer-states/smart-loading-dark.png",
+      "sha256": "13baf73620b547b0c2646a2367e2105cae5c7e9d59418fdb00610900baad14bf",
+      "bytes": 36710,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/transfer-states/smart-loading-light.png",
+      "sha256": "b993b2f18277bc82a578c442b898756421ce83711d22799dfd0de724286a5614",
+      "bytes": 32838,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/transfer-states/smart-upload.png",
+      "sha256": "77cf2883109b0d7d3daaca03f4db36fc3c7e8d1d9c5590bcf64891c825ba977e",
+      "bytes": 30505,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/trash-restore/README.md",
+      "sha256": "0ba3f201809f3811dbd7c178309ae182f04580cc6d7998e9725f118eaa25b294",
+      "bytes": 1613,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/trash-restore/permission-feedback.png",
+      "sha256": "ebb0ca103b452b67bebc10449c98460b0c991fdc60514d690cf4790fed654cb2",
+      "bytes": 26638,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/trash-restore/restored-list.png",
+      "sha256": "289d5cd9b8505b48c66dd873d3541a107a2539f03c266e507d28d7f30fc71987",
+      "bytes": 41588,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/README.md",
+      "sha256": "aaefd8fc31c3a98b1a1c9010006f6615905c07918afe95c52d29ae5ba1f60032",
+      "bytes": 9196,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-bulk-toolbar-empty-dark.jpg",
+      "sha256": "b5029044a3ee8011422929b7c600c97c6f080545a5d4e1abd7d92d7e89e7530d",
+      "bytes": 47884,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-bulk-toolbar-selected-dark.jpg",
+      "sha256": "445aefd432ae66546c513ad05a22125c6db14c7663d2fdf0ed9b13f4008d5ab6",
+      "bytes": 49205,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-card-menu-refined-dark.jpg",
+      "sha256": "249b934dc8f20247bf7c8873fd0f6ea13f5c51f48f4d49a14162db39565ddf6d",
+      "bytes": 62110,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-chat-dark.jpg",
+      "sha256": "9490955d1c6f4e50ec9dee6bd6c58bd7d0557ea22443c8f13cc9e70a3a067fcb",
+      "bytes": 45085,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-chat-light.jpg",
+      "sha256": "3eddcfb4243fb6007a1951eb2090dbd06b071dc07d29cefbe1775e2a1224f024",
+      "bytes": 46648,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-chat-mobile-dark.jpg",
+      "sha256": "56d02e280374467b54af4ac5be548ee2568fb85d9ab09503f27306297f28eb59",
+      "bytes": 22407,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-generation-dark.jpg",
+      "sha256": "007af0330d7dc4a5ce73b96a7b34632b5e7642eb964d742d2d73bcfd3431c5b0",
+      "bytes": 52448,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-home-menu-dark.jpg",
+      "sha256": "26e8255c11ce2a9ad711638b65de6c18a99dbc2487bfbc9192579de7f57f4eee",
+      "bytes": 62927,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-home-menu-light.jpg",
+      "sha256": "cf3bdfac48b0a705aad0cbbb700fafcde3f7b3c4138d878d58c261bc557003a2",
+      "bytes": 62927,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-image-preview-dark.jpg",
+      "sha256": "58686f53d1f339bf5abce4f5c918b5ee6de6c11195954f34fd3239c8e104d386",
+      "bytes": 41681,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-image-preview-light.jpg",
+      "sha256": "581ec8ecbf5690a95747e97c83ceaa4e8060e49c34537032613c10b559a81dfb",
+      "bytes": 41767,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-image-preview-mobile.jpg",
+      "sha256": "e7ee5a5d81c9d7e142759c30eedcc84f6484d602d60693cf41f5c7ac1ccd7570",
+      "bytes": 19862,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-library-light.jpg",
+      "sha256": "c2bb803fbc50050fc41473f707f18aa947dd7d2412e46df25eb1b4d01a805b15",
+      "bytes": 59257,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-library-mobile-light.jpg",
+      "sha256": "3a6547ed0e67d73778c58f0615f563f6dec555adf05e9d6e60119eabf4339d1c",
+      "bytes": 34236,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-library-tablet-dark.jpg",
+      "sha256": "914bd02bf4cd22aee9bdf930d2c7bd95eed8234d5ed2e1be031d4353febd7956",
+      "bytes": 63539,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-mobile-navigation-light.jpg",
+      "sha256": "084ea364a8d22927db1f04ffddeec1caeb63158d625bc5449f8019e759e52b4b",
+      "bytes": 20501,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-tabler-home-menu-dark.jpg",
+      "sha256": "cd4ea5a62f29e962813c6a655859b4837500131b6e89a57bc23a24bfdfbca517",
+      "bytes": 63213,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-tabler-library-dark.jpg",
+      "sha256": "4b388a14394d8f841d4c7b1c4cca66016a5bc912d62c192fec4457b0f66d6978",
+      "bytes": 71805,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-tabler-library-light.jpg",
+      "sha256": "01d60da7df08a0768d660072bd18a839a7c940a8f10411bc2b4b1fc984f21541",
+      "bytes": 68920,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/after-tabler-mobile-navigation-dark.jpg",
+      "sha256": "8ee32597b8501f2605376308dc8e1f80dd5e3a12e027eeaf10a8f18ed66a7f10",
+      "bytes": 22570,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/before-home.jpg",
+      "sha256": "d1f01b8c38f143ca495363c40b747152599f7fb2ad529c0fe5de72f95d249caf",
+      "bytes": 38627,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/before-image-preview.jpg",
+      "sha256": "7b526bae86ccb2a6253caf7b8208237eb62863e0bf6c8c882dee322c19e07f6f",
+      "bytes": 37723,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/live-regression/after-classic-editor-light.png",
+      "sha256": "f1201e3fe7d9d495848cde5455a74549b1ed67d7cdff44ccfdaa6ced9cedd268",
+      "bytes": 53697,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/live-regression/after-dark-desktop.png",
+      "sha256": "8d7ab9e45638cde70e735384520abab9c6ad38cd7b4052ce2f4f98267222d5e5",
+      "bytes": 111889,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/live-regression/after-dark-menu.png",
+      "sha256": "99bd348bb7243351bc2feb0f8bb60ac6f2e799352db8eb25f4026f581f0abc8e",
+      "bytes": 110149,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/live-regression/after-light-desktop.png",
+      "sha256": "1e0cfb4bbacc17ee71ec878de054f1457d781dcd911728f399a8c1bfa47f615c",
+      "bytes": 94471,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/live-regression/after-light-mobile-nav.png",
+      "sha256": "976e4a7309d7bad5bf2a0a02dee715cf45ab2849fe41406a1857a7e8612d507f",
+      "bytes": 23434,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/live-regression/after-light-mobile-search.png",
+      "sha256": "4ec8c1c5a7a8ba4638a7d30ee4f4d1c9bd642413ac86037723e74db83f12fc2c",
+      "bytes": 28902,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/unified-cyber/live-regression/after-smart-editor-light.png",
+      "sha256": "70f0764e464b8bf8f7fd797f31429542c9fda1f5313d0c83cd00df25e7a4fb85",
+      "bytes": 41233,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/workspace-storage/README.md",
+      "sha256": "35fa045afbc0f15644fbee4f3061be74c22df8cb19d84b06ff5eff8f117958cd",
+      "bytes": 2714,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/workspace-storage/live-storage-dark.png",
+      "sha256": "4d1694a977cc93ab8032de0356a86a386882971faa997b9c6bf1514ae4b398e6",
+      "bytes": 165396,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/workspace-storage/storage-dark-mobile.png",
+      "sha256": "3f41802f08a686fbc647c02e616978faa76559d06a355579ece26494fa9437f8",
+      "bytes": 37902,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/design/workspace-storage/storage-light-mobile.png",
+      "sha256": "dbef6f8b9e38a7281288a99dd0e5acada2a2005317f4d8e9da30055cf74d8812",
+      "bytes": 30346,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/frontend-boundary-migration-assessment-2026-10-05.md",
+      "sha256": "0d1fedbdf90d63378e2b513f0ed2222b96953b5874e795a18f9697d853ec84d9",
+      "bytes": 10425,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/frontend-real-service-acceptance-2026-10-05.json",
+      "sha256": "4faf380b4b0b40906bce070940ef911a64a48db756741f075d92228221e5c65b",
+      "bytes": 785,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/image-task-receipts-local.md",
+      "sha256": "bb06d69a36600d9982a4e6f59bdd5deea54ebd4bd1c566e80d792da916fa84a3",
+      "bytes": 3645,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/local-depth-video.md",
+      "sha256": "29ecbc23727cfd21c83b02d63bfcaf9801f1abbad4e5751dc00837a7b9970a61",
+      "bytes": 7908,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/login.md",
+      "sha256": "6da8cce580d0e58e1ce653ea6faed68ff275e3f99cf1155c80ad0f7127d55065",
+      "bytes": 2596,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/maintenance-control-local.md",
+      "sha256": "a7163fe6a26869ba224c1992345127ced2d21a0ede624fe9bb906ed75c3f47f3",
+      "bytes": 8039,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/maintenance-readiness-local.md",
+      "sha256": "151a647d3f4d195a6e984a293ee642f45353ff95065bc3b9634343d7431a4d0c",
+      "bytes": 4749,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/maintenance-recovery-local.md",
+      "sha256": "44688822481788873a950ddaafd277cdfa7aae843cdd8e1a82af4e6409673e38",
+      "bytes": 5490,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/managed-providers-local.md",
+      "sha256": "428605e517baa23a99dd8e4416930cbba5c06161666a12cd065466a98d55d8cd",
+      "bytes": 5782,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/management-backups-local.md",
+      "sha256": "54aaea7e24b3c8986bb08d2b03b37a6b33b6323c11cac11632f764c8d2a6c166",
+      "bytes": 5493,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/management-overview-local.md",
+      "sha256": "471eb827b9c364f161824a08eab9d290a5b352205c619ff2c9ebf585434afc9c",
+      "bytes": 5006,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/management-platform-local.md",
+      "sha256": "e1a07a4275a1606c6600901ef5605e65b73429bf5f6df1265052f0b5e3413bec",
+      "bytes": 6617,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/management-platform-progress.md",
+      "sha256": "32267da93724a4def7b9c7a2210c0c64e82e34945042a0295289196b195e62eb",
+      "bytes": 66816,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/management-platform-upgrade-plan.md",
+      "sha256": "29bcf270f1129caa524d14dc851f261a211315d6549a267b50e17effac397a8e",
+      "bytes": 23089,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/management-tos-configuration.md",
+      "sha256": "bbb5b3467150b09357b92eef44325dc5ba177ba3694bf982b8ce539efd7c06be",
+      "bytes": 1635,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/manual-task-input-bindings-local.md",
+      "sha256": "81c0cc81b6c60e18def985f2e3186f114dc1fbb45c6c9ed139d070372dc9680f",
+      "bytes": 4697,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media-browser-cache.md",
+      "sha256": "76154d4c39926978fc8018acf1620ff6218afa5f256b2dc3f7d0a3254502d2e9",
+      "bytes": 1531,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media-preview-faults-local.md",
+      "sha256": "dda730b545f0b01ed4f1669977dd3b8231cb70084c3021e6ee394c1ee5fb2222",
+      "bytes": 5086,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/member-canvas-draft-copies-local.md",
+      "sha256": "39e0aa12ac1697f28abbe98593b561a0bdab14b0985b4d0d97f4b202560ca630",
+      "bytes": 4808,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/member-canvas-drafts-local.md",
+      "sha256": "c236e912a7cb08a03a4c91412e1f14284805d15fc007d36395f2c399cfc1900c",
+      "bytes": 3781,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/member-canvas-edit-local.md",
+      "sha256": "6e17e8cd428c4e365fc9042d7cb8578fb0b41e44fe336aaa8a373d0315e4372b",
+      "bytes": 4310,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/member-canvas-page-reports-local.md",
+      "sha256": "6806d026a75da61f51d5de741d0c30310d18684c126495cceef76da205b14bc3",
+      "bytes": 4788,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/member-canvas-page-reviews-local.md",
+      "sha256": "e83bd4785c45236a5d10684095f6c686073dbcb65c2ff892ae162a4b6fc1282e",
+      "bytes": 4375,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/member-canvas-refresh-local.md",
+      "sha256": "c59f42c8183d391240ec48f6bc80af261268795a520ff6209bd5ef4ba9bc6e88",
+      "bytes": 3392,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/member-canvas-transfers-local.md",
+      "sha256": "16c29f3988adfcc2c6826c7ffecc2fccdadf4d82ae21b3d54bdb965f078bb379",
+      "bytes": 4149,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/member-presence-local.md",
+      "sha256": "5425824e8a51620d13738b7fec2e50fbb430c81d2528e019ec946cf08709c8ea",
+      "bytes": 4607,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/migration-delivery-generation.md",
+      "sha256": "7ad549bb7926744be030ecf8ed31e8baacb80d4bf6e8fb6018c48ba0d3245ae0",
+      "bytes": 2420,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/migration-delivery-handoff.md",
+      "sha256": "7ab9308f6a2a7f5a6fd315e42653bc85ef1e0f32a7856ae50752a34332637004",
+      "bytes": 8904,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/migration-delivery-import.md",
+      "sha256": "6f5d1321bcab37a075674f6a40dffca83dd81c1220b3a9b8d0ed721c7c93b4ed",
+      "bytes": 3528,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/migration-delivery-inventory.md",
+      "sha256": "699ed0a741b25b270a206079657f1484f844194c18f704667d1a219e95735b6e",
+      "bytes": 2775,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/migration-delivery-main-flow.md",
+      "sha256": "d4aa127b1ae95994f95207efe8bd5b0f3eef6d831f7ed3d3fe423dcbbb6502ab",
+      "bytes": 4545,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/migration-delivery-plan.md",
+      "sha256": "8ed1729e745438363dd8167ab51dfb94e651521c9594b9753fc6198f66e8731e",
+      "bytes": 6093,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/migration-delivery-preparation.md",
+      "sha256": "9f5faca33055707d56897d98787529628467260193d54082b980b1378f9c0f22",
+      "bytes": 3939,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/migration-delivery-providers.md",
+      "sha256": "cd18f3c79805ca20540adac0d5d1e5dceac0e1f497fed1cfcae2395b06367b2f",
+      "bytes": 2765,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/online-collaboration-upgrade-plan.md",
+      "sha256": "6788c50c8bc3856bc14ee33653dbdb653bb4c81448eb744e1a7ba3f62528c972",
+      "bytes": 20457,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/online-inbox.md",
+      "sha256": "06162fad8e3bb08b7014e2e659ea71753030ec910e6315b19a3666f63ccdf02d",
+      "bytes": 4723,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/postgresql-tos-acceptance.md",
+      "sha256": "c8d34d3ee597f1aed5f9c7c40e940b552bb1bd044a06778464a67dd3baafd129",
+      "bytes": 6308,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/postgresql-tos-design.md",
+      "sha256": "dfb9f364aa1ddf3c92919538d39345eaf2774cf54995c7c88bc44abeb0b5be82",
+      "bytes": 24223,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/postgresql-tos-implementation.md",
+      "sha256": "39afdc2c9956865e62a9b0efddc5b95739a7d64b3361ba90e6412ba18ed8524c",
+      "bytes": 23245,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/postgresql-tos-progress.md",
+      "sha256": "c49b34ba01d6ae9c678ec2bdc86bf92da074b2b565c97f0c1a17276d09c1f74e",
+      "bytes": 9387,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/postgresql-tos-schema-draft.sql",
+      "sha256": "47f975e1358089e264d679713bbd4736e337d7a837003ce1d4249e999d25cbc0",
+      "bytes": 10074,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/project-operations-manual.md",
+      "sha256": "b87137e05c7028c4d522ef4e905b165ccc2cfca8b6548ec8580c126a503fd1b2",
+      "bytes": 23191,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/prompt-skills.md",
+      "sha256": "91970759f776b39e3a5c5bbe1b45791fe8275686f90ab4c63c57d5469dba4c57",
+      "bytes": 5741,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/provider-diagnostics-local.md",
+      "sha256": "fef0c66631b86cad720fa781dc131d826327b0c5dfcb4e6094a61ea02022a078",
+      "bytes": 5065,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/provider-editor-local.md",
+      "sha256": "ab659fa7405216f513053f3f4716b610db20306b391853ba21cb777ce8281052",
+      "bytes": 4075,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/provider-imports-local.md",
+      "sha256": "f1e76f52f372af98eac0772d35e5599a883e4829992f2e030625c64781ced418",
+      "bytes": 6152,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/provider-probes-local.md",
+      "sha256": "a0efcd317b3bc7fa8c1b74f493ce9bec07f1e6a3abdc3277fa80c0bf6f313265",
+      "bytes": 5003,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/retired-integrations.md",
+      "sha256": "d900935bc949f6ba5598cdaa41e1cc19f839d8ae22deccf535eadafdd570a36c",
+      "bytes": 6986,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/skill-context-upgrade-20261008.md",
+      "sha256": "2f2d69fa6f32f9cb8d4693ed2591a65e421ad2534b91e075102a353935f5fe5f",
+      "bytes": 1669,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/smart-canvas-performance-plan.md",
+      "sha256": "d2a286c5fb3a0abae9ef494b40ff7fc77a1112d2bd2d692beb1048601d1ea176",
+      "bytes": 6761,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/smart-image-tools.md",
+      "sha256": "331fa7e9276e44f87d9121c882fd900e00aff0b0600880aec96754a4d16e040f",
+      "bytes": 2621,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/smart-task-input-bindings-local.md",
+      "sha256": "43f7c9a334fab14764872b2fcbe404e4678f924dbd9d8e628019c6fe6e4c9534",
+      "bytes": 5246,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/storage-lifecycle-upgrade.md",
+      "sha256": "44dca05052244b3e094d38a86c2b612b677d85e1d7b697681a2d196d4cef5365",
+      "bytes": 6262,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/studio-frame-message-boundary.md",
+      "sha256": "64904c9c9781234908e0484ed33c1c58bed604938b93bdeb8fc348891ae91f43",
+      "bytes": 5096,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/studio-stats-es-module-pilot.md",
+      "sha256": "1175dcf67a0aa26718bcdf2455260a5a47e465637a35c1da6dd8c6f401608542",
+      "bytes": 4369,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/studio-websocket-layers.md",
+      "sha256": "da1e3d7d423cbea9fb544f4371f37257937cff524a4e8419eba4494bffac07a0",
+      "bytes": 3749,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/task-canvas-bindings-v2-local.md",
+      "sha256": "1afdeaf876181f6a0d2009b393469bb4ff3332a94491d1597d49cee525a7e825",
+      "bytes": 5394,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/task-canvas-input-bindings-local.md",
+      "sha256": "ae97e66c8562703edf5c74a4ec39da15a718ce004af74c1aef18fc5f1f37cc36",
+      "bytes": 5157,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/task-reviews-local.md",
+      "sha256": "a608143f4c867d71711dfaf9295c367a4f1a68b136c4c4b301c7ed6f487af1b0",
+      "bytes": 4507,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/upload-staging-cleanup.md",
+      "sha256": "d92e974788348f6f2d62dd8d98c6690c1f6463857340e7387c3223131e671463",
+      "bytes": 11900,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/volcengine-asset-video-postmortem.md",
+      "sha256": "a147a4dab83c4d0424eb25e1785cee33ef483639212644d441ff6ba64056f6b3",
+      "bytes": 8303,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/volcengine-cloud-launch-plan.md",
+      "sha256": "dfd00d2dbb5ddfa3e99cb6aeeeb764cee606bdef852e646034c3bc6477519699",
+      "bytes": 5834,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/volcengine-video-billing.md",
+      "sha256": "19b833821b88cf4f423859a6a9742c7737392a1c82014eb66eac606d4d24b561",
+      "bytes": 2753,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/workbench-management-migration-local.md",
+      "sha256": "a7f9296b11d7c32f4e48c2cccd801cd99333c72b431b29413504a7147cd6986b",
+      "bytes": 3646,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/workbench-member-session-local.md",
+      "sha256": "e06148e924599017e749e4eca4aaa7b3978d1b6b1d295edab3d15417dfe40e44",
+      "bytes": 3988,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/workbench-performance-20260918.md",
+      "sha256": "af2c6515d3915d4a34c7036ff2879d881d87ada70a0f7c53882704cc52cb0b1a",
+      "bytes": 6146,
+      "mode": "100644"
+    },
+    {
+      "path": "get-pip.py",
+      "sha256": "66904bccb878e363db6236ea900e6935e507dcb887e9f178f6212edfe7f46a76",
+      "bytes": 2226394,
+      "mode": "100644"
+    },
+    {
+      "path": "mac-修复权限.command",
+      "sha256": "6ddc89d1328b50dac54ae2268c1e701b1e98fc632fdb5da10909b43ca4e33b5b",
+      "bytes": 1350,
+      "mode": "100644"
+    },
+    {
+      "path": "mac-启动服务.command",
+      "sha256": "261663b59478540c6f3a142be411b4cc1531c9e39d885d1f71417bd3b4f14c59",
+      "bytes": 1681,
+      "mode": "100644"
+    },
+    {
+      "path": "mac-启动服务.sh",
+      "sha256": "27cc06bd0c5a527e1742f900f56d2d6c80686a20ded4a76a4a0b10d390259782",
+      "bytes": 541,
+      "mode": "100644"
+    },
+    {
+      "path": "mac-安装依赖.sh",
+      "sha256": "036676d1b600b2fba60be9553917c749281b7fe122b395618535cee6f467b255",
+      "bytes": 980,
+      "mode": "100644"
+    },
+    {
+      "path": "main.py",
+      "sha256": "3fa3f6533a0c63a6457b258c399a5cdbff88d033fd8e050252254e361627d052",
+      "bytes": 7335,
+      "mode": "100644"
+    },
+    {
+      "path": "management/frontend/image-tools.js",
+      "sha256": "537e6d4892ea6dbadbe81f8c96ed07d12486578e25475e05e0f424bf100bf5b2",
+      "bytes": 4640,
+      "mode": "100644"
+    },
+    {
+      "path": "management/frontend/index.html",
+      "sha256": "285fab304458ed1da20df47febe63c75a20bf0e29e059c376c7fecd3354dd42a",
+      "bytes": 3749,
+      "mode": "100644"
+    },
+    {
+      "path": "management/frontend/management.css",
+      "sha256": "29e8910a610acb91d7eff2568f10df39d446851b29bd11c10a9b4d91eabf32e0",
+      "bytes": 25595,
+      "mode": "100644"
+    },
+    {
+      "path": "management/frontend/management.js",
+      "sha256": "4a1d47da6209bfb0cafbd11ee51e02478bad872412c558b2018e186c2b47c28e",
+      "bytes": 94380,
+      "mode": "100644"
+    },
+    {
+      "path": "management/frontend/model-billing.js",
+      "sha256": "2f94ab78373dbfafd8ce1e3a421366c350f0945b6543bdc4ae1e599f57cb3cf3",
+      "bytes": 17427,
+      "mode": "100644"
+    },
+    {
+      "path": "management/frontend/provider-editor.js",
+      "sha256": "39a6dc2c932422a7ae2da7534f2249d820ec3c00a7d12eba15195e9fce82c3cc",
+      "bytes": 14376,
+      "mode": "100644"
+    },
+    {
+      "path": "management/frontend/provider-prices.js",
+      "sha256": "769a392fe9f63e19ff6b68c820c82fad278ac09598961d57c5eee0e6d85df013",
+      "bytes": 1142,
+      "mode": "100644"
+    },
+    {
+      "path": "management_main.py",
+      "sha256": "76abbaffecf6f5931a1d87f590a5eba111b84d90facd830c3597e6671c43123b",
+      "bytes": 163,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/annotated_doc-0.0.4-py3-none-any.whl",
+      "sha256": "571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320",
+      "bytes": 5303,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/annotated_types-0.7.0-py3-none-any.whl",
+      "sha256": "1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53",
+      "bytes": 13643,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/anyio-4.13.0-py3-none-any.whl",
+      "sha256": "08b310f9e24a9594186fd75b4f73f4a4152069e3853f1ed8bfbf58369f4ad708",
+      "bytes": 114353,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/certifi-2026.4.22-py3-none-any.whl",
+      "sha256": "3cb2210c8f88ba2318d29b0388d1023c8492ff72ecdde4ebdaddbb13a31b1c4a",
+      "bytes": 135707,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/charset_normalizer-3.4.7-cp314-cp314-win_amd64.whl",
+      "sha256": "92a0a01ead5e668468e952e4238cccd7c537364eb7d851ab144ab6627dbbe12f",
+      "bytes": 159634,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/click-8.3.3-py3-none-any.whl",
+      "sha256": "a2bf429bb3033c89fa4936ffb35d5cb471e3719e1f3c8a7c3fff0b8314305613",
+      "bytes": 110502,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/colorama-0.4.6-py2.py3-none-any.whl",
+      "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+      "bytes": 25335,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/fastapi-0.136.1-py3-none-any.whl",
+      "sha256": "a6e9d7eeada96c93a4d69cb03836b44fa34e2854accb7244a1ece36cd4781c3f",
+      "bytes": 117683,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/h11-0.16.0-py3-none-any.whl",
+      "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+      "bytes": 37515,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/httpcore-1.0.9-py3-none-any.whl",
+      "sha256": "2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55",
+      "bytes": 78784,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/httpx-0.28.1-py3-none-any.whl",
+      "sha256": "d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad",
+      "bytes": 73517,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/idna-3.13-py3-none-any.whl",
+      "sha256": "892ea0cde124a99ce773decba204c5552b69c3c67ffd5f232eb7696135bc8bb3",
+      "bytes": 68629,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/pillow-12.2.0-cp314-cp314-win_amd64.whl",
+      "sha256": "4e6c62e9d237e9b65fac06857d511e90d8461a32adcc1b9065ea0c0fa3a28150",
+      "bytes": 7217400,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/pydantic-2.13.4-py3-none-any.whl",
+      "sha256": "45a282cde31d808236fd7ea9d919b128653c8b38b393d1c4ab335c62924d9aba",
+      "bytes": 472262,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/pydantic_core-2.46.4-cp314-cp314-win_amd64.whl",
+      "sha256": "811ff8e9c313ab425368bcbb36e5c4ebd7108c2bbf4e4089cfbb0b01eff63fac",
+      "bytes": 2072238,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/python_multipart-0.0.27-py3-none-any.whl",
+      "sha256": "6fccfad17a27334bd0193681b369f476eda3409f17381a2d65aa7df3f7275645",
+      "bytes": 29254,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/requests-2.33.1-py3-none-any.whl",
+      "sha256": "4e6d1ef462f3626a1f0a0a9c42dd93c63bad33f9f1c1937509b8c5c8718ab56a",
+      "bytes": 64947,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/starlette-1.0.0-py3-none-any.whl",
+      "sha256": "d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b",
+      "bytes": 72651,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/typing_extensions-4.15.0-py3-none-any.whl",
+      "sha256": "f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548",
+      "bytes": 44614,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/typing_inspection-0.4.2-py3-none-any.whl",
+      "sha256": "4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7",
+      "bytes": 14611,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/urllib3-2.7.0-py3-none-any.whl",
+      "sha256": "9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897",
+      "bytes": 131087,
+      "mode": "100644"
+    },
+    {
+      "path": "packages/uvicorn-0.46.0-py3-none-any.whl",
+      "sha256": "bbebbcbed972d162afca128605223022bedd345b7bc7855ce66deb31487a9048",
+      "bytes": 70926,
+      "mode": "100644"
+    },
+    {
+      "path": "python/LICENSE.txt",
+      "sha256": "f2fd8edb3271310fc2af0ffa72886b26094d3e3b5c3bb709269d2ec4b31285a4",
+      "bytes": 32768,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_asyncio.pyd",
+      "sha256": "a9a99a2b847e46c0efce7fcfefd27f4bce58baf9207277c17bffd09ef4d274e5",
+      "bytes": 65304,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_bz2.pyd",
+      "sha256": "62173a8fadd4bf4dd71ab89ea718754aa31620244372f0c5bbbae102e641a60e",
+      "bytes": 83736,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_ctypes.pyd",
+      "sha256": "1ea3dd3df393fa9b27bf6595be4ac859064cd8ef9908a12378a6021bba1cb177",
+      "bytes": 123672,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_decimal.pyd",
+      "sha256": "9aac010a424c757c434c460c3c0a6515d7720966ab64bad667539282a17b4133",
+      "bytes": 254744,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_elementtree.pyd",
+      "sha256": "262d771de19a071c2d086717c29dc9a704b33f95f6aa06ec2092f3e8f54495ae",
+      "bytes": 128280,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_hashlib.pyd",
+      "sha256": "caa4d2f8795e9a55e128409cc016e2cc5c694cb026d7058fc561e4dd131ed1c9",
+      "bytes": 64792,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_lzma.pyd",
+      "sha256": "60793c8592193cfbd00fd3e5263be4315d650ba4f9e4fda9c45a10642fd998be",
+      "bytes": 158488,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_msi.pyd",
+      "sha256": "c26236a23ea4b99c19f9f9bb30cae26bc5ff66d0fdd7fd65726a0bcb667cb160",
+      "bytes": 44824,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_multiprocessing.pyd",
+      "sha256": "7581edea33c1db0a49b8361e51e6291688601640e57d75909fb2007b2104fa4c",
+      "bytes": 34584,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_overlapped.pyd",
+      "sha256": "2ebbb0583259528a5178dd37439a64affcb1ab28cf323c6dc36a8c30362aa992",
+      "bytes": 49944,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_queue.pyd",
+      "sha256": "925f05255f4aae0997dc4ec94d900fd15950fd840685d5b8aa755427c7422b14",
+      "bytes": 31512,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_socket.pyd",
+      "sha256": "e6deb751039cd5424a139708475ce83f9c042d43e650765a716cb4a924b07e4f",
+      "bytes": 79128,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_sqlite3.pyd",
+      "sha256": "b298a44af162be7107fd187f04b63fb3827f1374594e22910ec38829da7a12dc",
+      "bytes": 99096,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_ssl.pyd",
+      "sha256": "d2a7999e234e33828888ad455baa6ab101d90323579abc1095b8c42f0f723b6f",
+      "bytes": 160536,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_uuid.pyd",
+      "sha256": "990586f2a2ba00d48b59bdd03d3c223b8e9fb7d7fab6d414bac2833eb1241ca2",
+      "bytes": 25368,
+      "mode": "100644"
+    },
+    {
+      "path": "python/_zoneinfo.pyd",
+      "sha256": "e48336ad990797fa0c8a902ba2cca6966ea3bf13c2d3b021f1673ca13455d862",
+      "bytes": 44824,
+      "mode": "100644"
+    },
+    {
+      "path": "python/libcrypto-1_1.dll",
+      "sha256": "9b7b4a0ad212095a8c2e35c71694d8a1764cd72a829e8e17c8afe3a55f147939",
+      "bytes": 3450648,
+      "mode": "100644"
+    },
+    {
+      "path": "python/libffi-7.dll",
+      "sha256": "f60dd9f2fcbd495674dfc1555effb710eb081fc7d4cae5fa58c438ab50405081",
+      "bytes": 32792,
+      "mode": "100644"
+    },
+    {
+      "path": "python/libssl-1_1.dll",
+      "sha256": "d74ce01319ae6f54483a19375524aa39d9f5fd91f06cf7df238ca25e043130fd",
+      "bytes": 704792,
+      "mode": "100644"
+    },
+    {
+      "path": "python/pyexpat.pyd",
+      "sha256": "4a2d59993bce76790c6d923af81bf404f8e2cb73552e320113663b14cf78748c",
+      "bytes": 198936,
+      "mode": "100644"
+    },
+    {
+      "path": "python/python.cat",
+      "sha256": "866d077332a022da7f00b0a5930da637f8e848a37c66f98328e6ac0b5f72224a",
+      "bytes": 603869,
+      "mode": "100644"
+    },
+    {
+      "path": "python/python.exe",
+      "sha256": "3cce33d75d6fdae4e004d0bdf149320b3147482a9caf370079dcb9c191a1b260",
+      "bytes": 103192,
+      "mode": "100644"
+    },
+    {
+      "path": "python/python3.dll",
+      "sha256": "dc909eb798a23ba8ee9f8e3f307d97755bc0d2dc0cb342cedae81fbbad32a8a9",
+      "bytes": 66328,
+      "mode": "100644"
+    },
+    {
+      "path": "python/python310._pth",
+      "sha256": "adc08cbf7d9e210174dca8c704fab4b7768828bff86ab2fb0790327811eb02c0",
+      "bytes": 79,
+      "mode": "100644"
+    },
+    {
+      "path": "python/python310.dll",
+      "sha256": "14b06796f288bc6599e458fb23a944ab0c843e9868058f02a91d4606533505ed",
+      "bytes": 4458776,
+      "mode": "100644"
+    },
+    {
+      "path": "python/python310.zip",
+      "sha256": "785b6e0911beda463342c9ba9eadc1841fcdf318c39c05554649cf9e7fda26ad",
+      "bytes": 2642553,
+      "mode": "100644"
+    },
+    {
+      "path": "python/pythonw.exe",
+      "sha256": "81918ea5fa5529f04a00bafc7e3fb54978a0b7790cfc7a5dad9fa9640666560a",
+      "bytes": 101656,
+      "mode": "100644"
+    },
+    {
+      "path": "python/select.pyd",
+      "sha256": "db85f2f94d4994283e1055057372594538ae11020389d966e45607413851d9e9",
+      "bytes": 29976,
+      "mode": "100644"
+    },
+    {
+      "path": "python/sqlite3.dll",
+      "sha256": "fbd8832b5bc7e5c9adcf7320c051a67ee1c33fd198105283058533d132785ab4",
+      "bytes": 1511192,
+      "mode": "100644"
+    },
+    {
+      "path": "python/unicodedata.pyd",
+      "sha256": "1fb2d66c056f69e8bbdd8c6c910e72697874dae680264f8fb4b4df19af98aa2e",
+      "bytes": 1123608,
+      "mode": "100644"
+    },
+    {
+      "path": "python/vcruntime140.dll",
+      "sha256": "9d2b40f0395cc5d1b4d5ea17b84970c29971d448c37104676db577586d4ad1b1",
+      "bytes": 98224,
+      "mode": "100644"
+    },
+    {
+      "path": "python/vcruntime140_1.dll",
+      "sha256": "34048abaa070ecc13b318cea31425f4ca3edd133d350318ac65259e6058c8b32",
+      "bytes": 37256,
+      "mode": "100644"
+    },
+    {
+      "path": "python/winsound.pyd",
+      "sha256": "af24dd5554d1130975982fdb49eb15aea7b74cefb976b2ae11725e7080397950",
+      "bytes": 31000,
+      "mode": "100644"
+    },
+    {
+      "path": "requirements-cloud.txt",
+      "sha256": "013a2484294033c31daae161db1ff343d0276f74625420e8de7d138dd4b6b2f0",
+      "bytes": 95,
+      "mode": "100644"
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "0fcd21c99da63ee47bde45e40974e5a72b01ab142afc1008401bceb8242f8dfe",
+      "bytes": 119,
+      "mode": "100644"
+    },
+    {
+      "path": "run.bat",
+      "sha256": "c1627022149bb674d86e29f10cb7a4dedb65be92ae4d5ce26ab01c460023b0e3",
+      "bytes": 358,
+      "mode": "100644"
+    },
+    {
+      "path": "static/asset-manager.html",
+      "sha256": "766f79aae9788331c07abdf070b82f39b0374431244eef4926b0ff3b3fd2d2c2",
+      "bytes": 2772,
+      "mode": "100644"
+    },
+    {
+      "path": "static/canvas-home.html",
+      "sha256": "0667f9af0207674025ff6ecf2ea86e190b533583cf639a94dc455dafed9132b4",
+      "bytes": 6757,
+      "mode": "100644"
+    },
+    {
+      "path": "static/canvas.html",
+      "sha256": "afa39dd2a702df4889eba1150f69a1c8d8cc74eebf562916039d7f44003e5b62",
+      "bytes": 32534,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/asset-manager.css",
+      "sha256": "077c5078854d56a1f601bd692a0bf9785a5a65ec20f3665e37d627b3b6f6182a",
+      "bytes": 37894,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/billing-view.css",
+      "sha256": "d09d1bb460b167ca3fbd4a8f60c5b948a3fb4870cede14f68c33f1c82a702b24",
+      "bytes": 9050,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-cover.css",
+      "sha256": "1dc564f787798756790e5a47d2d1af019332a6c64f2fea8e7332895b28a441b5",
+      "bytes": 5231,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-focus.css",
+      "sha256": "8bf7413888adcdaa67fa75029a021caa74f9adad51dd3439da696c1cdf45825c",
+      "bytes": 1289,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-home-base.css",
+      "sha256": "e6c439a479602322c12d58e0ccf265852fc0b0c2de5f966eb2ce8528822d295d",
+      "bytes": 31691,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-home.css",
+      "sha256": "b389c92e1626877b58d305727893b07fcd0caf56c9485c6affaae3f52e5abadb",
+      "bytes": 16759,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-ledger-ui.css",
+      "sha256": "bc28f0bdf2f7e9a29d243c596011ed8343ac93e34869be2931d2aac99ba53870",
+      "bytes": 9440,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-media.css",
+      "sha256": "259b0e87dd3249412c716119603e97ec79722ce445a0e14f8848d11a4e4f668a",
+      "bytes": 1674,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-name-dialog.css",
+      "sha256": "e901cbab2956d2675d0cbc4176e6552b57838617e98ba3f0e1330edcc48b211a",
+      "bytes": 2290,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-node-cards.css",
+      "sha256": "8af4ecedd15bd9a5872a216925a412807265c67ec8236eeab70893539c4621be",
+      "bytes": 6181,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas-page.css",
+      "sha256": "a91f5482e5908a41fd4a8e8ea0b0ac0760373f7e1e2f33244cd9cdb23a28dfd8",
+      "bytes": 3130,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/canvas.css",
+      "sha256": "b92bc151722bb6563bd21fed2d71f10fc189b782198ef70f4d8d829f28326297",
+      "bytes": 164340,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/chat-attachments.css",
+      "sha256": "9cce6104b79b9996f0502531b318ff510874f10bd6b75d1e56b2bcd4434d0655",
+      "bytes": 8231,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/chat-cost.css",
+      "sha256": "f2c6304ab4d39a990aa8b6e50a4368f60e15115a54575081440b736e4786abe3",
+      "bytes": 176,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/chat-skills.css",
+      "sha256": "09128d8a34852b9eff8f82b4b896c9df08af4a3ffd7f029b9e58b8e3df027944",
+      "bytes": 2750,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/chat.css",
+      "sha256": "b0c28878dfaa0100d7288bc6bf66b1e42234d40b3731d482d66fa130b1153ee2",
+      "bytes": 22062,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/local-depth-video.css",
+      "sha256": "0bd909a08f258537943b6f8954cba6f561ee697275705c44256ef67b3ea77ea2",
+      "bytes": 4346,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/login.css",
+      "sha256": "e64270cbb4861b10f813f03cd4bd839f2420ebbe1a80c4787e18e55cd3ac4def",
+      "bytes": 9440,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/member-canvas-edit.css",
+      "sha256": "d38e7ef9537fd3599b096add329f5018dfaed9446abab27d5066b69286863f9b",
+      "bytes": 10385,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/member-session.css",
+      "sha256": "6b51f7e6fa6edf7e4425cdf8f8b684cf8da84208c60fdffccc0c43d3958fa70a",
+      "bytes": 18218,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/online-imports.css",
+      "sha256": "f558659b61e01c21db00c26ca587191ed8ba3fd42ed47246eab0bcbe18ead749",
+      "bytes": 4590,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/online-inbox.css",
+      "sha256": "31540c4c3cea243c8776ca410f745de888a4932293c71ccb1931a85bad29009c",
+      "bytes": 5358,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/shadox-brand.css",
+      "sha256": "2f70adb6fa1a0bcb3dfab820c0e94600156c223b4ba5e038aa1d7e42b749a139",
+      "bytes": 799,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/smart-canvas.css",
+      "sha256": "5a758836662237cff34d0d758fac2ff824eca5ca3e2438cdb5ba85541ee980d6",
+      "bytes": 164833,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/smart-composer.css",
+      "sha256": "97672225d8e9458053c3abf6e7dfade1561bdc18a969885c29de2ab8693bcaa4",
+      "bytes": 9613,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-chat.css",
+      "sha256": "896e17339e5c233d7378ca092d976070378e6da070a361083ff2e9212db686bb",
+      "bytes": 6427,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-components.css",
+      "sha256": "150442a7e6d38d330e0d23f5f9426615170b7dd3419d63dafb51bbfcd9914f8c",
+      "bytes": 12821,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-editor.css",
+      "sha256": "f57d5f6a54e4840b46f2c7d8016f1bdbf79d87057d1e2e0d0255e47adf2a65fe",
+      "bytes": 28679,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-generation.css",
+      "sha256": "7848a7d1a77836a09546750a1f89150c065061ad7c044296163b35659d0ee344",
+      "bytes": 6608,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-library.css",
+      "sha256": "913d6569910bef75ba68d34b95b540a13ef06f618da147b3b7123ed59897ffb5",
+      "bytes": 5230,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-select.css",
+      "sha256": "ff7fd0e9cf768c340fb9363d8549580d3d26768078a7ba33b2ae001901b33b63",
+      "bytes": 4314,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-shell.css",
+      "sha256": "049c474e2bfeb63292c32d170c4a47b6745d4cee9bbafdaef64b9280242d76ec",
+      "bytes": 8398,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-skills.css",
+      "sha256": "32a488509ef03e1b672802715c36a0a1812b66309f24a3345746f85b5df9daed",
+      "bytes": 7856,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-tokens.css",
+      "sha256": "a02fc2e39ac54639c06d860032af0080ed373d97422c1646f4f2da2802992f00",
+      "bytes": 2047,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-transfer-status.css",
+      "sha256": "4c56fe16a522c5987e3b0d0fd247d76c9fcd8bb5a54c03b04a6fb99bde49436e",
+      "bytes": 3101,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/studio-workbench.css",
+      "sha256": "b12f054c41fe155163fd4cd637fee2a3ad2a4429e28181013838525b71452cdf",
+      "bytes": 2432,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/theme.css",
+      "sha256": "b11b5d9fe378fef18012f05fd4f44dabe2cba7fc3dab2882bfe3403e1a8c381c",
+      "bytes": 61210,
+      "mode": "100644"
+    },
+    {
+      "path": "static/css/utilities.css",
+      "sha256": "59f75df16d290c3f3ad60c7b34b9ac19d6fa666e88d4001d468f14f7ff5e78a4",
+      "bytes": 17009,
+      "mode": "100644"
+    },
+    {
+      "path": "static/gpt-chat.html",
+      "sha256": "65aecb97ec8e878aac464d62ee9178f49a97875256ca617c25d340e026154649",
+      "bytes": 59695,
+      "mode": "100644"
+    },
+    {
+      "path": "static/images/RunningHub-B.png",
+      "sha256": "7a7a959db97870de28b88324de58b94a0099a4f29aad31d166566f3070d88842",
+      "bytes": 2970,
+      "mode": "100644"
+    },
+    {
+      "path": "static/images/RunningHub-W.png",
+      "sha256": "72ce8c3c3601c57f58e1b72710ef834161be91752320eab4b4a08a23ceb5d097",
+      "bytes": 1806,
+      "mode": "100644"
+    },
+    {
+      "path": "static/images/logo.png",
+      "sha256": "e429ca63292aac861e8864b3adc43e94a2090d4bf974f20e9e35fe02cd8f5969",
+      "bytes": 2764,
+      "mode": "100644"
+    },
+    {
+      "path": "static/images/modelscope-1.gif",
+      "sha256": "cee529c910b262afaa0f3cc8934aa3d29048ec85e2c1440351fa28181e37c4cc",
+      "bytes": 49941,
+      "mode": "100644"
+    },
+    {
+      "path": "static/images/modelscope.gif",
+      "sha256": "38f8e5e8ce17319a6541ebf8acc4063247f8da3df05e89b3715e2b4b2a30cf7a",
+      "bytes": 35929,
+      "mode": "100644"
+    },
+    {
+      "path": "static/images/shadox-mark.svg",
+      "sha256": "610c811b58231a95296c95cffa167448a2fa987425c061ab3c0aa97a0d2f68cb",
+      "bytes": 358,
+      "mode": "100644"
+    },
+    {
+      "path": "static/images/volcengine-theme-dark.svg",
+      "sha256": "5c07bfa906f5e1154194124cba25e51a05457b5398de91a0cfe62c95eb52e49e",
+      "bytes": 5035,
+      "mode": "100644"
+    },
+    {
+      "path": "static/images/volcengine-theme-light.svg",
+      "sha256": "30b84f5159c02bb4e6b4d0d5ef8a731e58e7cff8b3b3edff72d6a5f903a1724b",
+      "bytes": 5038,
+      "mode": "100644"
+    },
+    {
+      "path": "static/index.html",
+      "sha256": "f26e068f7bbd4c899a989a6efbc702e872e83f1b4333f79ed1753fe514419654",
+      "bytes": 47299,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/account-data.js",
+      "sha256": "8a55730b3d742206d63e57c55d8cffd4ff41bf3d6253841bb3787b19bc88c06a",
+      "bytes": 7887,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/asset-auth.js",
+      "sha256": "5dd9acd48ba3a19c81ae213c51b2c1f17b2ad3cd951a93df8faffd618f524708",
+      "bytes": 4740,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/asset-manager.js",
+      "sha256": "647aade05806e478017dd3a416a1b44b99c19e4cea63308cda8399c4fc16cc4d",
+      "bytes": 273293,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/auth-session.js",
+      "sha256": "246629dcb2b21347b94fe3f928ee69f56d3568d30cc055f03db53fa9dad5813f",
+      "bytes": 3586,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/billing-view.js",
+      "sha256": "c45ee17043fc9d0ad700296db0042880bc8c21bf395f54695f13c6ca954ac71d",
+      "bytes": 18734,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-api.js",
+      "sha256": "4a02fa57cb6b0992c00505a663ca2f2d315fd5a887e92683b638dff6b83b49cd",
+      "bytes": 22927,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-core.js",
+      "sha256": "d9910ddcef2502d24d2e75c2c6bacd9e103c6e1c9eea0d320268a720947a4fd1",
+      "bytes": 15204,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-cover-preview.js",
+      "sha256": "0b5a342ea56e456cc9dad1e100e907dc1e5b160a8c7601d1f3e34a231c589a38",
+      "bytes": 4129,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-cover.js",
+      "sha256": "f059346d37ab39c154686b6a16546cd840720ae18f90a4b493b7c07970d3e656",
+      "bytes": 6265,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-directory-api.js",
+      "sha256": "62891069c821893f9b26f3bf0c98f756393a3afcdea8dc8cbcd7ce02668a8630",
+      "bytes": 2987,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-directory-model.js",
+      "sha256": "7670a8e79653e7f0a993b4df5fda25d4d0b55caa1fc119ddde873d3cc814be4a",
+      "bytes": 4693,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-directory-writes.js",
+      "sha256": "dd5902184615c4db49907ac0f6459918de989b00c5fafd7d9a4cfbf8fc3fc948",
+      "bytes": 2074,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-edit-lease.js",
+      "sha256": "64fd33e8e12df7d079dd7ea1b2b8c199b8aa8688ac6d7bf62eaca4fdac3b8beb",
+      "bytes": 22283,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-editable-image.js",
+      "sha256": "2705a1980e5d08e9931d391be2808f15439b805034671d45800d19a55de1a6ab",
+      "bytes": 3033,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-focus.js",
+      "sha256": "71333fd862b48a4ae94cb3eff0387ed3f11294f2d652fe9f57a741090e2fd7c9",
+      "bytes": 2901,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-home.js",
+      "sha256": "852056015efdd52245c5e5066b0e6b675cb6c6f92e125ca524c89eed59d3eba8",
+      "bytes": 52842,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-ledger.js",
+      "sha256": "61ca67e9c4d78d5785bf692bfa8280461881a822f5c9a06a7e75c2a386de400d",
+      "bytes": 20953,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-llm-tasks.js",
+      "sha256": "b6e49b570df62b2b01d23742cdb2d445a50d0ddd5db1caf1a2aa3715b47d10f4",
+      "bytes": 2706,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-media-loader.js",
+      "sha256": "9ca8df518829f5976704f2f0b7d5a10654e502ca4ffe29317b45cf9a3f817dd4",
+      "bytes": 9207,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-name-dialog.js",
+      "sha256": "798f1ee9ed4a757679089bd39615e4498bc3ece44327cbb1b119a172912c8089",
+      "bytes": 3950,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-navigation.js",
+      "sha256": "cce7921fae08f431fa7d95faea73493dac21de1cd3c27c014f08eaa6b74d1b78",
+      "bytes": 5271,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-subscription.js",
+      "sha256": "c72da7ed8b57e0370957a67f40410e2f5450091f1030004b5d03e86bf17560e6",
+      "bytes": 3941,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-task-bindings.js",
+      "sha256": "f10288ba33b5fb46e08f8138ffed1ca09a7f90d48605e2908e48044cc625b4f0",
+      "bytes": 12729,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas-task-results.js",
+      "sha256": "d2ac302d438d8eed22ffb9ace834b9855a82ebd08ec8dac4361e77c69056e35c",
+      "bytes": 9313,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas.js",
+      "sha256": "237818d1b81c20041987487fbcd136198aee1d0c0d63cf9160be2c7de19e7afa",
+      "bytes": 23163,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/classic/canvas-document.js",
+      "sha256": "3c0b90588f7a6f0068e6457d0019eb55f441552ccdd1a0949195aa5d867c24ee",
+      "bytes": 52547,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/classic/canvas-execution.js",
+      "sha256": "67d7ba17f852306a623407125812b8ffb696adcd1a5c0a51194ec4861e447cbe",
+      "bytes": 122211,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/classic/canvas-library.js",
+      "sha256": "284f1e33d5bac9435441ef8f06581c19926a9217e2fd03109dd078bdee9f61d8",
+      "bytes": 130597,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/classic/canvas-media-editor.js",
+      "sha256": "8ab128bf438a11c9f2a8a6397a587a3ae720a30d94c0ae042eaf840c631f9444",
+      "bytes": 109479,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/classic/canvas-results.js",
+      "sha256": "9014a9aee566f92addcefe0900623fba5402cc1bffab75f687b532f70fcb83ef",
+      "bytes": 65593,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/classic/canvas-session.js",
+      "sha256": "aec6de7ba97670ac543d7d68526ee539811432b1caa3d60a014a61688ca9c100",
+      "bytes": 6463,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/classic/canvas-workspace.js",
+      "sha256": "72331262f12f8f8b32458726baefbf895be49bd863ef76ed47ae23b938dd59ce",
+      "bytes": 214270,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/smart/smart-document.js",
+      "sha256": "3eb128437e4c68be8c9d622170cc9c47de44b965d1b61ce49ce2761e27305ae0",
+      "bytes": 50227,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/smart/smart-execution.js",
+      "sha256": "9e4b0ceb0ea3d2d656d59d0bf6905ad3890315fe63afd707ea91b2872b449d21",
+      "bytes": 155649,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/smart/smart-library.js",
+      "sha256": "1718148847dd1cb3f12e384610ed186162de1237f4521b34222616d11ab6febb",
+      "bytes": 52774,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/smart/smart-media-editor.js",
+      "sha256": "a7c282e4378b7b1b80a2a3ec4f0c001890074aca06732733a2960605812a4a35",
+      "bytes": 129084,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/smart/smart-results.js",
+      "sha256": "e67d6f74ade6634b80a6d163111ba816105fa25c26e7e9f4f18456acdefebbc8",
+      "bytes": 106280,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/smart/smart-session.js",
+      "sha256": "6cc4fb007a50ddff19c8ba68a420cfecaf9d4672b4e7d493c86444269dd7e8da",
+      "bytes": 10113,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/canvas/smart/smart-workspace.js",
+      "sha256": "a91d6c9c8f020be8b55e83971bf3cebe457b2e368f95c8c652bbb770cb322577",
+      "bytes": 260791,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/chat-attachment-manager.js",
+      "sha256": "0d7e2e7dc764c4227fc445025504987af0c2974b1aef4a7480751ab036062c53",
+      "bytes": 14136,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/chat-attachment-preview.js",
+      "sha256": "549d4a1c41acbffb05bd84367ca4007d0ae0c1d758997e5666ca179069fda477",
+      "bytes": 5148,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/chat-cost.js",
+      "sha256": "e69efabadf3490bb7d4e4a94e4298aef22c3c005389bea184328631ca05be2b7",
+      "bytes": 1136,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/chat-skills.js",
+      "sha256": "b63548f8b69dd9449233442890cd312e73c89bcb8468e98fbccf30f0fb5193cf",
+      "bytes": 6294,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/frontend-version.js",
+      "sha256": "f6a5455168e9be0a9d1ea3629d1bfe5d85354a0ce9bf05f7f0d432aa59d5a0fd",
+      "bytes": 8643,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/history-bulk-manager.js",
+      "sha256": "dc0fdfe310933b90a3d3a38368efec2b27ecad94d1b57bba78558e7678d0f607",
+      "bytes": 11688,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/history-pager.js",
+      "sha256": "9361d88054d5e9453dd805166177b73d5964aa7d658240883f59f9e1ac11a1d7",
+      "bytes": 1014,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/image-preview.js",
+      "sha256": "c1566d17fafbd0d6ccb77a908e72e5eb2c44f1b51139949c9c4a0670a5ff022a",
+      "bytes": 5224,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/infinity-hero.js",
+      "sha256": "a527a2a72803a14a629e59833743b92b3c0bcf8b634516d91338606d0b9f5629",
+      "bytes": 7519,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/local-depth-model-loader.js",
+      "sha256": "b639664b37abd464bbd57873c63c7d236228367cc59190ea499f06d113a9d267",
+      "bytes": 6037,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/local-depth-video-worker.js",
+      "sha256": "706812f32aca723c441354101660c1c3a2977a48c108b704c67258a79bad3d74",
+      "bytes": 3227,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/local-depth-video.js",
+      "sha256": "a594d21ca98c39dc6f79cc41fb6a46b3555a83e7367fbe7cdd4fae769b9c4f03",
+      "bytes": 32149,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/login.js",
+      "sha256": "494610a78eca2c51587745277e5f2c320627a2f9f15db10524f760335ca913d7",
+      "bytes": 8013,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/management-entry.js",
+      "sha256": "3ee953be01bf3291ff16392840adb83a34ba6817cf0a449c2e345d193d136a16",
+      "bytes": 911,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/member-canvas-edit.js",
+      "sha256": "f3bef77dfc9f2a6f77b953789621f5875e9de64f1d34e19aabd4115df0a428c4",
+      "bytes": 45330,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/member-media-preview.js",
+      "sha256": "4384c29512bc0245b657a8664b2bdd66bd22812f6d188c438ec2881b7b180942",
+      "bytes": 10334,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/member-media.js",
+      "sha256": "e46cfcb5cec002a3ffae32f202b97e85f96688ddc646de3504eb0fd13385d8ad",
+      "bytes": 2236,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/member-session.js",
+      "sha256": "4f7a4667327a4a09a98bacf4e83ef1d314f7305506bd409291d0cccf9940a89f",
+      "bytes": 32153,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/online-imports.js",
+      "sha256": "bdcb00d9edf7d76d85c6f9ce3a1c1640c3a294872090c9b8aeec8bef5680becb",
+      "bytes": 21166,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/online-inbox.js",
+      "sha256": "4ea06ff357353072b3ee275d52e7b2b259999aa8110e1f603d1685ba74848e7d",
+      "bytes": 16802,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/shared.js",
+      "sha256": "0f82db11482d4c0b6f8c95d27182f1ed0e627c75127351e0b7b549ee91469511",
+      "bytes": 5402,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/skill-library.js",
+      "sha256": "c3bba7fcb433d98a19ca6b301cea297849ac2ada3e8bfd38d92419039522e076",
+      "bytes": 13861,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/smart-canvas.js",
+      "sha256": "236efc703821afe208f7077aebfb630383e64d5359805b782607704cdb3764a1",
+      "bytes": 25026,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/studio-frame-messages.js",
+      "sha256": "ad349ba9f56f1273f448fd5cf1e8ed0d373cf470e78974e8f91a43583c624b47",
+      "bytes": 6105,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/studio-icons.js",
+      "sha256": "0b5a81243abe0f5d5e91d1193299885a736c6e536cdab59865e50283251c7f7a",
+      "bytes": 3053,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/studio-select.js",
+      "sha256": "22eedb538d2e2902be8ed9c4308cff95efa9cb5338bbaed98b6593ab585da842",
+      "bytes": 9578,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/studio-shell.js",
+      "sha256": "2e102e6902ee8a30f11924fac2dfbafb8b9e045a98d13883247e1ffaa7919ff8",
+      "bytes": 2649,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/studio-stats-codec.mjs",
+      "sha256": "aae527ebf2011cc39a5b685a793b3da4912702ff9a153c2b9731fde25b294d59",
+      "bytes": 317,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/studio-stats-connection.js",
+      "sha256": "07b87f63c1a469184dafac865c18581fc9f2d12aa5d971533fcefdec3e0f857d",
+      "bytes": 5332,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/studio-transfer-status.js",
+      "sha256": "9b26a86eb1441998e97c99abef25ac039108c08c48e71594f16672d0c72bfb0f",
+      "bytes": 2596,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/theme-transition.js",
+      "sha256": "5012eb481942da2e65d3c5863f099c151449ffaced5863a21e3a83aef59ceb6b",
+      "bytes": 8166,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/theme.js",
+      "sha256": "dbd1913139713bd3c6313f73934c4c118c5375b56edc442d46c842236a387110",
+      "bytes": 7243,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/video-duration-policy.js",
+      "sha256": "a4f9313341d87bc7013ac90c77fc00a6cba114fce9d493e9cc73eb661c65bca7",
+      "bytes": 2168,
+      "mode": "100644"
+    },
+    {
+      "path": "static/js/volcengine-video-billing.js",
+      "sha256": "89389a1488e9e36e3e188e1bc44e4b27983041361c4114a6abe0cf4a07cb166c",
+      "bytes": 2737,
+      "mode": "100644"
+    },
+    {
+      "path": "static/login.html",
+      "sha256": "275e44ceadd40a9da8754ce18c3333d3d735e8003059a19c95d0102b20cb382a",
+      "bytes": 3875,
+      "mode": "100644"
+    },
+    {
+      "path": "static/online.html",
+      "sha256": "f88e725ba0ddf76add32cd13b862846376603ee337e416a79439438a779f51e9",
+      "bytes": 54092,
+      "mode": "100644"
+    },
+    {
+      "path": "static/runninghub/thumbnails/.gitkeep",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1,
+      "mode": "100644"
+    },
+    {
+      "path": "static/skill-library.html",
+      "sha256": "80471212dbb06b80009433c9bc41496f6108640c6ebf46fc3b00983adbef31ee",
+      "bytes": 4708,
+      "mode": "100644"
+    },
+    {
+      "path": "static/smart-canvas.html",
+      "sha256": "9089c6629aa550b1e48bebfde5092d2f0c6a17759e0c92d62716defc901f7ea5",
+      "bytes": 37544,
+      "mode": "100644"
+    },
+    {
+      "path": "static/system-prompts/infinite-canvas-prompt-templates.md",
+      "sha256": "32819df05587a39d50b463addccf37ad73c9376a9b41866e8fba18fc359313a4",
+      "bytes": 23425,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/MANIFEST.md",
+      "sha256": "5b17af8f27eb3f4562ae008978528e11eb7dfe9ba4347cc880873fbfb08c0c33",
+      "bytes": 813,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/css/fonts.css",
+      "sha256": "f2bdaa899c2224e824c3737648c3d92b41bc4bdd810c17062f2b8c6ee71d8e93",
+      "bytes": 1794,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/inter-1.ttf",
+      "sha256": "eec66af7f2337bd34fe6e801cf92ededcb57a20c0d7bc40a61d4eefcbe3dd40c",
+      "bytes": 327324,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/inter-2.ttf",
+      "sha256": "e7a1aaf7eda9f2fad4131725fa556265ec75ca7b2d756260173a040363e8d4f7",
+      "bytes": 326048,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/inter-3.ttf",
+      "sha256": "8c883f63b2c4157d997319f2c8bc6995ed4357ef371940d31ca159004a4aae63",
+      "bytes": 325304,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/inter-4.ttf",
+      "sha256": "1b08e7fc267a5c7e1d614100f604b83e7e8a0be241f0f288faa2b3ac93a683ba",
+      "bytes": 324820,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/inter-5.ttf",
+      "sha256": "d0f4bc7faca468376e3db9b5e57afcdc2192134c9ac82a9511f32767b56853a4",
+      "bytes": 325748,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/jetbrains-mono-6.ttf",
+      "sha256": "a1d92abc6b02a87faed23d98067ab1027e8e95242fd7c9978a072ea383b89d1a",
+      "bytes": 112092,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/jetbrains-mono-7.ttf",
+      "sha256": "44ce4a84f20d60f24539bd0cef11f79c29e38609e0f8adf18551c9794a5d9dc3",
+      "bytes": 112172,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/shadox/Cormorant-Garamond-OFL.txt",
+      "sha256": "60700d351cac4650c51f3f9db318d2a420f8b45052dba2715eb5fec41f0f6956",
+      "bytes": 4387,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/shadox/README.md",
+      "sha256": "10550dbd5c4020fd89a6b245973b868a856671736f4d7fcb4b0487268b3e7c6e",
+      "bytes": 1413,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/shadox/Space-Grotesk-OFL.txt",
+      "sha256": "c6dec685825f73b18c20926fddc65e8315642e12986f15db0699170940a09efc",
+      "bytes": 4402,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/shadox/cormorant-garamond-italic.ttf",
+      "sha256": "0f48ea6abb2084537854f7174c470991a463b13036309e3b50a81511611c530d",
+      "bytes": 715644,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/shadox/cormorant-garamond-italic.woff2",
+      "sha256": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+      "bytes": 143644,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/shadox/space-grotesk.ttf",
+      "sha256": "acad6de1fc93436f5c0f1f4137751ef04f1aea3063e7036535970ffcfbd79f72",
+      "bytes": 136676,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/shadox/space-grotesk.woff2",
+      "sha256": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+      "bytes": 49256,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/space-grotesk-10.ttf",
+      "sha256": "3e699ead1876244fa392243054ddefe7cf631b488438828a8a100731a22ab995",
+      "bytes": 69416,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/space-grotesk-8.ttf",
+      "sha256": "3e756954468ff1cb302dae0414262e72f76a67d87bef3fa1f3226cd0fb9b2d85",
+      "bytes": 69308,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/fonts/space-grotesk-9.ttf",
+      "sha256": "2f29b31d803a928d21f96dbe7a5f8bfa5c5c98917736c2d195bc7c737bc906ba",
+      "bytes": 69400,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/js/lucide.js",
+      "sha256": "187a756625c5ce7499c207d1b0d1cf4e1ab95e3f666c7e0cd0fafc3e6842d040",
+      "bytes": 401894,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/js/tabler-icons.js",
+      "sha256": "2371bc313c89c61e53f3d4520f8fd46bb01e98cd77d3f111befa5c71b98671be",
+      "bytes": 37272,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/js/three-0.160.0.module.js",
+      "sha256": "76dea8151bc9352aef3528b4262e249b2604f62543828328db978d060d61a495",
+      "bytes": 1272972,
+      "mode": "100644"
+    },
+    {
+      "path": "static/vendor/tabler-icons-LICENSE.txt",
+      "sha256": "b740a1d46122672da62833e97f7e7c8a13fa85cbc7445b584b297cc00dde93db",
+      "bytes": 1073,
+      "mode": "100644"
+    },
+    {
+      "path": "storage.env.example",
+      "sha256": "d8ada75663fb0a933288e718763ce9fe4989a9cf3afbd2646fa5d105089a6e40",
+      "bytes": 1367,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/account-billing-ui.cjs",
+      "sha256": "fef2f642e952d15cc0162170508d26f2d2e1e460e7a293a06597e9fc2bcc9ada",
+      "bytes": 532,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/asset-avatar-capabilities.cjs",
+      "sha256": "2f3b9b5fd86c760806d98a9331b12f05f75c4569352203ce251019828ba79550",
+      "bytes": 3615,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/asset-cleanup-status.cjs",
+      "sha256": "38d1f4ca6e5aab83ba963a9d98dd1d6a79553f401b5927312d519283f6f63ba9",
+      "bytes": 972,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/asset-manager-member-media.cjs",
+      "sha256": "49b0c2a539b7545500c27c167a41089d1e3bbf77247b8943fb7570f3075e0c2b",
+      "bytes": 4502,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/asset-media-preview.browser.cjs",
+      "sha256": "86e7290d93759b82867503308f183c51708f86f1aaa40df1cf510c7e26d53865",
+      "bytes": 6455,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/asset-panel-controller.cjs",
+      "sha256": "953b3bef4ba69298fcca091a945655db35bef4efbf9262ba16d2a922f3b5a9cc",
+      "bytes": 5340,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/asset_manager_fixture.py",
+      "sha256": "d9f58b8ee05c2e83b8e35eb17361ef18f3151567f1f59f37aaae41d800b38661",
+      "bytes": 4776,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-api-assets.cjs",
+      "sha256": "29221d56bc5122612ac46d5e5de76e20fe59b75c055b12253a9a59fae272e587",
+      "bytes": 1979,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-cost-display.browser.cjs",
+      "sha256": "aeeb60b6b6e5810555396923b9552ccd82780856771d06fc2e2d497893aca740",
+      "bytes": 6035,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-cost-display.cjs",
+      "sha256": "4aff47edc130660c8826eedb5befc82281fb91133f4c94605bf1668a5655384a",
+      "bytes": 1618,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-cover.browser.cjs",
+      "sha256": "a68042b90f62865085388b89545e3b877fdaeca8e0fce6635370fb9674a8ce4d",
+      "bytes": 5791,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-directory.browser.cjs",
+      "sha256": "7fdd253f86711d0923ab162ee5e66c8744db282afc2f426dabba48da6361147f",
+      "bytes": 3527,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-edit-lease.cjs",
+      "sha256": "7c738dfd8ed6eaa7b3196f850c7896765c9c6d81357cd8b0e4dba758ee42ad77",
+      "bytes": 18499,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-face-auth.browser.cjs",
+      "sha256": "30a3cb5c96d38411a8a3bda324b76a2deec37f339fc31062bfe4837ff31991e5",
+      "bytes": 5146,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-focus.cjs",
+      "sha256": "8dbd05eb623e7b29bba658b7b68efbfec8139cacfbaefb445e6deaac6581decd",
+      "bytes": 2115,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-gate-model.browser.cjs",
+      "sha256": "a23c97fac8746336f2a6f2b4060e6239a4cd681cce8da40ca130cb7b3e10c3a9",
+      "bytes": 4575,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-gate-model.cjs",
+      "sha256": "4f0eedfd086f844e7e5d6928f82a89659a9fdd749fbc52998d097d083007142e",
+      "bytes": 4591,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-library-generation-regressions.cjs",
+      "sha256": "314a6cdd9967e0d5a18c1885b0c70e4907d8ebaa6923a1744905bb589ba37a03",
+      "bytes": 6024,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-link-permissions.cjs",
+      "sha256": "2d4f4d4ac65be400e7ecaf9950cb5e3e717ed4b49aa656cf22954e8694a3e474",
+      "bytes": 1861,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-llm-tasks.cjs",
+      "sha256": "4b0b7b702ccd6b6f68764e3f294cfa871c47717a6e4dabc2bd1d10f81dfbc353",
+      "bytes": 8176,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-manual-task-bindings.cjs",
+      "sha256": "4dc954504a6403629c33ccb31106e9464b278e410b8cc0041f7e19974110b8ee",
+      "bytes": 10298,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-media-loader.browser.cjs",
+      "sha256": "eff5391cf3420369e0b96d61bb627e6e403fbe57733955eeecc80c6158137e07",
+      "bytes": 7183,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-media-palette.browser.cjs",
+      "sha256": "1b4fd1da58be2acf831caa49bb884d7d3044e5329f2929982d0a1fc6f4849396",
+      "bytes": 9454,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-modules.browser.cjs",
+      "sha256": "6c5f68797259cbd074a2cc0554512db3d16fdcdb632ca5c8076b7e9138480566",
+      "bytes": 61232,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-modules.cjs",
+      "sha256": "6213157e44470a8cdab9d5bb13d418b616f11f0be27ce6489c7c19de553af3bc",
+      "bytes": 1975,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-navigation.browser.cjs",
+      "sha256": "560655a70761f2465a3ab8b561ac81240a7e23df98b7ad761cf3267cd01bb90a",
+      "bytes": 6777,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-node-cards.cjs",
+      "sha256": "ef66c2edc49ab8a5af65ff3b79a7448d605db8da51a5dc9bf765c343c6fb5ef1",
+      "bytes": 3321,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-save-intent.cjs",
+      "sha256": "8720f473a725a8504f856332ef2db3eb8350eeefe68d61a9beeaec98fd192e60",
+      "bytes": 1569,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-subscription.cjs",
+      "sha256": "9eb246403ac19acb650d5304d9d337dbab2bdb5a77ea5fb67773f71aa4e4c566",
+      "bytes": 4483,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-task-bindings.cjs",
+      "sha256": "be9aea80e4e80aedd1e7168145bfe8110753f09b7cb7a7ce283d1c6fa3efd3de",
+      "bytes": 11935,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-task-recovery.cjs",
+      "sha256": "bbe283e117423af46f020bcd746714cf905a447c4d7240419c03bd2a48c99c31",
+      "bytes": 10734,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-task-results.cjs",
+      "sha256": "248699b79500b5e24d306e1b149b1a6a78eb82cdb090acc0306c1fad4c30a77d",
+      "bytes": 6665,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-task-writes.cjs",
+      "sha256": "356ac1654a44468fb4dc4bf6ef3ee73714083550d26d35fb2d7746e5d3679556",
+      "bytes": 28104,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-trash-restore.browser.cjs",
+      "sha256": "2fe9c5c9159e425ebd11ff6373dcc994200543da93e1a71d31701ac8c791b83a",
+      "bytes": 4996,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas-workspace-access.cjs",
+      "sha256": "58c57e12c8c3b94f42c9ff5a7877a0f9e711b7f5f69614b78a01f7f173879b14",
+      "bytes": 821,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/canvas_source.py",
+      "sha256": "04d1141f79b0cfa768c09eb058aff76ea18d424661920f90ac269590ce0cc114",
+      "bytes": 1390,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/chat-billing.browser.cjs",
+      "sha256": "06bf68756a8dce537e61defd37676afc04f1a81b52d53d5672d7cc01038b265e",
+      "bytes": 5579,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/classic-box-selection.browser.cjs",
+      "sha256": "9b1450010a47022c331f9e1b5b6a904cded1b03c095d9663e970aff5ce014234",
+      "bytes": 8940,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/classic-image-editor-ownership.cjs",
+      "sha256": "5b10149baa834fbd0b0f7c2f5de4fa919ef3e89ee67318d77b8da7a2a0237636",
+      "bytes": 2747,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/classic-image-editor.browser.cjs",
+      "sha256": "fb225f6346ffd6c180f77b9b8d888a69d8a79fdb716a5056b7aef49386451cef",
+      "bytes": 23244,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/classic-output-preview-ownership.cjs",
+      "sha256": "425cdfbda547c532016dc83681e0b98fa67e01d8bf8a5f5067570a47f1424a5b",
+      "bytes": 3734,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/classic-output-preview.browser.cjs",
+      "sha256": "2dd03706d858cb0635b21d024756d6032341cdeffc6b1140fd39f04fa4bbc8c2",
+      "bytes": 28934,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/classic-selection-links.browser.cjs",
+      "sha256": "37aa718df0810a57c92ecf058fea301168c76ce150ca8215d9c74fef5cfe8ab6",
+      "bytes": 9046,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/classic-task-input-bindings.cjs",
+      "sha256": "076904236969a2fcd933c09ca25a246f4f5b886aae810503fece7cd21cc2c3f8",
+      "bytes": 14815,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/cloud_fixtures.py",
+      "sha256": "336bfa949380d6ecc4762410c812877a4f0e134af8b9103bec7602760f1cdc7d",
+      "bytes": 746,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/canvas-render-reconciliation.html",
+      "sha256": "324a51da16c8a9905c40ea0ed5848c01dff71c308f724a9eca87ad836eeabdc6",
+      "bytes": 3052,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/canvas-source.js",
+      "sha256": "3071e48c90a1f72d5282e3f5475594bc1446d09450896501628959a01fad3c70",
+      "bytes": 808,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/smart-audio-preview.wav",
+      "sha256": "4288d0b4741e726197e5037ab49fe616341bc13b49f339b1c9fa8becb208b646",
+      "bytes": 32044,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/smart-canvas-performance.html",
+      "sha256": "46d144ca33cdf1f77d4cc0583d49d253befd5bd78540136570540b5f28d82e3f",
+      "bytes": 12307,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/smart-media-references.html",
+      "sha256": "eb8bf4788682cd4b27d4047292d542d1641ef90ffefbe32c16862812ba789f1a",
+      "bytes": 5415,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/smart-preview.webm",
+      "sha256": "40c46fa26abf8662c2ef81d6375d8f53c1067490575af55cbfec5e91e38f9b7d",
+      "bytes": 652,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/smart-video-trim.webm",
+      "sha256": "59c4c52b3f8138e0354af6235a00e7f2ac0b1f16770e59f1a792449854812dad",
+      "bytes": 1092,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/fixtures/task-input-bindings-v2.json",
+      "sha256": "241121e8a32d7a23e9993380e45c8dde97335c98a4744ee9ee3fbe410a264703",
+      "bytes": 3599,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/frontend-reload-guards.cjs",
+      "sha256": "703e724c711644876f9cb56c938946ee2264c703962f9ebb2143ea668598b3ac",
+      "bytes": 6338,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/canvas-browser.cjs",
+      "sha256": "f34539d5e532a200dafaee18998210648480e0eb3f9784c19d39b1102dbc7b7a",
+      "bytes": 7331,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/canvas-lease-http.cjs",
+      "sha256": "9de32c47b0a0353c43dd6b0b7bb314a453503b7718ca1b3a76adb1969607c7d0",
+      "bytes": 3194,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/canvas-source.cjs",
+      "sha256": "4a2b05973b731dddafeee401d677c223592be52e8d3ace83209ddae35ba45185",
+      "bytes": 1994,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/online-import-http.cjs",
+      "sha256": "df9261397afdb16191757cce3ae335f9a296f6fa485fe0c70f3f08f3078ebb43",
+      "bytes": 1772,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/smart-selection.cjs",
+      "sha256": "cecf37e24dc2c2b58a49c0845db1d09e06f08fdecd2af946655cfd2002df68b8",
+      "bytes": 852,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/helpers/workspace-view.cjs",
+      "sha256": "5e2384775bb7eb88c78be7696511e3fba9cc0fec4503c92cf472ffb5ac071eb6",
+      "bytes": 874,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/library-manager-ownership.cjs",
+      "sha256": "7441d459ab24c9944a696fd18d48ed1f1f12a33eab9e84e8835c2a468a54523c",
+      "bytes": 2531,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/library-manager.browser.cjs",
+      "sha256": "a8ea3ed2217a4a928c33a75688949f11306f2a257ad7f6d2b520ca3ee43a25c7",
+      "bytes": 10131,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/local-depth-model-loader.cjs",
+      "sha256": "7caba6b0a00efdd96f23e7ddae1767c5ccac2e9216f00eafb2a4dfb5a8da0f9f",
+      "bytes": 4380,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/local-depth-video.cjs",
+      "sha256": "c76fdd94bf9b673cf8d6715df66b861c9b5b0276148031d1eecc1aa4d63ab7d4",
+      "bytes": 29366,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-backups.cjs",
+      "sha256": "a1f636f12c66f6c942fe3c7e8268c505408a95d49e827c1f773d7c5fac3f088f",
+      "bytes": 3087,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-canvas-occupancy.cjs",
+      "sha256": "8fc2e3102c31231cd7651208ddc410d35b78fb981220ca209ca93745a2a6045f",
+      "bytes": 3535,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-image-tools.browser.cjs",
+      "sha256": "ef1f2dc7ca555819cf141ff1e3ae745ed518436e5a8d2877dc57c159cade5eb2",
+      "bytes": 2317,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-maintenance-readiness.cjs",
+      "sha256": "6669e4b52d190f68b2ea8512495fa50cdaab2ebab544cd5a059d4a42a44f36c2",
+      "bytes": 2116,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-model-billing.cjs",
+      "sha256": "4115a90d12b36a17328cec1bac4f980153c41808bb3c82d0319cfd18fb87adf4",
+      "bytes": 4995,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-overview.cjs",
+      "sha256": "f1a9559ccdeccbb1cf7ab4e53d217609d7e38d75d84e014b76b712145f3ec088",
+      "bytes": 5583,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-page-reviews.cjs",
+      "sha256": "9c319f70acd05ba352f1355b738d6c8da23e406b7409f4eb2f491121910894d7",
+      "bytes": 1900,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-provider-editor.cjs",
+      "sha256": "b82361f1f29e14dbd15a92cbb17f39a0913ead02ee5d9e533267e0927495a282",
+      "bytes": 3412,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-provider-imports.cjs",
+      "sha256": "2d2b824d565909ef68695488a7c79eaaf0db75196c6aa7a2b4466770b2cf2626",
+      "bytes": 6309,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-provider-probes.cjs",
+      "sha256": "1cd13bc651dccc9605893476960a90768e95a3c0bac6930f86ebf98770d00bf9",
+      "bytes": 7369,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-task-reviews.cjs",
+      "sha256": "0c10ea8cc8d609da88c327c8f8c3c78f5b4a70760954ec6f8dd7900b151cf14a",
+      "bytes": 3770,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-usability.browser.cjs",
+      "sha256": "3baeb36dd6ddda4eb8087db577f5c191ffe327ca9ea4f29de28445cc7ca6fae3",
+      "bytes": 9909,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/management-workbench-boundary.cjs",
+      "sha256": "efe74bedacfeb118b4f810dcdf3943faa23e39450f7c9e53722e670ef61366cc",
+      "bytes": 3600,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/member-canvas-draft-adapters.cjs",
+      "sha256": "00ea5b4f3f5db950ba24b4bbed593d8a557766799279d12a9822d8beb476a5d4",
+      "bytes": 5121,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/member-canvas-edit.cjs",
+      "sha256": "4c3f7b73fc5fcaa4365351a21f056f5398e96e5f3b2df8125db2ad1c4000bb7a",
+      "bytes": 38132,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/member-canvas-refresh.cjs",
+      "sha256": "e8f524e5d4710e2436df99234560568b78c263a6c3ee8b92bd268b3f7145be94",
+      "bytes": 2551,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/member-login.cjs",
+      "sha256": "24456548392a154c110cca0344ef7fc8afc0a8ddf64e2a4c0b231e590ada7047",
+      "bytes": 3800,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/member-media-download.cjs",
+      "sha256": "7d8c9fc328a989bb7c3ecdfa5e8f69fc6b6769492d6942039e1c53fceff34df5",
+      "bytes": 4298,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/member-media-preview.cjs",
+      "sha256": "2bdbbc62459d03f611d14d0328f2a69dcfd997375e08e88cd981dc79f28f9dce",
+      "bytes": 10157,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/member-media.cjs",
+      "sha256": "2082c6ea00398eb95878d78d88efa6520f3ceae502455a77466a4ef11471db3b",
+      "bytes": 1521,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/member-session.cjs",
+      "sha256": "9daa3e83dab68a66b3e7f967260e97f39cbe00209edde3a9cd5e0951fd25484d",
+      "bytes": 11761,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/minimap-ownership.cjs",
+      "sha256": "7aabff2328afa6ad3a9185840a42509976de2db8d237c2f8fa4d9842389c80e9",
+      "bytes": 10410,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/model-selection-policy.cjs",
+      "sha256": "4f5738a839ca693ab9ac01ea9cca1152203a1b0d823a068792050de154f0ab3b",
+      "bytes": 18733,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/online-imports.browser.cjs",
+      "sha256": "201ae4c6bd03d9703f3dc203f67feb5314958bc6f0107a1d63d5759f1daa8549",
+      "bytes": 16196,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/online-imports.cjs",
+      "sha256": "3701634c077aa5c17ff9c31a930a8d120c36db2b0ff6c0f07771acc152a0d255",
+      "bytes": 9553,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/online-inbox.browser.cjs",
+      "sha256": "c51715114a837412ac93e42e9603966a8acda143166f0602e8cbdcbee3a6be89",
+      "bytes": 7517,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/online-member-media.cjs",
+      "sha256": "0b3ff924fe60a10c009048202cbad889bccfbbe6d461bcce7301808f614278f0",
+      "bytes": 3130,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/prompt-panel-ownership.cjs",
+      "sha256": "125a48e401c677c35d5119af1bb3b27abd60333cb85b302b81cd0d81f0f8ce7f",
+      "bytes": 2335,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/prompt-panels.browser.cjs",
+      "sha256": "e7270f0f900ebed1390027ef14a61e6fa733e56c73625bb8f788d13933ee884d",
+      "bytes": 17831,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/retired-integrations.cjs",
+      "sha256": "1c6af4b2cd6f31ac1f7edebfad01f0a74154bf4deee8f866d3f00c02262f896f",
+      "bytes": 3303,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/skills.browser.cjs",
+      "sha256": "40261ce00e724e2b8dd5455445c4b8a18f7bff95733ede374501abb8ed08281e",
+      "bytes": 35860,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-asset-panel-resize.browser.cjs",
+      "sha256": "ee122197f47065b422a06cd6cd6315f5938216a449de883fe404aadae54be948",
+      "bytes": 5541,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-audio-preview-ownership.cjs",
+      "sha256": "0b267acb670ea0fc4d700381fb15741dd5aa66b8dd93b04bccfe06941b060482",
+      "bytes": 2936,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-audio-preview.browser.cjs",
+      "sha256": "36d792b8423f1d50260b7b3336aa8fb609e3cb884ce72985b9fd2980534d2a20",
+      "bytes": 17713,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-audio-references.browser.cjs",
+      "sha256": "82cc33e7d2afa4db6a664b5f62d9c5ddbf16dedacd62ff1f111574b490c10509",
+      "bytes": 4637,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-composer-ownership.cjs",
+      "sha256": "b459c6905192504ac0890562423adf6fb7554c476de494c7ee643b1755135c95",
+      "bytes": 2068,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-composer-session.browser.cjs",
+      "sha256": "745ab42f0877f2928a623550589876c5e7512a7baf4259f374f103132bc97203",
+      "bytes": 8384,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-composer.browser.cjs",
+      "sha256": "6becf14d140c55a4bf7b163bf4e42c18867c662d656024ca46ef0e05fa8d0678",
+      "bytes": 9040,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-connection-permissions.cjs",
+      "sha256": "2a16808cd6b7d6a79383c0ad7c58fa70225e708e07723d10a14b1bb32bba0523",
+      "bytes": 1611,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-create-menu.browser.cjs",
+      "sha256": "a2f0bd2cc38e5b572ee32439e5ffd5d23752b41e67055a7fed03e88d3b7faddc",
+      "bytes": 5895,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-editable-image.browser.cjs",
+      "sha256": "d6b7c75a3bff4cfb364c03e349da834c60a5fdfb4b5fbc35a21d74b17137ca26",
+      "bytes": 10634,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-generation-nodes.browser.cjs",
+      "sha256": "46fca636a14abb072f3ca671486ad157b70cea1b4d390efdbce2f921c2ea761e",
+      "bytes": 7092,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-image-editor-ownership.cjs",
+      "sha256": "3175c4142bbe392fb0915c421836eb820eeda228f0808efff7af4841d20eea30",
+      "bytes": 3577,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-image-editor.browser.cjs",
+      "sha256": "6237d3b3043ed3b8fb6048ece46b43195711200a1e982544f28e1cba574721db",
+      "bytes": 30922,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-image-tools.cjs",
+      "sha256": "42536fbd024804272d0c3dcbc97f7a20de8c193aa6d53c4d1b5bedf2646a9b27",
+      "bytes": 5949,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-input-application.cjs",
+      "sha256": "6123c1193535e8b8c8b7e806c6d93772d3b214a7ed22e2b513790878a4fd1edc",
+      "bytes": 7811,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-manual-input.browser.cjs",
+      "sha256": "4e2749aec7ad0929656bfbc97b5827f97ac05ee4d4140ddc4ab93351172b9d56",
+      "bytes": 4842,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-panorama-ownership.cjs",
+      "sha256": "5698cc27bec27395e4b24d6bb7452db1009f2dc23a1b423743f7197cc591bf7f",
+      "bytes": 4129,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-panorama.browser.cjs",
+      "sha256": "93abc03f13fe0a467ff2dbabf5029bd4e72bf1adb499ab34ee59a5ddf7d79036",
+      "bytes": 18831,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-port-create.browser.cjs",
+      "sha256": "bd8427692cb6b50fad637b42d121ed4a424d9741ae1cc7aa2cd55ec547be4ca7",
+      "bytes": 7644,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-preview-ownership.cjs",
+      "sha256": "1a10ef8e4198c0b7fc3a141d1827df0f1e0cb98a916a3776bc7f8ae1ec9b6eac",
+      "bytes": 2319,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-preview.browser.cjs",
+      "sha256": "207fdb1aad908e38a82a9c89739c2ece1ba9f0de8bf0c336e8069c2a85434f6c",
+      "bytes": 15114,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-readonly-gestures.browser.cjs",
+      "sha256": "ebec309e725e1d60b5d10a9461385e714464b0eb4182a4571a522806fde8cd11",
+      "bytes": 7425,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-selection-ownership.cjs",
+      "sha256": "c8545928960cbf52fcbe2b04bfba52e39d7fee21d08b3251653be7bdb4547c24",
+      "bytes": 10078,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-selection.browser.cjs",
+      "sha256": "f11eff1767624c5754667097b76deedd9557de238891a16492bfb8054504ff16",
+      "bytes": 8046,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-task-input-bindings.cjs",
+      "sha256": "a74fb70111a3827b655a803f0431c293cd34b9382ecca6464418a24850277f54",
+      "bytes": 19260,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-text-nodes.browser.cjs",
+      "sha256": "3abd8afe6f923a4f0daa589fe04a055f645316113bad1275f86f5c83bdd20aa2",
+      "bytes": 5922,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-video-trim-ownership.cjs",
+      "sha256": "d914621ede12623b026c5efad9adda3b31aae81214fbaab1e066f8e0249f633c",
+      "bytes": 2841,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/smart-video-trim.browser.cjs",
+      "sha256": "3d16df242f4de641e1ec8079a3b26f0d7be3b88a3dc0ea8417ef9b99195c08da",
+      "bytes": 15916,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-frame-messages.browser.cjs",
+      "sha256": "99490e43be93cf0079bfdc9b2dc3be776d0a93f1b2c4ae45a6a5f3ac4cc619bf",
+      "bytes": 14461,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-frame-messages.cjs",
+      "sha256": "22938eb08526c34560a46e539007e1bc5d292da2b0f37e30b07e589700d063b9",
+      "bytes": 5893,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-icons.browser.cjs",
+      "sha256": "5ef9741c485139b5be381be0ac89390c9a393350cc057b2fa3056ce0d9cef219",
+      "bytes": 5283,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-select.browser.cjs",
+      "sha256": "01ff142d527e5d09e4487962f69f10e942234054da2aba2db2ed3892f8e35b2d",
+      "bytes": 5727,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-stats-connection.cjs",
+      "sha256": "fd8ddcc7a5a09908f712e0d3882be8dfa6d704be04b8c5601be90577973dcef6",
+      "bytes": 6819,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-transfer-status.browser.cjs",
+      "sha256": "bf250b83ca0ce8ff1340295fbb37e50588d78ed0048a33b053de1598ddac76c5",
+      "bytes": 9322,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-unified.browser.cjs",
+      "sha256": "7f87603ba656ccba5b1c4eefed50d136342c6555ccd82ed62db22cce93ba4e64",
+      "bytes": 8809,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-workbench.browser.cjs",
+      "sha256": "3c0d0c2ca6c3a75e92528e350eac753233c853667c3bd985b1ce17db6fefdc23",
+      "bytes": 6319,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/studio-workbench.live.browser.cjs",
+      "sha256": "d1a73a8d109cbc7771668e57dcb259307c99f26aba76ce6430235703f8be94a6",
+      "bytes": 13642,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_account_billing.py",
+      "sha256": "e5f488d46d33fae96001dc49078c7edba49447a377f72e1a9246f64b4862150f",
+      "bytes": 16382,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_asset_auth_scope.py",
+      "sha256": "2d341de3112f878595ae3837df093a20476a7644ae2b83f5cbf5772f2886d185",
+      "bytes": 8245,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_asset_manager_consistency.cjs",
+      "sha256": "f9b239796a2bd0aedf1b0ec6bcade4a3effd8b7e830e6ad6569b7a11106d1b3d",
+      "bytes": 13917,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_asset_manager_lazy_loading.py",
+      "sha256": "5b6b5328b134c9b1eda00be91a8597e918131219f35154919d7ca9490b36f6d7",
+      "bytes": 3190,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_attachment_preview.py",
+      "sha256": "ec0a3268317587fff60f0392e2e1cef6a029840c6c6ebe12e9c6c9c000f9c1d2",
+      "bytes": 4277,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_auth.py",
+      "sha256": "28833bba5a2c7b4a652c09dac847ff3a173da0b30b307e655a0e1ece0aadc945",
+      "bytes": 5943,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_asset_catalog.py",
+      "sha256": "b62f9c9545ad5ddd21421f85ac81cbec5b2c4bdec44c6bc23e8a5583fe78f1b6",
+      "bytes": 1979,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_asset_groups.py",
+      "sha256": "21dcd577b38af8c5789a9b660888c8e999dafeb5f54d687c19ed8845f1d12744",
+      "bytes": 4407,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_asset_pagination.cjs",
+      "sha256": "3223f1e34035df19a03cadd2d20cebed827a6aca953089ff99b548882a64718b",
+      "bytes": 2779,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_asset_presence.py",
+      "sha256": "7c6d4ff1887cd1583c4084c19267c53611a0233108ee96062b6012a9987cedf7",
+      "bytes": 3298,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_asset_purge.py",
+      "sha256": "76218255e1dd9fcfa1aa66d850f0a106efe3816ad403a09fabae3b669ce3c013",
+      "bytes": 4592,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_connection_hover.cjs",
+      "sha256": "0ff76d2ec0453f9c2274cf7f196ea84345de3afb7a9dbb0dc994be7c37123830",
+      "bytes": 8558,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_covers.py",
+      "sha256": "347ea6bdb78e7e9519e9684016b4193bc2944fec66386a4a894f06e1a04775d7",
+      "bytes": 1846,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_face_auth_routing.cjs",
+      "sha256": "f46bb84ffa23cedb50aa4b1360b5f5324c649371346afd4293895cce8dd7a324",
+      "bytes": 23843,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_geometry_scheduling.cjs",
+      "sha256": "632be332e2cfc0c69de3e26d291bec04f16f376489bda2fa0cbc840645521ad8",
+      "bytes": 10152,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_incremental_links.cjs",
+      "sha256": "349f86c9b8cfe1cd505d833ae1bd2b9b5975dff086a85cc9d0f9b01c936a5de7",
+      "bytes": 3864,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_input_view_cache.cjs",
+      "sha256": "c7e06b5dd417ea85ee1b389b155f99dc14f127ad5a18329c3245672f7fabe91f",
+      "bytes": 12323,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_ledger.cjs",
+      "sha256": "c96ff7e8ed35a6cb8e0f7a25a9a40e06bbe76a18dfcf4d1383227d9f79fe4b85",
+      "bytes": 9054,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_ledger.py",
+      "sha256": "82cb28f80eee2378c8aa72d0bb655225bb0dbf13ae9a1c74b8d88fbce1d9a107",
+      "bytes": 14506,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_legacy_cost_userscript.cjs",
+      "sha256": "248544a819be54b6044bea6120059e02da5297c2812a50a6e31bc177a71166ba",
+      "bytes": 11663,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_local_edits.cjs",
+      "sha256": "35c1cd843a697126d56f2411304b6af55d7dfc97871a741165dafe5110e1c5f6",
+      "bytes": 3302,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_media_inputs.cjs",
+      "sha256": "7f64e9fff05bd923293d1a7304e8ea0640a23063f940226362eafd5b867a2e18",
+      "bytes": 5990,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_media_visibility.cjs",
+      "sha256": "6b5d718278823a13a5eab70e03d9bed07a8aa4bd3e41c8313e3e635b681a5e30",
+      "bytes": 5913,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_metadata_update.py",
+      "sha256": "7c388f4870143bcc0d6072e35761cc91335538c37060d8942e277cb7a3fa97eb",
+      "bytes": 3163,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_minimap.cjs",
+      "sha256": "5b0478bcd5ad096505afe5033f64f1f0a2b01387f6beba208a1892b65ef2e0be",
+      "bytes": 10595,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_node_reconciliation.cjs",
+      "sha256": "b578cd95bf8c2ea1228db1821d4c276f5df0690a26420c7ebc8192069d2f5465",
+      "bytes": 4367,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_prompt_dependencies.cjs",
+      "sha256": "7ca5eff718b9a97e6903368b93be1b6ea9a2b15978b1413f3fb31fa840e5b320",
+      "bytes": 4422,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_resumable_upload.cjs",
+      "sha256": "3dcc814ca8adbd360f4536723494ebc02a9a9ae64f731ec6b67bedfb63f601d1",
+      "bytes": 5032,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_run_entry.py",
+      "sha256": "1d5f7537ccab184a7e7eaf8684523c40e1826d5b14f1149ee4f67edc1100f623",
+      "bytes": 7228,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_save_race.cjs",
+      "sha256": "e67509b9c4d7f90003875590540cecee0a0086bc5655d272bb5bbe949cf37e20",
+      "bytes": 7724,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_canvas_video_task_persistence.py",
+      "sha256": "6ae2b81645419344961729e0e9997551da6d4a3f8b9d04c45909a025bf88ed8a",
+      "bytes": 8679,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_chat_billing.py",
+      "sha256": "e10c5ebcfa05307830bd8157dd3f77b1a168408ded96e4e6749d44a66a3038b8",
+      "bytes": 4129,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_chat_cleanup_errors.py",
+      "sha256": "d9ca8dcb124fe54d8109e296e84ce77764fc694c00b259045b9f893313d17a68",
+      "bytes": 988,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_chat_context_budget.py",
+      "sha256": "703b2016223806abacfed8a5771ca0b4b17fb8dcd0d01da8d28a4268d7a9d5a6",
+      "bytes": 1387,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_chat_error_ui.py",
+      "sha256": "708a87accf428a6e27ae291c93ca686d09fefd94d653d4c06bac9d3f50667b0e",
+      "bytes": 2197,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_classic_canvas_audio_lightbox.py",
+      "sha256": "c5ce518f09d46eb723c2a84e25f8cdba348e9910413b7530b956ed13cb799a1e",
+      "bytes": 5119,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_classic_canvas_video_lightbox.cjs",
+      "sha256": "d5eda55976c19941f22cdda2db88013acad9aa6c0b482d686cb3c06086be8aab",
+      "bytes": 4313,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_classic_canvas_video_trim.cjs",
+      "sha256": "2c521a42887bb92b368e4b8d37af9f54ae93cceb3b320a221b2541a2345f7221",
+      "bytes": 8804,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_account_data.py",
+      "sha256": "7d7d7cc069da87c1579ee44bfdafb7a9c5a4a98f0973893e6d52f73cf59049be",
+      "bytes": 15177,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_asset_purge.py",
+      "sha256": "3ac5fe44a7d47126166740c1fd6cfe98000a4de2560a35b3870aa40db2679ed8",
+      "bytes": 2193,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_backup_control.py",
+      "sha256": "71b9c9aea92ab29075b0dc79e6a3c2ddb0d650d09f774fba00e46ed967457a33",
+      "bytes": 13710,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_canvas_asset_page.py",
+      "sha256": "d0c13d8dbda63bd58ccebc2634e29b928b5dd85c558faa5932915d9047dbfdd0",
+      "bytes": 5464,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_canvas_covers.py",
+      "sha256": "902816aa5f4fbd98fe5c77ffe17e01dee31287b32c4404556cc1565ca97a8de9",
+      "bytes": 3155,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_canvas_leases.py",
+      "sha256": "a1d64cd190cbc352554e2f39078bc88f0321276bc437744444940534c3671626",
+      "bytes": 28758,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_canvas_occupancy.py",
+      "sha256": "3bed04c34b368c1e515900536a719bbe7be98cbb8909a9487ee69901b459cd3a",
+      "bytes": 11818,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_canvas_subscriptions.py",
+      "sha256": "eba00470b5f155fbd5d4cf4419fdca15bed4fe27bcf8beb1ec6835148ef61eb6",
+      "bytes": 9158,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_canvas_task_results.py",
+      "sha256": "e2e8fb005084270019265f9adc5a6c145d71bf3989e28eb88da87972637982d4",
+      "bytes": 22453,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_chat.py",
+      "sha256": "9c603caa75ed7254120f3c43978e4bd9f361181c26dbf49e339adc028ab83b5a",
+      "bytes": 8768,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_chat_attachments.py",
+      "sha256": "83f35f5e44ed014f6f0a022c59df5f11f3f458f710a140c5c0e0a12f8a7ad593",
+      "bytes": 27993,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_chat_billing.py",
+      "sha256": "2d93ae9d3624611789c55c0375e5e4888b838d9c566ecf4cd3a61a43a27e7042",
+      "bytes": 10503,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_database_restore.py",
+      "sha256": "9c6d90db34f108711ce93229432bf130b8aa6ada954457134336b079ab832018",
+      "bytes": 24235,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_draft_copies.py",
+      "sha256": "914a19ba6fab8152452bba059c207e2c4da0dfe63a31d3a011bd2c8643364fa5",
+      "bytes": 9066,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_finalization.py",
+      "sha256": "62237dfeb11b783588c09d88cf6046d8f168c57a21635d5d32f5df50f59a7c5c",
+      "bytes": 14353,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_generation_outputs.py",
+      "sha256": "f8d03f7d3c399ce4ec89cc03aabf5c75e3b82b230ce6df49c9e85c05db7de897",
+      "bytes": 10130,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_image_receipts.py",
+      "sha256": "926e957aec53fb69908834172ab033f550e9c4ee8b4cb2146012c17f0379c9b4",
+      "bytes": 17091,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_llm_tasks.py",
+      "sha256": "7d0345395f280dadb62513b9ec0ac079ea79964527f813e20fa13dfdfa128ef2",
+      "bytes": 11632,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_maintenance_control.py",
+      "sha256": "f038402650d6bfa35da4a2bcfe4c015a9de2f2b237156173de34ef3560b0004e",
+      "bytes": 20975,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_maintenance_readiness.py",
+      "sha256": "96e7070bb09c259cd58b1b0d3e161700b7144311bca355a2204500a529b2b2cf",
+      "bytes": 9153,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_maintenance_recovery.py",
+      "sha256": "a11c029f1de9a40933d1de3ae1178761adfb7bc9eadac0ad0573d7f3ad5c5c98",
+      "bytes": 8877,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_managed_providers.py",
+      "sha256": "9ae2acf79a36cdfb621adeebdfd4f4f7a9c97228e62e7fcccf1246036d87277b",
+      "bytes": 14402,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_management.py",
+      "sha256": "beeb368bdfe564f143188c96af3269ad38277755ec2f786b50be9e13af1572d6",
+      "bytes": 12592,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_management_overview.py",
+      "sha256": "cfa2b40ea309ef58ff0cfce6920af32720859d0906852082374b431304f321c2",
+      "bytes": 10059,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_member_gateway.py",
+      "sha256": "30a419ca5f6b010f1c59f49ea91b5500215cf8432d02f1d8fb576b0cd9c1daec",
+      "bytes": 26749,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_member_presence.py",
+      "sha256": "d29a2e10adcb857f83fe83d5ebd6d1cac56d68c1205c21169a1c65f6d01881e9",
+      "bytes": 11265,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_members.py",
+      "sha256": "052f712ec8b43ca1b8ef59d7214ffb6fd984d8ce8e7678427948c0cab8b30a4e",
+      "bytes": 14938,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_online_imports.py",
+      "sha256": "973ad2461c693490a945b5b1d69df41f872abfecc6804fe2ddbbcbbcb1fc9a0a",
+      "bytes": 4318,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_online_inbox.py",
+      "sha256": "c66f4968e521519e4a4b1fb3f61030f51b255d97c2b059f9148aa75fa2c9abb2",
+      "bytes": 20993,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_page_reports.py",
+      "sha256": "a8bfadba63d1870db050d3cf0ff532247b704a6efeed30fe429dc6d7fac50f84",
+      "bytes": 18830,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_paging.py",
+      "sha256": "79fb8548d43df01067ed4ef54103d8233f04062d3ef0f8a953e3f1eda1b1a975",
+      "bytes": 5004,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_preview_concurrency.py",
+      "sha256": "e7301c9422d5d78869eb12e0d865dfe04577c6ab05be6b6bf5d065c57878a6aa",
+      "bytes": 3982,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_provider_diagnostics.py",
+      "sha256": "e5e8a19b0f24fa290de2ef64070164051ff320b3df73763b3907d49982d9e864",
+      "bytes": 8198,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_provider_imports.py",
+      "sha256": "89eb0b56d827cfde4b92facc8367d3f149dd4823709cfed3e174467624b60789",
+      "bytes": 14052,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_provider_presets.py",
+      "sha256": "e55b97bf0dfea64bd4d13f075008f70fb73b364b1a502ade3eb579ba5c3dacd6",
+      "bytes": 1951,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_provider_probes.py",
+      "sha256": "333da8ea0bf538f8fcdf5fdf00812c9f14b534666895df26c00a7e457e689de8",
+      "bytes": 9032,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_reference_lookup.py",
+      "sha256": "8f61800d10d7f1518db3851183a952986f8c690d88f2e2c8c0320cc32ce9470c",
+      "bytes": 3391,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_retired_integrations.py",
+      "sha256": "2efa5eb2b400ee6e172f7efd6694d1eded214f99fa9832ab9bc4f51a51f2644d",
+      "bytes": 4557,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_skills.py",
+      "sha256": "d2d1e4851b33424356195babd618fa03152b196dca910c73346888552c30a51e",
+      "bytes": 8630,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_storage.py",
+      "sha256": "f3c4b73a0c20b404f4eae9394e1c6cd3ccc039e5eebcb6ce65ebc91910717473",
+      "bytes": 37556,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_task_canvas_bindings.py",
+      "sha256": "f76f61043b0ace4838170cd8fd153a46bfc439c749ac366b5e5a286d085e91a7",
+      "bytes": 11914,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_task_requests.py",
+      "sha256": "e5f71a0b1a5763318a39505d3e9991dccf879e9c7c95bea9a750b08ff856d52a",
+      "bytes": 10730,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_task_reviews.py",
+      "sha256": "1706dff6e4158fc01631059797b81ea5e4e5803a695a3c4b673bc17b24f2f0bf",
+      "bytes": 14319,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_test_runner.py",
+      "sha256": "6a50212697a401b7224a85d0692b0fdfd033ce41ca117000378dd714d72628a6",
+      "bytes": 3340,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_upload_cleanup.py",
+      "sha256": "44ef7efbb01aa1edb34bb2f49735fe82cd13877e07feba96bd81a41f1f4dda6c",
+      "bytes": 7920,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_uploads.py",
+      "sha256": "393671ef17145168107b8cd7bbb98aab28c776ab6513ff87ebe3a30917a64a41",
+      "bytes": 13906,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_workbench_management.py",
+      "sha256": "0b04baeba4c2eda09ab81a071ed7fd7e3633019227d59df7487cd17623b96f0c",
+      "bytes": 7583,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_workbench_performance.py",
+      "sha256": "96e707eb4bdc6cfe375a9b9e3253f5bada7216f0b093efeedee7257b1f09538f",
+      "bytes": 4348,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_workspace_storage.py",
+      "sha256": "3d05a8912dabca77436227693b2d741a65e02f5a11707fb930a84953f1ec3de5",
+      "bytes": 5019,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_cloud_workspaces.py",
+      "sha256": "3ae09265ad4e8e0b3d971cb1476b1fefbc39f648fd7b2fe8a0fedba0332205e9",
+      "bytes": 21108,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_database_control.py",
+      "sha256": "8cf7ac7eb09f03a07da9bcb6350e42684cff35dfc0d3591c55b1a1a20141b1c4",
+      "bytes": 4028,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_deletion_ledger.py",
+      "sha256": "1591749c1b86d3115f6cef011b797c43942a790293108d99be63f8f18fe6bc84",
+      "bytes": 2747,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_document_attachments.py",
+      "sha256": "0e7cd4a67f3769803f66386083fbfbd7d82890f4c76ab2100b01d33e231ffd96",
+      "bytes": 8072,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_frontend_versioning.py",
+      "sha256": "e32945f9255fa25d0a952081c3a9758bdd52e9118c892953f7501eff283d9758",
+      "bytes": 18662,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_history_pager.cjs",
+      "sha256": "9ab3be43f86a68d36f503595bb403ad95a81bbfe87242713c7374b2cf91d9aec",
+      "bytes": 1940,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_image_tools.py",
+      "sha256": "5d1c2963b871aa75b4637a1def8908511e8e80b00270bdc88479db3bf095c3c6",
+      "bytes": 6313,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_maintenance_recovery_cli.py",
+      "sha256": "ae9b619c902098383e74d08ffa268b7c41499026244388f75c5d3e0f2aee8648",
+      "bytes": 2551,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_managed_provider_transport.py",
+      "sha256": "7ed8db8d0043b7ff732f20d3388734919792ab4d961d6566d870dea906a71c8f",
+      "bytes": 677,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_media_batch_lookup.py",
+      "sha256": "3f71c66d6238e0064046c696e28141c3e94d58cb15f95e50304d3220cb46eaab",
+      "bytes": 2423,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_media_browser_cache.py",
+      "sha256": "bd827f114c6e8fc8ba0a4d959becd6bbb628ddd0dd9cfcb8d732e3024b381f92",
+      "bytes": 4815,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_media_preview_faults.py",
+      "sha256": "fdaac82ae887b004d2821ada0c14aab02c1acd8fed90b011323470636ccab2a2",
+      "bytes": 6171,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_media_publish_concurrency.py",
+      "sha256": "fca91e2f19f55f29405c5cf0f6dc8a4a443f95dac724e506688f99623be7e902",
+      "bytes": 7944,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_media_temp_budget.py",
+      "sha256": "f1a4e186d4fd19075098ea7ebc75f4b034e91fe4c22371489d19db4bcaace0ca",
+      "bytes": 2602,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_migration_audit.py",
+      "sha256": "a1a5d5cc6e903a7bae58fb1347fad218e1a7cdc2df13031a1eead3b0dc57eca0",
+      "bytes": 5509,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_model_commercial.py",
+      "sha256": "cc960a1d395aeca5a0f16cf437cbc20f92cd458c96584815e82b6f98bf83194c",
+      "bytes": 10653,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_prompt_skills.py",
+      "sha256": "9c9bbaaee5d136a92e876dc76478c04c3193f1b20ce70eef018b5cd274cfe102",
+      "bytes": 8213,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_provider_avatar_capabilities.py",
+      "sha256": "c5f9e1f6a60b9048857e508578e3ca926c8a32399933a339f73e5d943dbaeb51",
+      "bytes": 4569,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_provider_bucket_references.py",
+      "sha256": "24218ce48d1861be02353c8398e429608bd7006249b5768cdccdbbbe2807acb1",
+      "bytes": 6033,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_retained_reference_lookup.py",
+      "sha256": "4ee75c82217967f95bead2f60fd57aa55778a238a3056cf66ccda0404e73a728",
+      "bytes": 2071,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_seedance25.py",
+      "sha256": "454eca65778e7d802f76071c39da929098403e7b6016862762e5fe5ab61e4211",
+      "bytes": 2038,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_seedance_reference_payload.py",
+      "sha256": "d27ee96f9e67b10c81724bc0797b60310fdb3985f8dbcbb891c07d03a05ac93d",
+      "bytes": 3882,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_smart_canvas_audio_lightbox.py",
+      "sha256": "e12b6e1199275cba703d2e87ce714b551f038f3790ac9d0689e1125fc9860b3c",
+      "bytes": 4590,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_smart_canvas_deletion.cjs",
+      "sha256": "962a28cbdccece2478ea2f0f5103562adeebc571d06fecaa52e85e534d4a0c63",
+      "bytes": 6845,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_smart_canvas_performance.cjs",
+      "sha256": "2c3ccbe4e11258ba9ca0a0611705c5cc1f9d2aa4536ccdaa9d2bbed8d2d4486b",
+      "bytes": 15923,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_smart_canvas_video_resume.py",
+      "sha256": "4887e080a13acc9f097ace074477782e003f14008ba157c74c185ce7472de101",
+      "bytes": 3994,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_smart_media_references.cjs",
+      "sha256": "fa954fbcb6467b305cb98a9bdc2f3090d58247fa927e4fe47d05d79189b15346",
+      "bytes": 10360,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_storage_control.py",
+      "sha256": "421ea2abdc75b4be68218720d8a9b3daee878851116812bfc2183fc9a2f4b409",
+      "bytes": 3532,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_studio_stats_module.py",
+      "sha256": "36ce258770450ed7234c3770c86e9636457a1ee7a8063c2021a0379e5eb87820",
+      "bytes": 2458,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_task_canvas_bindings.py",
+      "sha256": "0154c33f3621e361bcc80fa851f71a83187af498d55a5804205a09ff7e68cd9b",
+      "bytes": 11377,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_upload_cleanup_versions.py",
+      "sha256": "a57b0c8527ab96f5512eb89e6211fb0aa862358bf331a1487aa2a5887a4bacea",
+      "bytes": 8029,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_video_provider_credentials.py",
+      "sha256": "8679e73df15ab7f563b0048733bba266b38363e3371a3b22340e9a2de399a3bc",
+      "bytes": 4765,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_volcengine_video_billing.cjs",
+      "sha256": "ba6a8b5d00a547e2b393a2c0041a5402ebf2966d3ed19392ba7c88996ce9e3ca",
+      "bytes": 6752,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_volcengine_video_billing.py",
+      "sha256": "c28c830839612b8c98158223ae626a34b753479600c76b0201783286019fb07b",
+      "bytes": 9175,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_workbench_preview_resume.py",
+      "sha256": "77d63afbd85520a7bef51d5574a24c09bd87c3d2bf92a1906c4de9f2172269a2",
+      "bytes": 4544,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test_workbench_responsiveness.py",
+      "sha256": "9aee2b9c5641eedd728866c36a5fb9b1853c47f5f9a76f7ac10d11150f7c0e9b",
+      "bytes": 3436,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/theme-transition.cjs",
+      "sha256": "a57c419c6ecf21844db0d53eb5b5e7b2e35616d75669451ed5074abdac71a1a2",
+      "bytes": 11218,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/utilities.browser.cjs",
+      "sha256": "026cd5f5befde9ce216baf8262b5464a88afc725f7e0dbf1011ef4116c244534",
+      "bytes": 6507,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/video-duration-policy.cjs",
+      "sha256": "c60be645508f90a4e109fae09e552f901d0be066604600ed0f3e185d43df91ce",
+      "bytes": 2183,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/workspace-cache-ownership.cjs",
+      "sha256": "23dfaf0e412821a96d7ec7a66ff9a4cf0e1867d4d63eb4e9985347e29ab59c60",
+      "bytes": 7868,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/workspace-cache.browser.cjs",
+      "sha256": "0a6354519969c44358f427d995d27164f8a4ab5c8538022adbbdec6c4a7efb55",
+      "bytes": 6909,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/workspace-storage.browser.cjs",
+      "sha256": "2060fa4ce4955dcd6d43c19e2d88a543a434362d0512474c2759956da82d0bc1",
+      "bytes": 5454,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/backfill_account_billing.py",
+      "sha256": "8099356a7aa7cc548515519681805c7102626c37d366edb381c29a1024d82880",
+      "bytes": 2006,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/build_brand_fonts.py",
+      "sha256": "58b62afc62f7146ef290b20a4bb5b57b0b5e9979222952cb74a95624e9a17b66",
+      "bytes": 622,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/build_management.py",
+      "sha256": "8ead024d6251a86b371c9e2129a00d99dcfa669804a0f8942fa8bae739468e61",
+      "bytes": 1008,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/build_studio_icons.py",
+      "sha256": "6f1f0d6c6c167d779fc3ad21be133cd86a275a817d4a27871a5f66ac7a23c862",
+      "bytes": 7047,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/canvas_frontend_benchmark.cjs",
+      "sha256": "2c653e4b4c3216c2467ee63fc699ea5181f10f79da1a81968ed5317213bf941f",
+      "bytes": 6939,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/canvas_interaction_diagnostics.cjs",
+      "sha256": "e0e7d28b561e5e4e5829d1b74b489e54ef1a76d44a3a2d795ca5a23cd33b8885",
+      "bytes": 18731,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/classic_box_selection_benchmark.cjs",
+      "sha256": "4acde13d115dd16c765cefcbcbaed33f923eeed4a8e43aa549a1bf4450ae34b2",
+      "bytes": 5744,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/classic_selection_link_diagnostics.cjs",
+      "sha256": "e68ca01478ce930be10c12557779c2752c2048f43f463be899c8c6644c764290",
+      "bytes": 20591,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/classic_selection_ports_benchmark.cjs",
+      "sha256": "6076726f12f1376b88330a8df5a5bf5d8de44847002c08a750b62a780b9093c4",
+      "bytes": 6791,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/cloud_demo.py",
+      "sha256": "593acea9b14acfdc86c743636a28360039d9c421073488bb44443dcca64cbe5e",
+      "bytes": 2327,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/cloud_local.py",
+      "sha256": "98b158a50a9627c7184002500226b1a75e371ad51a8b61c555ea97af4a6a4022",
+      "bytes": 4912,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/cloud_restore.py",
+      "sha256": "80790e8252546d287f2cf17d2cce7fe62898ccb789a8479cb16ffb74321779a6",
+      "bytes": 1597,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/cloud_storage.py",
+      "sha256": "e504ccffb106d927d48ea119e2ef0476eaa4039d16ba763e2f10f107b4259396",
+      "bytes": 5648,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/cloud_test.py",
+      "sha256": "ba8ed08dfa9f68477c8021d3ed133d05a49de32c2d4086cd004fda9873df2db8",
+      "bytes": 5140,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/delivery_service.py",
+      "sha256": "551ac81cbc2cb66711fe258bab5b891eef9572175a0b4f36b9c5cd5994b7cf14",
+      "bytes": 3825,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/frontend_service_acceptance.cjs",
+      "sha256": "1b969dc0391ffdad09755768bc81b361b2c6149498aa222255c1503c996dedc9",
+      "bytes": 7958,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/frontend_service_acceptance.py",
+      "sha256": "3be4ac3ffd89e26edf4829a55341903976bbdc6409a06afd86caa7ae4d791ae4",
+      "bytes": 5340,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/maintenance_recovery.py",
+      "sha256": "ed6419e17d2771378044bafaa2de77b5754ff3f5fc5531831d791a9258041083",
+      "bytes": 8932,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/management_backup_worker.py",
+      "sha256": "90b851864191fbadac389522dff1012778cd77f95b0c9ab7bd197bcd5c040b75",
+      "bytes": 1445,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/management_preview.py",
+      "sha256": "c7f7e89f4a6046c84b920b5f4208cda7bedfff6b8f9f213a542413f9fb18be00",
+      "bytes": 9076,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/member_admin.py",
+      "sha256": "aac04cb51a65a6e2d4c8f731a9fa954eca410ed98dff8ca7630317c39d54204f",
+      "bytes": 1285,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/reset_login.py",
+      "sha256": "489ba65a92314227dce3b2e55037e2ab3905c08b091382f1e22e27b9b6024cc8",
+      "bytes": 1446,
+      "mode": "100644"
+    },
+    {
+      "path": "tools/workbench_preview.py",
+      "sha256": "27a56097d8eb2f59c57d3e6d3a0973b220aaad3ba453633e4264371338c39437",
+      "bytes": 9795,
+      "mode": "100644"
+    },
+    {
+      "path": "userscripts/README.md",
+      "sha256": "d9391b720da844342bc44eab6daf8e8746e305a5991491977d8c7b92451dba6f",
+      "bytes": 4580,
+      "mode": "100644"
+    },
+    {
+      "path": "userscripts/canvas-legacy-cost-filter.user.js",
+      "sha256": "28c617ddc27ec1c2d8f3970cf5ad4026a2900394efbd4248d31d18c5281a46f4",
+      "bytes": 34347,
+      "mode": "100644"
+    },
+    {
+      "path": "workflows/2511.json",
+      "sha256": "b6195d6988d658d7e1ad16c6d8a526b718d03ae869b6cbcfde708068c0a18c4a",
+      "bytes": 4596,
+      "mode": "100644"
+    },
+    {
+      "path": "workflows/Flux2-Klein.json",
+      "sha256": "0c8f4d3f200d1d2df36e095b53788827f23df7d19689e0426ff1dc0a8eb8262e",
+      "bytes": 8267,
+      "mode": "100644"
+    },
+    {
+      "path": "workflows/LTXDirectorv2-API.config.json",
+      "sha256": "ca403037770a4bff9b84943030ba55d2453789ca1c2805bcc9402729cf1eec81",
+      "bytes": 3221,
+      "mode": "100644"
+    },
+    {
+      "path": "workflows/LTXDirectorv2-API.json",
+      "sha256": "981aa8c4f5e44430a388358b61b5032321b4661d7dad07a2d1c9c42c2c9882cb",
+      "bytes": 9549,
+      "mode": "100644"
+    },
+    {
+      "path": "workflows/Z-Image-Enhance.json",
+      "sha256": "fd16b8ae7fac691d8fadd7bbe6b6c34133e05c5f44d46e491c7222131ab8fef0",
+      "bytes": 6611,
+      "mode": "100644"
+    },
+    {
+      "path": "workflows/Z-Image.json",
+      "sha256": "06fdc7022be1bcd7486e26ba4a9ce549d19b056bb72c5b299cf20e9a1af679ab",
+      "bytes": 3214,
+      "mode": "100644"
+    },
+    {
+      "path": "workflows/upscale.json",
+      "sha256": "b5071ace17524fb3486bdaf85efa4c90f7359848b351c6d33fc0107439d4eb95",
+      "bytes": 1883,
+      "mode": "100644"
+    },
+    {
+      "path": "安装依赖.bat",
+      "sha256": "08e7eb69f679d3243d42ac1ed8792ca2064b5a18446d408a68a3d518ca4883e2",
+      "bytes": 2103,
+      "mode": "100644"
+    },
+    {
+      "path": "新手运行与使用教程.md",
+      "sha256": "e9e6240b2ef979906e57b39e5a054ec733f79969c4dbb92b63ebb382ec2da2d2",
+      "bytes": 21481,
+      "mode": "100644"
+    },
+    {
+      "path": "赞赏.png",
+      "sha256": "f865b1f561d1bc867e0d9a004aba0ba325798a354d2e973db574d74ae0db89d6",
+      "bytes": 517714,
+      "mode": "100644"
+    },
+    {
+      "path": "运行说明.txt",
+      "sha256": "51f090c28190e573c3a61235536ec452e108d2e5e0ca0b5752f43995226ae9ba",
+      "bytes": 1674,
+      "mode": "100644"
+    }
+  ],
+  "missing": [],
+  "changed_from_baseline": [
+    "app/management/application.py",
+    "app/services/auth.py",
+    "static/css/canvas-home.css",
+    "static/js/local-depth-video-worker.js",
+    "static/js/local-depth-video.js"
+  ],
+  "archive_sha256": "a18513695138a9cc7507f1ce75f2efbdfc54cb30575a637819616e07807bbb4c"
+}

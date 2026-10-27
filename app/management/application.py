@@ -72,7 +72,8 @@ class Admission:
             # local ports and sibling subdomains. Unsafe requests need Origin.
             origin = management_origin()
             headers = dict(scope.get('headers', []))
-            if scope['method'] not in {'GET', 'HEAD', 'OPTIONS'} and headers.get(b'origin', b'').decode('latin-1') != origin:
+            allowed = {origin} | {value.strip() for value in os.getenv('MANAGEMENT_ALLOWED_ORIGINS', '').split(',') if value.strip()}
+            if scope['method'] not in {'GET', 'HEAD', 'OPTIONS'} and (headers.get(b'sec-fetch-site') == b'cross-site' or headers.get(b'origin', b'').decode('latin-1') not in allowed):
                 az.fail('origin_forbidden')
             if path.startswith('/api/') and path != '/api/auth/login':
                 principal = await asyncio.to_thread(session, scope)

@@ -123,7 +123,8 @@ def origin_allowed(scope):
     public = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
     host = headers.get(b"host", b"").decode("latin-1")
     expected = public or scope.get("scheme", "http").replace("ws", "http") + "://" + host
-    return origin == expected
+    allowed = {expected} | {value.strip() for value in os.getenv("WORKBENCH_ALLOWED_ORIGINS", "").split(",") if value.strip()}
+    return origin in allowed
 
 
 def can_setup(scope):

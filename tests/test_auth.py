@@ -83,6 +83,15 @@ class AuthenticationTests(unittest.TestCase):
         self.client.cookies.set(auth.COOKIE, "forged")
         self.assertEqual(self.client.get("/api/private").status_code, 401)
 
+    def test_explicit_workbench_origins_preserve_cross_site_rejection(self):
+        self.setup_account()
+        alternate = "http://localhost:18777"
+        self.assertEqual(self.client.post("/api/auth/logout", headers={"Origin": alternate}).status_code, 403)
+        with patch.dict(os.environ, {"WORKBENCH_ALLOWED_ORIGINS": " , " + alternate + " , "}):
+            self.assertEqual(self.client.post("/api/auth/logout", headers={"Origin": alternate, "Sec-Fetch-Site": "cross-site"}).status_code, 403)
+            self.assertEqual(self.client.post("/api/auth/logout", headers={"Origin": "https://evil.test"}).status_code, 403)
+            self.assertEqual(self.client.post("/api/auth/logout", headers={"Origin": alternate}).status_code, 200)
+
     def test_throttle_and_cloud_compatibility(self):
         self.setup_account()
         self.client.cookies.clear()

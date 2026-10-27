@@ -38,6 +38,16 @@ def invite(client, name='新成员'):
     return response.json()
 
 
+def test_explicit_management_origins_preserve_cross_site_rejection(platform, monkeypatch):
+    client = platform['client']
+    alternate = 'http://localhost:18779'
+    assert client.post('/api/auth/logout', headers={'Origin': alternate}).status_code == 403
+    monkeypatch.setenv('MANAGEMENT_ALLOWED_ORIGINS', ' , ' + alternate + ' , ')
+    assert client.post('/api/auth/logout', headers={'Origin': alternate, 'Sec-Fetch-Site': 'cross-site'}).status_code == 403
+    assert client.post('/api/auth/logout', headers={'Origin': 'https://evil.test'}).status_code == 403
+    assert client.post('/api/auth/logout', headers={'Origin': alternate}).status_code == 200
+
+
 def test_member_search_status_and_cursor_are_applied_together(platform):
     from app.services import members
     c = platform['client']

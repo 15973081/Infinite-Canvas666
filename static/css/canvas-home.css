@@ -52,7 +52,9 @@
 .studio-pick{position:relative}.studio-pick-trigger svg{width:13px;height:13px;transition:transform .16s}.studio-pick-trigger[aria-expanded=true] svg{transform:rotate(180deg)}
 #canvasGate .studio-pick-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;width:290px;max-width:calc(100vw - 48px);max-height:min(420px,60vh);overflow:auto;padding:6px;background:var(--studio-panel);border:1px solid var(--studio-border);border-top-color:var(--studio-accent-label);border-radius:var(--studio-radius-control);box-shadow:0 12px 32px #0003;animation:studio-menu-in .14s ease-out}
 #canvasGate .studio-sort-menu{width:160px}
-#canvasGate .gate-folder-pane{display:block;width:auto;min-width:0;border:0;background:transparent;padding:0}
+#canvasGate .gate-folder-pane{display:block;width:auto;min-width:0;border:0;background:transparent;padding:0;max-height:none;overflow:visible}
+/* The dropdown owns scrolling; inherited sidebar clipping hides later folders. */
+#canvasGate .gate-folder-tree{overflow:visible}
 #canvasGate .gate-folder-head{font:10px var(--studio-font-mono);letter-spacing:1px;padding:8px;color:var(--studio-text-muted);border:0}
 #canvasGate .gate-folder-node{border:0;border-radius:0;padding-left:calc(var(--depth,0) * 12px);min-height:36px;color:var(--studio-text-muted);background:transparent}
 #canvasGate .gate-folder-node.active{background:var(--studio-selected);box-shadow:inset 2px 0 var(--studio-accent-label);color:var(--studio-text)}
