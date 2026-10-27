@@ -859,7 +859,9 @@ def volcengine_media_reference_url(value, max_image_size=1536, provider=None, ki
     public = bucket_reference_url(value, max_image_size=max_image_size) if media_input_mode(provider, kind) == "url" else ""
     if public:
         return public
-    if value.startswith("/output/") or value.startswith("/assets/"):
+    # Member storage uses /api/media/<id>/content rather than legacy file URLs.
+    # Resolve it through the same authorized storage reader before sending it upstream.
+    if value.startswith(("/output/", "/assets/", "/api/media/")):
         return reference_to_data_url({"url": value}, max_size=max_image_size)
     return value
 

@@ -82,3 +82,28 @@ def test_mode_validation():
     for invalid in [{"image":"invalid"}, {"other":"url"}, []]:
         with pytest.raises(ValueError):
             normalize_media_input_modes(invalid)
+
+
+@pytest.mark.parametrize("mode", ["url", "base64"])
+def test_member_image_is_encoded_when_no_public_bucket_is_available(tmp_path, mode):
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    path = tmp_path / "reference.png"
+    Image.new("RGB", (24, 16), "red").save(path)
+    ref = "/api/media/ast_" + "a" * 32 + "/content"
+    provider = {"media_input_modes": {"image": mode}}
+    with patch.object(media, "volcengine_asset_uri_for_library_url", return_value=""), patch.object(media, "bucket_reference_url", return_value=""), patch.object(media, "output_file_from_url", return_value=str(path)) as resolve:
+        result = asyncio.run(media.volcengine_video_media_reference_url(ref, provider=provider))
+    resolve.assert_called_once_with(ref)
+    header, encoded = result.split(",", 1)
+    assert header == "data:image/jpeg;base64"
+    with Image.open(BytesIO(base64.b64decode(encoded))) as image:
+        assert image.size == (24, 16)
+
+
+def test_member_image_keeps_public_bucket_url_in_url_mode():
+    ref = "/api/media/ast_" + "a" * 32 + "/content"
+    with patch.object(media, "bucket_reference_url", return_value="https://bucket/signed"), patch.object(media, "reference_to_data_url") as encode:
+        assert media.volcengine_media_reference_url(ref) == "https://bucket/signed"
+        encode.assert_not_called()
