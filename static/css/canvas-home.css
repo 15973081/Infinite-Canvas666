@@ -104,6 +104,8 @@
 #studioHomeFeedback:not([hidden]){padding:18px;margin:8px 0 16px;border:1px solid var(--studio-border);background:var(--studio-panel);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 #studioHomeFeedback button{padding:8px 14px;background:var(--studio-accent);color:var(--studio-accent-text);border:0;cursor:pointer}
 #canvasGate .studio-home-footer{margin-top:32px;padding-top:14px;border-top:1px solid var(--studio-border);color:var(--studio-text-muted);font:10px var(--studio-font-mono);letter-spacing:1px}
+#canvasGate .icp-footer{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 12px;padding:12px 0 20px;font:12px/1.8 var(--studio-font);letter-spacing:normal;text-align:center}
+#canvasGate .icp-footer a{color:inherit;text-decoration:none}#canvasGate .icp-footer a:hover{color:var(--studio-text);text-decoration:underline}#canvasGate .icp-footer a:focus-visible{outline:2px solid var(--studio-focus);outline-offset:4px}
 #canvasGate.trash-mode .studio-start,#canvasGate.trash-mode .studio-home-welcome,#canvasGate.trash-mode #studioRecent,#canvasGate.trash-mode .studio-pick{display:none}
 #canvasGate[aria-busy=true] .gate-list,#canvasGate[aria-busy=true] #studioRecentList{opacity:.4;pointer-events:none}
 #canvasGate.gate-loading .gate-panel{visibility:visible;opacity:1}
