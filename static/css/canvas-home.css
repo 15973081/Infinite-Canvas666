@@ -106,6 +106,7 @@
 #canvasGate .studio-home-footer{margin-top:32px;padding-top:14px;border-top:1px solid var(--studio-border);color:var(--studio-text-muted);font:10px var(--studio-font-mono);letter-spacing:1px}
 #canvasGate .icp-footer{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 12px;padding:12px 0 20px;font:12px/1.8 var(--studio-font);letter-spacing:normal;text-align:center}
 #canvasGate .icp-footer a{color:inherit;text-decoration:none}#canvasGate .icp-footer a:hover{color:var(--studio-text);text-decoration:underline}#canvasGate .icp-footer a:focus-visible{outline:2px solid var(--studio-focus);outline-offset:4px}
+#canvasGate .icp-footer .public-security-filing{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}#canvasGate .public-security-filing img{flex:none;object-fit:contain}
 #canvasGate.trash-mode .studio-start,#canvasGate.trash-mode .studio-home-welcome,#canvasGate.trash-mode #studioRecent,#canvasGate.trash-mode .studio-pick{display:none}
 #canvasGate[aria-busy=true] .gate-list,#canvasGate[aria-busy=true] #studioRecentList{opacity:.4;pointer-events:none}
 #canvasGate.gate-loading .gate-panel{visibility:visible;opacity:1}
