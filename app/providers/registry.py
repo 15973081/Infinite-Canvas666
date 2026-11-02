@@ -73,7 +73,7 @@ def normalize_model_prices(rows):
             conditions = {"resolution": resolution, "has_video_input": has_video, "service_tier": tier}
         if billing_type != "per_million_tokens" and raw.get("resolution"):
             resolution = str(raw["resolution"]).lower()
-            if resolution not in ({"1k", "2k", "4k"} if kind == "image" else {"480p", "720p", "1080p", "4k"}): continue
+            if resolution not in ({"1k", "2k", "4k"} if kind == "image" else {"480p", "720p", "768p", "1080p", "2k", "4k"}): continue
             conditions["resolution"] = resolution
         normalized.append({
             **conditions,

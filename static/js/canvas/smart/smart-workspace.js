@@ -1031,12 +1031,17 @@ function renderVideoToggleControl(key, label){
 }
 
 function renderVideoAdvancedControl(includeFrameRoles=false){
-    const options=[
+    let options=[
         ['videoEnhancePrompt','提示词增强'],['videoEnableUpsample','高清'],
         ['videoGenerateAudio','生成音频'],['videoCameraFixed','镜头固定'],
         ['videoWatermark','水印'],['videoMultimodal','智能多参'],
         ...(includeFrameRoles ? [['videoUseFrameRoles','首尾帧']] : [])
     ];
+    const capability=window.VideoDurationPolicy.minimax((apiProviders || []).find(p=>p.id===settings.videoProvider),settings.videoModel);
+    if(capability){
+        const noWatermark=String(settings.videoModel).toLowerCase()==='minimax-h3-max' && settings.videoResolution==='1080p';
+        options=options.filter(([key])=>key==='videoUseFrameRoles' || (key==='videoWatermark' && !noWatermark));
+    }
     const enabled=options.filter(([key])=>settings[key]).length + Number(!!settings.videoTrustedAsset);
     return `<details class="smart-control composer-advanced">
         <summary><i data-lucide="sliders-horizontal"></i><span>更多设置</span>${enabled ? `<span class="composer-option-count">${enabled}</span>` : ''}</summary>
