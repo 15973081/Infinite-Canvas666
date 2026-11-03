@@ -1,15 +1,10 @@
-/* Shared model-specific video duration rules for both editors. */
+/* Shared duration policy; provider-specific limits belong to their adapters. */
 (function(root){
-    function minimax(provider,model){
-        const apimart=String(provider?.protocol || '').toLowerCase()==='apimart' || /apimart\.ai/i.test(provider?.base_url || '');
-        const name=String(model || '').trim().toLowerCase();
-        if(!apimart || !['minimax-h3','minimax-h3-max'].includes(name))return null;
-        return name==='minimax-h3' ? {min:4,max:15,resolutions:['2k','768p']} : {min:5,max:15,resolutions:['768p','480p','1080p']};
-    }
+    const apimart=typeof module==='object'&&module.exports ? require('./apimart-video-policy.js') : root.ApimartVideoPolicy;
     function bounds(provider,model,defaults={min:1,max:60,auto:false}){
         const rule=provider?.model_policies?.['video:'+model];
         const configured=Number.isSafeInteger(rule?.duration_min)&&Number.isSafeInteger(rule?.duration_max)&&rule.duration_min>=1&&rule.duration_max>=rule.duration_min;
-        const capability=minimax(provider,model);
+        const capability=apimart?.capabilities(provider,model);
         if(capability)return {min:Math.max(capability.min,configured?rule.duration_min:capability.min),max:Math.min(capability.max,configured?rule.duration_max:capability.max),auto:false,configured};
         return configured ? {min:rule.duration_min,max:rule.duration_max,auto:false,configured:true} : {...defaults,configured:false};
     }
@@ -37,6 +32,6 @@
         win.document.addEventListener('click',open,true);
         return ()=>{win.removeEventListener('focus',visible);win.removeEventListener('pageshow',visible);win.document.removeEventListener('visibilitychange',visible);win.document.removeEventListener('click',open,true);};
     }
-    const api={bounds,clamp,choices,watch,minimax};
+    const api={bounds,clamp,choices,watch};
     if(typeof module==='object'&&module.exports)module.exports=api;else root.VideoDurationPolicy=api;
 })(typeof window==='undefined'?globalThis:window);

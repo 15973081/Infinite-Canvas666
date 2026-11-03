@@ -251,8 +251,13 @@ def effective_protocol(provider, model=""):
     return base
 
 def is_apimart_provider(provider):
-    base_url = str((provider or {}).get("base_url") or "").lower()
-    return provider_protocol(provider) == "apimart" or "apimart.ai" in base_url
+    if provider_protocol(provider) == "apimart":
+        return True
+    try:
+        host = (urllib.parse.urlparse(str((provider or {}).get("base_url") or "")).hostname or "").lower()
+    except ValueError:
+        return False
+    return host == "apimart.ai" or host.endswith(".apimart.ai")
 
 def detect_image_request_mode(base_url="", models=None):
     base = str(base_url or "").strip().lower()

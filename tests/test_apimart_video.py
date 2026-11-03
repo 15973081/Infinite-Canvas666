@@ -1,4 +1,4 @@
-"""Exercise both H3 models at the paid transport boundary without network calls."""
+"""APIMart H3 adapters and isolation from other providers; no network calls."""
 import asyncio
 from unittest.mock import AsyncMock
 
@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.models import CanvasVideoRequest
 from app.routers import canvas
 from app.services.media import apimart_video_resolution, video_output_urls
+from app.services.apimart_video import apimart_video_model, build_apimart_video_request
 from app.services.model_commercial import policies, discounts
 from app.providers.registry import normalize_model_prices
 
@@ -131,8 +132,47 @@ def test_exact_tiers_roundtrip_through_commercial_configuration():
         assert normalize_model_prices([price])[0]['resolution'] == resolution
         discount = {'kind': 'video', 'model': 'MiniMax-H3', 'rate': '0.8', 'resolution': resolution}
         assert discounts([discount])[0]['resolution'] == resolution
-    assert apimart_video_resolution('MiniMax-H3', '') == '2K'
-    assert apimart_video_resolution('MiniMax-H3-Max', '') == '768P'
+    provider = {'protocol': 'apimart'}
+    def body(model, resolution=''):
+        return build_apimart_video_request(provider, CanvasVideoRequest(model=model, resolution=resolution, prompt='test'))
+    assert body('MiniMax-H3')['resolution'] == '2K'
+    assert body('MiniMax-H3-Max')['resolution'] == '768P'
     with pytest.raises(HTTPException):
-        apimart_video_resolution('MiniMax-H3', '1080p')
+        body('MiniMax-H3', '1080p')
+    # The generic media helper no longer contains manufacturer-specific overrides.
+    assert apimart_video_resolution('MiniMax-H3', '1080p') == '1080p'
     assert video_output_urls({'data': {'result': {'videos': [{'url': ['https://example.invalid/out.mp4']}]}}}) == ['https://example.invalid/out.mp4']
+
+
+@pytest.mark.parametrize('provider', [
+    {'protocol': 'openai', 'base_url': 'https://api.minimax.io'},
+    {'protocol': 'openai', 'base_url': 'https://other.invalid'},
+    {'protocol': 'openai', 'base_url': 'https://apimart.ai.other.invalid'},
+    {'protocol': 'openai', 'base_url': 'https://other.invalid/apimart.ai'},
+    {'protocol': 'openai', 'base_url': 'https://other.invalid?upstream=apimart.ai'},
+])
+@pytest.mark.parametrize('model', ['MiniMax-H3', 'MiniMax-H3-Max'])
+def test_other_providers_never_inherit_apimart_rules(monkeypatch, transport, provider, model):
+    post, upload = transport
+    provider = {'id': 'test', **provider}
+    assert apimart_video_model(provider, model) is None
+    payload = CanvasVideoRequest(model=model, prompt='test', duration=30, resolution='custom-tier')
+    assert build_apimart_video_request(provider, payload) is None
+    monkeypatch.setattr(canvas, 'get_api_provider', lambda _: provider)
+    with pytest.raises(Captured):
+        submit(model=model, duration=30, resolution='custom-tier', watermark=True)
+    body = post.call_args.kwargs['json']
+    assert body['duration'] == 30
+    assert body['resolution'] == 'custom-tier'
+    assert body['watermark'] is True
+    upload.assert_not_awaited()
+
+
+@pytest.mark.parametrize('provider', [
+    {'protocol': 'apimart', 'base_url': 'https://proxy.invalid'},
+    {'base_url': 'https://api.apimart.ai/v1'},
+    {'base_url': 'https://apimart.ai'},
+])
+def test_apimart_protocol_and_real_hostname_select_gateway_rules(provider):
+    assert apimart_video_model(provider, 'minimax-h3-max').duration_min == 5
+    assert build_apimart_video_request(provider, CanvasVideoRequest(model='unregistered-video', prompt='test')) is None

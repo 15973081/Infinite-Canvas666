@@ -1152,9 +1152,7 @@ def apimart_video_duration(duration) -> int:
     return max(4, min(15, value))
 
 def apimart_video_resolution(model: str, resolution: str) -> str:
-    from app.services.minimax_video import minimax_model, video_resolution
-    if minimax_model(model):
-        return video_resolution(model, resolution)
+    # Fallback for gateway models without a dedicated APIMart request adapter.
     value = str(resolution or "").strip().lower()
     return value or "480p"
 

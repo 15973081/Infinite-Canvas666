@@ -3,10 +3,11 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const policy=require('../static/js/video-duration-policy.js');
+const apimart=require('../static/js/apimart-video-policy.js');
 
 function fixture(model,rule={}){
     const provider={id:'p',protocol:'apimart',video_models:[model],model_policies:{['video:'+model]:rule}};
-    const window={VideoDurationPolicy:policy};
+    const window={VideoDurationPolicy:policy,ApimartVideoPolicy:apimart};
     const context=vm.createContext({window,apiProviders:[provider],isSeedance20VideoModel:()=>false,isVolcengineSeedance25VideoNode:()=>false});
     vm.runInContext(fs.readFileSync('static/js/canvas-core.js','utf8'),context);
     for(const [path,name] of [['classic/canvas-execution.js','allowedVideoResolutions'],['smart/smart-execution.js','smartVideoResolutions']]){
@@ -42,7 +43,20 @@ test('model duration limits intersect administrator rules and exclude impossible
 });
 
 test('other providers and other models keep their original choices',()=>{
-    assert.equal(policy.minimax({protocol:'openai',base_url:'https://other.invalid'},'MiniMax-H3'),null);
-    assert.equal(policy.minimax({protocol:'apimart'},'doubao-seedance-2.0'),null);
-    assert.equal(policy.minimax({base_url:'https://api.apimart.ai'},'minimax-h3-max').min,5);
+    assert.equal(apimart.capabilities({protocol:'openai',base_url:'https://other.invalid'},'MiniMax-H3'),null);
+    assert.equal(apimart.capabilities({protocol:'apimart'},'doubao-seedance-2.0'),null);
+    assert.equal(apimart.capabilities({base_url:'https://api.apimart.ai'},'minimax-h3-max').min,5);
+});
+
+test('same model names on official or other gateways keep their own limits',()=>{
+    for(const base_url of ['https://api.minimax.io','https://other.invalid','https://apimart.ai.other.invalid','https://other.invalid/apimart.ai','https://other.invalid?upstream=apimart.ai']){
+        const provider={protocol:'openai',base_url};
+        for(const model of ['MiniMax-H3','MiniMax-H3-Max']){
+            assert.equal(apimart.capabilities(provider,model),null);
+            assert.equal(policy.bounds(provider,model).max,60);
+            const configured={...provider,model_policies:{['video:'+model]:{duration_min:2,duration_max:30}}};
+            assert.equal(policy.bounds(configured,model).min,2);
+            assert.equal(policy.bounds(configured,model).max,30);
+        }
+    }
 });
