@@ -213,13 +213,15 @@ def preflight(actor, workspace, actions, operation='read', resource_id=None):
 
 
 def public_provider_config():
-    from app.providers.registry import load_api_providers
+    from app.providers.registry import load_api_providers, is_apimart_provider
     # The canvas must compare the registration's ProjectName with this provider's
     # project. This is scope metadata, not a credential.
     keys = {'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'model_prices', 'model_policies', 'avatar_registration', 'volcengine_project_name'}
     from app.services.model_commercial import public_models
     from app.services.seedance_drafts import supports_drafts
     providers = [{**{k: v for k, v in public_models(p).items() if k in keys},
+                  # Publish adapter identity, never the private endpoint/credentials.
+                  'video_adapter': 'apimart' if is_apimart_provider(p) else '',
                   'seedance_draft': supports_drafts(p, 'doubao-seedance-2-5-260628')}
                  for p in load_api_providers()]
     for provider in providers: provider['billing_authority'] = 'server'

@@ -52,7 +52,7 @@ async function fixture(t, kind, member, options={}) {
             const method=request.method();
             if(!['GET','HEAD'].includes(method)) writes.push({path:url.pathname,method,body:request.postDataJSON()});
             let result={};
-            if(url.pathname==='/api/config') result={api_providers:[],image_models:['gpt-image-2'],chat_models:['gpt-4o-mini'],video_models:[]};
+            if(url.pathname==='/api/config') result=options.config || {api_providers:[],image_models:['gpt-image-2'],chat_models:['gpt-4o-mini'],video_models:[]};
             else if(url.pathname==='/api/canvases') result={canvases:[record,...(options.extraRecords||[])]};
             else if(url.pathname==='/api/canvases/trash') result={canvases:options.trashRecords||[]};
             else if(url.pathname==='/api/canvas-folders') result={folders:options.folders||[]};

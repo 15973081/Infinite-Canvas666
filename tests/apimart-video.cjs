@@ -60,3 +60,10 @@ test('same model names on official or other gateways keep their own limits',()=>
         }
     }
 });
+
+test('member adapter metadata works without publishing protocol or endpoint',()=>{
+    const member={id:'custom-platform',video_adapter:'apimart'};
+    assert.deepEqual(apimart.capabilities(member,'MiniMax-H3-Max').resolutions,['768p','480p','1080p']);
+    assert.equal(policy.bounds(member,'MiniMax-H3-Max').min,5);
+    assert.equal(apimart.capabilities({video_adapter:''},'MiniMax-H3-Max'),null);
+});

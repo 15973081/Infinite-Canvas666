@@ -5,6 +5,8 @@
         'minimax-h3-max':{model:'MiniMax-H3-Max',min:5,max:15,resolutions:['768p','480p','1080p'],omitWatermarkAt:['1080p']}
     };
     function isProvider(provider){
+        // Member config deliberately omits protocol/base_url; the server supplies this marker.
+        if(typeof provider?.video_adapter==='string')return provider.video_adapter==='apimart';
         if(String(provider?.protocol || '').trim().toLowerCase()==='apimart')return true;
         try{
             const host=new URL(provider?.base_url || '').hostname.toLowerCase();
