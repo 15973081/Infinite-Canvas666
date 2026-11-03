@@ -81,7 +81,7 @@ def normalize_model_prices(rows):
             conditions = {"resolution": resolution, "has_video_input": has_video, "service_tier": tier}
         if billing_type != "per_million_tokens" and raw.get("resolution"):
             resolution = str(raw["resolution"]).lower()
-            if resolution not in ({"1k", "2k", "4k"} if kind == "image" else {"480p", "720p", "1080p", "4k"}): continue
+            if resolution not in ({"1k", "2k", "4k"} if kind == "image" else {"480p", "720p", "768p", "1080p", "2k", "4k"}): continue
             conditions["resolution"] = resolution
         normalized.append({
             **conditions,
@@ -259,8 +259,13 @@ def effective_protocol(provider, model=""):
     return base
 
 def is_apimart_provider(provider):
-    base_url = str((provider or {}).get("base_url") or "").lower()
-    return provider_protocol(provider) == "apimart" or "apimart.ai" in base_url
+    if provider_protocol(provider) == "apimart":
+        return True
+    try:
+        host = (urllib.parse.urlparse(str((provider or {}).get("base_url") or "")).hostname or "").lower()
+    except ValueError:
+        return False
+    return host == "apimart.ai" or host.endswith(".apimart.ai")
 
 def detect_image_request_mode(base_url="", models=None):
     base = str(base_url or "").strip().lower()

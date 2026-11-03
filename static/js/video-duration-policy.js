@@ -1,8 +1,11 @@
-/* Shared model-specific video duration rules for both editors. */
+/* Shared duration policy; provider-specific limits belong to their adapters. */
 (function(root){
+    const apimart=typeof module==='object'&&module.exports ? require('./apimart-video-policy.js') : root.ApimartVideoPolicy;
     function bounds(provider,model,defaults={min:1,max:60,auto:false}){
         const rule=provider?.model_policies?.['video:'+model];
         const configured=Number.isSafeInteger(rule?.duration_min)&&Number.isSafeInteger(rule?.duration_max)&&rule.duration_min>=1&&rule.duration_max>=rule.duration_min;
+        const capability=apimart?.capabilities(provider,model);
+        if(capability)return {min:Math.max(capability.min,configured?rule.duration_min:capability.min),max:Math.min(capability.max,configured?rule.duration_max:capability.max),auto:false,configured};
         return configured ? {min:rule.duration_min,max:rule.duration_max,auto:false,configured:true} : {...defaults,configured:false};
     }
     function clamp(value,range){

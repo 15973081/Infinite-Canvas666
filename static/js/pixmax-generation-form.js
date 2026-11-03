@@ -36,6 +36,19 @@
                 pushUndo();node.runSettings=settingsForStorage(config);settings={...settings,...config};
                 persistActiveSmartSettings();scheduleSave();
             }
+            const gatewayConfig=PixmaxGenerationParameters.configuration(node);
+            const capability=gatewayConfig.apiKind==='video'&&window.ApimartVideoPolicy?.capabilities(apiProviders.find(provider=>provider.id===gatewayConfig.videoProvider),gatewayConfig.videoModel);
+            if(capability&&smartVideoResolutions(gatewayConfig).length){
+                const config={...gatewayConfig};normalizeSmartVideoResolution(config);
+                config.videoDuration=VideoDurationPolicy.clamp(config.videoDuration,smartVideoDurationRange(config));
+                if(!['adaptive','16:9','9:16','1:1','4:3','3:4','21:9'].includes(config.videoAspect))config.videoAspect='16:9';
+                config.videoGenerateAudio=config.videoEnhancePrompt=config.videoEnableUpsample=config.videoCameraFixed=false;
+                if(capability.omitWatermarkAt.includes(config.videoResolution))config.videoWatermark=false;
+                if(JSON.stringify(config)!==JSON.stringify(gatewayConfig)){
+                    pushUndo();node.runSettings=settingsForStorage(config);settings={...settings,...config};
+                    persistActiveSmartSettings();scheduleSave();
+                }
+            }
             const base=PixmaxGenerationParameters.formData(node,definitions),options=base.modelOptions;
             if(options.some(option=>option.value===base.value.model&&!option.disabled))return;
             const option=options.find(option=>!option.disabled&&option.subtitle.startsWith('空间默认'))||options.find(option=>!option.disabled);

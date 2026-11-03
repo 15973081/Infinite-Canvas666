@@ -10,6 +10,7 @@
         return identity?enforceSmartGenerationKind(node,{...resolved,...saved}):resolved;
     }
     const identity=config=>config.apiKind==='video'?[config.videoProvider,config.videoModel]:[config.provider_id,config.model];
+    const gateway=config=>config.apiKind==='video'?window.ApimartVideoPolicy?.capabilities(apiProviders.find(provider=>provider.id===config.videoProvider),config.videoModel):null;
     function resolutions(config){const [id,model]=identity(config);return CanvasCore.modelResolutions(apiProviders.find(provider=>provider.id===id),config.apiKind,model,config.apiKind==='video'?['','480p','720p','1080p',...(isSeedance20VideoModel(model)?['4k']:[])]:['1k','2k','4k','custom']);}
     function catalog(node){
         const kind=configuration(node).apiKind;
@@ -23,7 +24,13 @@
         return definitionPromise||=fetch('/static/vendor/pixmax/generation-schema.json').then(async response=>{if(!response.ok)throw Error('原生生成参数加载失败');const value=await response.json();if(!Array.isArray(value.models))throw Error('原生生成参数格式无效');referenceDefinitions=value.models;return value.models;}).catch(error=>{definitionPromise=null;throw error;});
     }
     function referenceModel(config,definitions){
-        return PixmaxModelContract.resolve(definitions,config.apiKind,identity(config)[1]);
+        const native=PixmaxModelContract.resolve(definitions,config.apiKind,identity(config)[1]),capability=gateway(config);
+        if(!native||!capability)return native;
+        // The frozen schema describes another channel's Max reference limits.
+        return {...native,inputConstraints:native.inputConstraints.map(rule=>{
+            const kind=rule.codes.includes('BASE_IMAGE')?'image':rule.codes.includes('BASE_VIDEO')?'video':rule.codes.includes('BASE_AUDIO')?'audio':null;
+            return kind?{...rule,length:'[0,'+capability.inputLimits[kind]+']'}:rule;
+        })};
     }
     function inputIssues(node,config=configuration(node),current=PixmaxReshootReferences.plan(node,{configuration:config})){
         return supported(node)?PixmaxModelContract.inputIssues(referenceModel(config,referenceDefinitions),current.resources):[];
@@ -37,10 +44,11 @@
         const add=(name,options)=>{const field=select(name,options);fields.push({...native?.fields.find(field=>field.name===name),...field});};
         const specs=resolutions(config);add('resolution',specs.map(value=>[value,value==='custom'?'自定义':value?value.toUpperCase():'自动']));
         if(config.apiKind==='video'){
+            const capability=gateway(config);
             const range=smartVideoDurationRange(config),values=VideoDurationPolicy.choices(range,[-1,3,4,5,6,8,10,12,15,20,30,60]);
-            add('aspectRatio',[['adaptive','Auto'],...['16:9','9:16','1:1','4:3','3:4','21:9',...(!isSeedance25VideoModel(config.videoModel)?['9:21','keep_ratio']:[])].map(value=>[value,value==='keep_ratio'?'原图比例':value])]);
+            add('aspectRatio',[['adaptive','Auto'],...['16:9','9:16','1:1','4:3','3:4','21:9',...(!capability&&!isSeedance25VideoModel(config.videoModel)?['9:21','keep_ratio']:[])].map(value=>[value,value==='keep_ratio'?'原图比例':value])]);
             fields.push({name:'duration',type:'stops',min:range.min,max:range.max,step:1,options:values.map(value=>({value:String(value),name:value===-1?'Auto':String(value)}))});
-            add('includeAudio',[['true','Audio On'],['false','Audio Off']]);
+            if(!capability)add('includeAudio',[['true','Audio On'],['false','Audio Off']]);
             if(isSeedance25VideoModel(config.videoModel))add('outputFormat',[['mp4','MP4'],['mov','MOV']]);
             if(window.PixmaxVideoModes?.lockedAspect(config))disabledFieldNames.push('aspectRatio');
             if(window.PixmaxVideoModes?.supported(config)&&isSeedance25VideoModel(config.videoModel)&&window.PixmaxVideoModes.selected(config)==='videoEdit')disabledFieldNames.push('duration');
@@ -55,7 +63,7 @@
     }
     function apply(config,value){
         if(config.apiKind==='video'){
-            const next={...config,videoResolution:value.resolution,videoAspect:value.aspectRatio,videoDuration:Number(value.duration),videoGenerateAudio:value.includeAudio==='true'};
+            const next={...config,videoResolution:value.resolution,videoAspect:value.aspectRatio,videoDuration:Number(value.duration),videoGenerateAudio:!gateway(config)&&value.includeAudio==='true'};
             if(isSeedance25VideoModel(config.videoModel))next.videoOutputFormat=value.outputFormat;return next;
         }
         const next={...config,resolution:value.resolution,ratio:value.aspectRatio,quality:value.quality};
@@ -82,10 +90,14 @@
             const [provider,model]=JSON.parse(option.value),next=config.apiKind==='video'?{...config,videoProvider:provider,videoModel:model}:{...config,provider_id:provider,model};
             const specs=resolutions(next),sizeKey=config.apiKind==='video'?'videoResolution':'resolution';if(!specs.includes(next[sizeKey]||''))next[sizeKey]=specs.includes(config.apiKind==='video'?'720p':'1k')?(config.apiKind==='video'?'720p':'1k'):specs[0];
             if(config.apiKind==='video')next.videoDuration=VideoDurationPolicy.clamp(next.videoDuration,smartVideoDurationRange(next));
-            const temp={...node,runSettings:next},parameters=data(temp,definitionsValue),fields=[{name:'prompt',type:'text',default:'',max:10000},...parameters.fields];
+            const capability=gateway(next);
+            const temp={...node,runSettings:next},parameters=data(temp,definitionsValue),fields=[{name:'prompt',type:'text',default:'',max:capability?7000:10000},...parameters.fields];
             if(config.apiKind==='image')fields.push(select('count',[1,2,3,4,5,6,7,8].map(value=>[value,value+'张'])));
             else if(PixmaxVideoModes.supported(next))fields.push({name:'referModel',type:'radio',default:'auto',options:PixmaxVideoModes.options(node,next,definitionsValue).map(option=>({name:option.label,label:option.label,value:option.value,disabled:option.disabled}))});
-            if(config.apiKind==='video')for(const [name,key] of [['watermark','videoWatermark'],['enhancePrompt','videoEnhancePrompt'],['enableUpsample','videoEnableUpsample'],['cameraFixed','videoCameraFixed']])fields.push({name,type:'switch',default:String(!!next[key])});
+            if(config.apiKind==='video')for(const [name,key] of [['watermark','videoWatermark'],['enhancePrompt','videoEnhancePrompt'],['enableUpsample','videoEnableUpsample'],['cameraFixed','videoCameraFixed']]){
+                if(capability&&(name!=='watermark'||capability.omitWatermarkAt.includes(String(next.videoResolution||'').toLowerCase())))continue;
+                fields.push({name,type:'switch',default:String(!!next[key])});
+            }
             return {modelCode:option.value,modelName:option.label,connectConstraint:PixmaxModelContract.connections(referenceModel(next,definitionsValue)),filedConfig:fields.map(field=>({...field,default:parameters.value[field.name]??field.default??String(config.count||1)}))};
         };
         const parameters=data(node,definitionsValue),videoEdit=config.apiKind==='video'&&PixmaxVideoModes.selected(config)==='videoEdit';
@@ -101,6 +113,12 @@
             if(PixmaxVideoModes.supported(config))config=PixmaxVideoModes.choose(node,config,value.referModel||'auto');
             else if(changedModel){config.videoReferenceMode='auto';config.videoTaskMode='auto';config.videoUseFrameRoles=false;}
             for(const [name,key]of [['watermark','videoWatermark'],['enhancePrompt','videoEnhancePrompt'],['enableUpsample','videoEnableUpsample'],['cameraFixed','videoCameraFixed']])config[key]=value[name]==='true';
+            const capability=gateway(config);
+            if(capability){
+                config.videoGenerateAudio=config.videoEnhancePrompt=config.videoEnableUpsample=config.videoCameraFixed=false;
+                if(capability.omitWatermarkAt.includes(String(config.videoResolution||'').toLowerCase()))config.videoWatermark=false;
+                if(!['adaptive','16:9','9:16','1:1','4:3','3:4','21:9'].includes(config.videoAspect))config.videoAspect='16:9';
+            }
             if(!isSeedance25VideoModel(config.videoModel))delete config.videoOutputFormat;
         }
         return config;

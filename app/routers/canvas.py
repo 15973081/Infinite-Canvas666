@@ -13,6 +13,7 @@ from app.services.canvas import *
 from app.services.assets import *
 from app.services.prompt import *
 from app.services.media import *
+from app.services.apimart_video import build_apimart_video_request, apimart_image_role
 from app.services.chat import *
 from app.services.canvas_tasks import (
     ACTIVE_CANVAS_TASK_STATUSES,
@@ -339,6 +340,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     submit_url = submit_urls[0]
     requested_model = selected_model(payload.model, "agnes-video-v2.0" if is_agnes else "veo3-fast")
     is_veo31 = is_apimart and is_apimart_veo31_model(requested_model)
+    apimart_model_body = build_apimart_video_request(provider, payload)
     if is_agnes:
         try:
             async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as agnes_client:
@@ -398,7 +400,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                 for ref in payload.images[:image_limit]:
                     if not ref.url:
                         continue
-                    role = str(ref.role or "").strip()
+                    role = apimart_image_role(ref.role) if apimart_model_body else str(ref.role or "").strip()
                     if not is_veo31 and role in {"first_frame", "last_frame", "reference_image"}:
                         up_url = await upload_image_for_apimart(client, provider, ref.url)
                         if valid_apimart_video_image_input(up_url):
@@ -417,7 +419,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         else:
                             reason = up_url[4:] if isinstance(up_url, str) and up_url.startswith("ERR:") else "未知错误"
                             invalid_images.append((ref.url, reason))
-                if payload.images and not image_with_roles and not image_payload:
+                if (apimart_model_body and invalid_images) or (payload.images and not image_with_roles and not image_payload):
                     first_url, first_reason = invalid_images[0] if invalid_images else ("", "未知错误")
                     sample = invalid_video_image_preview(first_url)
                     raise HTTPException(status_code=400, detail=f"输入图片无法转换为视频接口支持的格式：{sample}\n原因：{first_reason}\n请确认本地文件存在且不超过 10MB；VEO3.1 需要图片是 APIMart 可访问的 http/https / asset:// / data URL。")
@@ -444,14 +446,14 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         body["official_fallback"] = False
                 else:
                     model = selected_model(payload.model, "doubao-seedance-2.0")
-                    body = {
+                    body = apimart_model_body or {
                         "prompt": payload.prompt,
                         "model": model,
                         "duration": apimart_video_duration(payload.duration),
                         "size": apimart_video_size(payload.aspect_ratio or payload.size),
                         "resolution": apimart_video_resolution(model, payload.resolution),
                     }
-                    if image_with_roles and video_payload:
+                    if not apimart_model_body and image_with_roles and video_payload:
                         raise HTTPException(status_code=400, detail="APIMart Seedance 的 image_with_roles 不能和 video_urls 同时使用，请只保留图片首尾帧或参考视频其中一种。")
                     if image_with_roles:
                         body["image_with_roles"] = image_with_roles
@@ -481,11 +483,11 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         body["prompt"] = apply_trusted_asset_prompt_index(
                             body["prompt"], img_count, len(video_payload), len(audio_payload)
                         )
-                    if payload.seed is not None:
+                    if not apimart_model_body and payload.seed is not None:
                         body["seed"] = payload.seed
-                    if payload.return_last_frame:
+                    if not apimart_model_body and payload.return_last_frame:
                         body["return_last_frame"] = True
-                    if payload.generate_audio:
+                    if not apimart_model_body and payload.generate_audio:
                         body["generate_audio"] = True
             else:
                 # 非 APIMart：data URL 方式（OpenAI / ComflyAI 接口）

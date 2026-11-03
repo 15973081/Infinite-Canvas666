@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import re
 from fastapi import HTTPException
 
-RESOLUTIONS = {'1k', '2k', '4k', '480p', '720p', '1080p'}
+RESOLUTIONS = {'1k', '2k', '4k', '480p', '720p', '768p', '1080p'}
 
 
 def image_resolution(request):
@@ -69,7 +69,7 @@ def discounts(value):
         if not rate.is_finite() or not 0<=rate<=1 or rate.as_tuple().exponent < -6 or start<0 or end<0 or (end and end<=start): raise ValueError('invalid discount range')
         item={'kind':kind,'model':model.strip(),'rate':format(rate,'f'),'effective_from':start,'effective_to':end,'label':str(row.get('label') or '')[:120]}
         resolution = row.get('resolution')
-        allowed = {'1k', '2k', '4k'} if kind == 'image' else {'480p', '720p', '1080p', '4k'}
+        allowed = {'1k', '2k', '4k'} if kind == 'image' else {'480p', '720p', '768p', '1080p', '2k', '4k'}
         if resolution not in (None, ''):
             if kind in {'audio','model'} or not isinstance(resolution, str) or resolution.lower() not in allowed:
                 raise ValueError('invalid discount resolution')

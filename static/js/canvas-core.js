@@ -287,6 +287,12 @@
         if(Array.isArray(models) && !models.includes(model)) return [];
         const rule = provider.model_policies?.[kind + ':' + model];
         if(rule?.visible === false || rule?.enabled === false) return [];
+        const capability=kind==='video' && window.ApimartVideoPolicy?.capabilities(provider,model);
+        if(capability){
+            const range=window.VideoDurationPolicy.bounds(provider,model);
+            if(range.min>range.max)return [];
+            defaults=capability.resolutions;
+        }
         return defaults.filter(value => !Array.isArray(rule?.resolutions) || rule.resolutions.includes(value.toLowerCase()));
     }
 
