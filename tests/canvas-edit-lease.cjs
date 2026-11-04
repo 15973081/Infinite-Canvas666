@@ -25,6 +25,15 @@ function fixture(handler) {
     }});
     return {lease,calls,setTime:value => {time=value;},start:() => lease.start(async () => ({revision:3}))};
 }
+
+test('task binding rejection allows placeholder cleanup but lease conflicts still pause',async()=>{
+    for(const code of ['task_binding_revision_conflict','task_binding_input_conflict','canvas_lease_lost','canvas_revision_conflict']){
+        const f=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):json({detail:{code}},409));
+        await f.start();
+        assert.equal((await f.lease.write('/api/canvas-video-tasks',{method:'POST',body:'{}'})).status,409);
+        assert.equal(f.lease.canEdit,code.startsWith('task_binding_'));
+    }
+});
 test('public same-account holder cannot authorize another page', async () => {
     const f = fixture(() => json(publicLease()));
     await f.lease.refresh();

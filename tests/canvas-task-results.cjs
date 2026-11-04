@@ -38,6 +38,18 @@ test('legacy task behavior remains available without member mode',()=>assert.equ
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
+test('missing task is distinguished from permission denial without recreating it',async()=>{
+ const {recovery}=require('../static/js/canvas-task-results.js');
+ for(const status of [404,403]){
+  const task={canvasTaskId:'missing'},item={id:'missing',canvasId:'c',task};
+  let applied=0;
+  const monitor=recovery({list:()=>[item],read:async()=>{throw Object.assign(new Error('query failed'),{status});},
+   apply:()=>applied++,changed(){},current:()=>true,allowed:()=>true});
+  await monitor.refresh();
+  assert.equal(monitor.get(task).status,status===404?'not_found':'unavailable');
+  assert.equal(applied,0);monitor.stop();
+ }
+});
 function sourceFunction(file,name){
  const source=readCanvasSource(path.join(__dirname,'../static/js/',file),'utf8');
  const start=source.indexOf('async function '+name+'(');

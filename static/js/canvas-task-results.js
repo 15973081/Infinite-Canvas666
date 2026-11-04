@@ -25,7 +25,7 @@
         return {valid,pause,check(){if(!valid())throw pause();}};
     }
     const labels={checking:'正在核对后台任务',running:'后台正在处理',disconnected:'连接中断，后台任务可能仍在处理',
-        succeeded:'已完成，待加入',failed:'生成失败',needs_review:'任务需要核对',cancelled:'任务已取消',unavailable:'任务不可读取，请检查空间权限'};
+        succeeded:'已完成，待加入',failed:'生成失败',needs_review:'任务需要核对',cancelled:'任务已取消',not_found:'未查询到任务，请核对提交是否成功或当前空间是否正确',unavailable:'任务不可读取，请检查空间权限'};
     const taskKey=task=>String(task?.canvasTaskId || task?.taskId || '');
     // Display observations live outside the saved document. Losing edit rights
     // must neither mutate that document nor stop authorized status reads.
@@ -75,7 +75,7 @@
                             }
                         } catch(error){
                             if(!present(item))continue;
-                            update(item,[401,403,404].includes(error.status)?'unavailable':'disconnected');
+                            update(item,error.status===404?'not_found':[401,403].includes(error.status)?'unavailable':'disconnected');
                         }
                     }
                 }));

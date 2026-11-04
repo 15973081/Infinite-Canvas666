@@ -1286,7 +1286,6 @@ async function upgradeClassicOutputDraft(outId,url,sourceId){
         writeGuard.check();
         inputBinding=classicTaskInputBinding(out,out,writeGuard);
         const payload={...window.SeedanceDrafts.upgradePayload(draft),client_task_id:taskId};
-        if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
         out._pending=[...(out._pending || []),attachClassicTaskBinding(makePending(pendingId,run,{
             canvasTaskId:taskId,canvasTaskType:'video',providerId:draft.provider_id,model:draft.model,
             draftSourceTaskId:sourceId
@@ -1294,6 +1293,9 @@ async function upgradeClassicOutputDraft(outId,url,sourceId){
         refreshNodes([out.id]);scheduleSave();
         await saveCanvas();
         writeGuard.check();inputBinding?.check();
+        // Saving the recovery placeholder advances the member canvas revision.
+        // Bind only after that save, immediately before submitting the task.
+        if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
         submitting=true;
         const task=await createCanvasVideoTask(payload);
         accepted=true;inputBinding?.remember(task);
@@ -1309,6 +1311,8 @@ async function upgradeClassicOutputDraft(outId,url,sourceId){
             setStatus('升级任务已保留，可通过任务恢复查看结果。');
         }else if(!submitting || (error.status && error.status<500)){
             out._pending=(out._pending || []).filter(p=>p.canvasTaskId!==taskId);
+            scheduleSave();
+            await saveCanvas();
             showErrorModal(error.message || '样片升级失败');
         }else{
             // Submission may have reached the server. Keep its client ID so a

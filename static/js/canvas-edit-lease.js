@@ -242,7 +242,8 @@
                     if (!response.ok) {
                         const taskSubmission = /^\/api\/canvas-(image|video|llm)-tasks$/.test(new URL(path, 'http://canvas.local').pathname);
                         const rejectedModel = taskSubmission && response.status === 403 && ['model_not_available','model_resolution_not_allowed'].includes(data.detail?.code);
-                        if (!rejectedModel && ([401,403,409,423,428,503].includes(response.status) || response.status >= 500)) {
+                        const rejectedBinding = taskSubmission && response.status === 409 && ['task_binding_revision_conflict','task_binding_input_conflict'].includes(data.detail?.code);
+                        if (!rejectedModel && !rejectedBinding && ([401,403,409,423,428,503].includes(response.status) || response.status >= 500)) {
                             const reason = typeof data.detail === 'string' ? data.detail : data.detail?.message;
                             this.pause((reason ? reason + ' ' : '') + '写入未完成，已停止自动重试，请保留草稿。');
                         }
