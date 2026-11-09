@@ -64,22 +64,38 @@ async function shellFixture(t,stored){
  return {page,errors};
 }
 
-test('icon rail has hover and keyboard labels, two SVG states and stable navigation',async t=>{
+test('floating navigation centers in the desktop viewport with neutral selection and keyboard labels',async t=>{
  const {page,errors}=await shellFixture(t,null);
  await page.emulateMedia({reducedMotion:'reduce'});
  const home=page.locator('[data-page="canvas"]'),chat=page.locator('[data-page="gpt-chat"]');
  const tooltip=page.locator('#studioRailTooltip');
- const opacity=el=>getComputedStyle(el).opacity;
+ const rail=page.locator('#studioSidebar');
+ const settings=page.getByRole('button',{name:'更多设置',exact:true});
  assert.equal(await home.getAttribute('aria-current'),'page');
- assert.equal(await chat.locator('.studio-rail-symbol svg').count(),2);
- assert.equal(await chat.locator('.studio-rail-outline').evaluate(opacity),'1');
- assert.equal(await chat.locator('.studio-rail-accent').evaluate(opacity),'0');
+ assert.equal(await chat.locator('svg[data-tabler="message"]').count(),1);
+ assert.equal((await chat.locator('svg').boundingBox()).width,22);
+ assert.equal((await settings.locator('svg').boundingBox()).width,22);
+ for(const width of [1024,1440,1920]){
+  await page.setViewportSize({width,height:900});
+  const [bar, first, gear, frame]=await Promise.all([rail.boundingBox(),home.boundingBox(),settings.boundingBox(),page.locator('#frame-canvas').boundingBox()]);
+  assert.equal(bar.width,56);
+  assert.equal(bar.x,14);
+  assert.ok(Math.abs(bar.y+bar.height/2-450)<1);
+  assert.ok(bar.x+bar.width<frame.x);
+  assert.equal(first.width,44);
+  assert.equal(first.x,gear.x);
+  assert.ok(first.y-bar.y<=16);
+  assert.ok(bar.y+bar.height-gear.y-gear.height<=16);
+ }
+ await page.setViewportSize({width:1024,height:410});
+ const shortRail=await rail.boundingBox();
+ assert.ok(shortRail.y>=84 && shortRail.y+shortRail.height<=410);
+ await page.setViewportSize({width:1440,height:900});
  await chat.hover();
  await tooltip.waitFor({state:'visible'});
  assert.equal(await tooltip.textContent(),'AI 对话');
  assert.equal(await chat.getAttribute('title'),null);
- assert.equal(await chat.locator('.studio-rail-accent').evaluate(opacity),'1');
- assert.equal(await chat.evaluate(el=>getComputedStyle(el).color),'rgb(210, 255, 58)');
+ assert.equal(await chat.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(39, 44, 40)');
  await tooltip.hover();
  assert.equal(await tooltip.isVisible(),true,'label remains readable while hovered');
  await page.keyboard.press('Escape');
@@ -87,12 +103,14 @@ test('icon rail has hover and keyboard labels, two SVG states and stable navigat
  await chat.focus();
  assert.equal(await chat.getAttribute('aria-describedby'),'studioRailTooltip');
  assert.equal(await tooltip.isVisible(),true);
+ assert.equal(await chat.evaluate(el=>getComputedStyle(el).outlineColor),'rgb(166, 173, 167)');
  await chat.press('Enter');
  await page.waitForFunction(()=>document.querySelector('[data-page="gpt-chat"]').getAttribute('aria-current')==='page');
  assert.equal(await home.getAttribute('aria-current'),null);
  assert.equal(await tooltip.isVisible(),false);
  assert.equal(await page.locator('#frame-gpt-chat').getAttribute('class'),'active');
- assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),88);
+ assert.equal(await chat.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(53, 61, 55)');
+ assert.equal(await rail.evaluate(el=>el.getBoundingClientRect().width),56);
  await home.click();
  await chat.hover();
  fs.mkdirSync(path.resolve('.local/commercial-kickoff'),{recursive:true});
@@ -106,28 +124,34 @@ test('icon rail has hover and keyboard labels, two SVG states and stable navigat
  assert.deepEqual(errors,[]);
 });
 
-test('settings keeps the server-controlled management link in the icon rail',async t=>{
+test('settings opens its server-controlled link beside the floating navigation',async t=>{
  const {page,errors}=await shellFixture(t,null);
  assert.equal(await page.locator('#management-entry').getAttribute('hidden'),'');
  await page.route('**/api/management-entry',route=>route.fulfill({json:{url:'https://manage.example.test/'}}));
  await page.reload();
  await page.waitForFunction(()=>!document.getElementById('management-entry').hidden);
  const settings=page.getByRole('button',{name:'更多设置',exact:true});
+ const gear=await settings.boundingBox();
  await settings.click();
  const link=page.getByRole('link',{name:'管理平台',exact:true});
  await link.waitFor({state:'visible'});
  assert.equal(await link.getAttribute('href'),'https://manage.example.test/');
+ const entry=await link.boundingBox();
+ assert.ok(entry.x>=gear.x+gear.width);
+ assert.equal(await link.locator('.side-pill-text').isVisible(),true);
+ assert.equal((await settings.boundingBox()).y,gear.y);
  await link.focus();
- assert.equal(await page.locator('#studioRailTooltip').textContent(),'管理平台');
- assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),88);
- await settings.click();
+ assert.equal(await page.locator('#studioRailTooltip').isVisible(),false);
+ assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),56);
+ await page.keyboard.press('Escape');
  assert.equal(await link.isVisible(),false);
+ assert.equal(await settings.evaluate(el=>document.activeElement===el),true);
  assert.deepEqual(errors,[]);
 });
 test('shell ignores old expansion preferences and preserves its frame behind the narrow-screen notice',async t=>{
  const {page,errors}=await shellFixture(t,'1');
  assert.equal(await page.locator('#sidebarLogoToggle,#studioMobileMenu').count(),0);
- assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),88);
+ assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),56);
  await page.reload();
  assert.equal(await page.locator('#studioSidebar.is-pinned').count(),0);
  await page.evaluate(()=>{window.homeFrameBefore=document.querySelector('#frame-canvas').contentWindow;});
@@ -137,7 +161,7 @@ test('shell ignores old expansion preferences and preserves its frame behind the
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.setViewportSize({width:1440,height:900});
  assert.equal(await page.locator('.studio-desktop-required').isVisible(),false);
- assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),88);
+ assert.equal(await page.locator('#studioSidebar').evaluate(el=>el.getBoundingClientRect().width),56);
  assert.equal(await page.evaluate(()=>homeFrameBefore===document.querySelector('#frame-canvas').contentWindow),true);
  assert.deepEqual(errors,[]);
 });

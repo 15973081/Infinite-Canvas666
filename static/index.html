@@ -136,54 +136,6 @@
             pointer-events: auto;
         }
 
-        .settings-fold-chevron {
-            width: 13px !important;
-            height: 13px !important;
-            margin-left: -2px;
-            opacity: 0;
-            max-width: 0;
-            overflow: hidden;
-            transition: opacity 0.3s 0.5s, max-width 0.3s var(--fluid-ease) 0.5s, transform .22s var(--fluid-ease);
-        }
-        .settings-fold-toggle[aria-expanded="true"] .settings-fold-chevron {
-            transform: rotate(180deg);
-        }
-        .settings-fold-group {
-            width: 100%;
-            max-height: 0;
-            opacity: 0;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            pointer-events: none;
-            transition: max-height .28s var(--fluid-ease), opacity .18s ease;
-        }
-        .settings-fold-group:not(.is-collapsed) {
-            max-height: 132px;
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        @media (max-height: 760px) {
-            .settings-fold-group {
-                gap: 5px;
-            }
-            .settings-fold-group:not(.is-collapsed) {
-                max-height: 105px;
-            }
-        }
-
-        @media (max-height: 660px) {
-            .settings-fold-group {
-                gap: 4px;
-            }
-            .settings-fold-group:not(.is-collapsed) {
-                max-height: 102px;
-            }
-        }
-
         .studio-modal[hidden] {
             display:none !important;
         }
@@ -422,9 +374,9 @@
     <link rel="stylesheet" href="/static/css/canvas-focus.css">
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
     <link rel="stylesheet" href="/static/css/utilities.css">
-    <link rel="stylesheet" href="/static/css/studio-shell.css">
-    <link rel="stylesheet" href="/static/css/studio-project-home.css">
-<link rel="stylesheet" href="/static/css/studio-cyber.css?v=2026.10.26.1">
+    <link rel="stylesheet" href="/static/css/studio-shell.css?v=2026.11.09.3">
+    <link rel="stylesheet" href="/static/css/studio-project-home.css?v=2026.11.09.1">
+    <link rel="stylesheet" href="/static/css/studio-cyber.css?v=2026.11.09.2">
 </head>
 
 <body class="studio-skin studio-home">
@@ -449,9 +401,6 @@
                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.36 1.08V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.08-.36H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .36-1.08V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.22.38.58.69 1 .86.2.08.42.13.65.14H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
                     </svg>
                     <span class="side-pill-text">更多设置</span>
-                    <svg data-tabler="chevron-down" class="settings-fold-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
                 </button>
                 <div class="settings-fold-group is-collapsed" id="settings-fold-group">
                     <a id="management-entry" class="side-pill" aria-label="管理平台" target="_blank" rel="noopener noreferrer" hidden>
@@ -818,7 +767,7 @@
         }
 
     </script>
-    <script src="/static/js/studio-shell.js"></script>
+    <script src="/static/js/studio-shell.js?v=2026.11.09.2"></script>
     <script src="/static/js/management-entry.js"></script>
     <script src="/static/js/frontend-version.js"></script>
 </body>

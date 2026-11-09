@@ -44,7 +44,7 @@ test('smart creation, search and trash use the existing catalog without original
 
 test('member homepage rail, wallet and catalog remain usable across desktop sizes',async t=>{
  const {page,errors}=await fixture(t,'classic',false,{home:true,startPath:'/static/index.html',record:{title:'智能画布',kind:'smart',cover_media:{kind:'image',url:'/test-image.svg'}},extraRecords:[{id:'b',title:'Pixmax 原版交互验收',kind:'smart'},{id:'c',title:'深度视频',kind:'smart'},{id:'d',title:'经典画布',kind:'classic'}]});
- await page.route('**/static/index.html',route=>route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(root,'static/index.html'),'utf8').replace('</head>','<link rel="stylesheet" href="/static/css/member-session.css"><script src="/static/js/member-session.js"></script></head>')}));
+ await page.route('**/static/index.html',route=>route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(root,'static/index.html'),'utf8').replace('<head>','<head><link rel="stylesheet" href="/static/css/member-session.css"><script src="/static/js/member-session.js"></script>')}));
  await page.route('**/api/**',route=>{
   const url=new URL(route.request().url());
   if(url.pathname==='/api/auth/status')return route.fulfill({json:{authenticated:true,mode:'members',member:{id:'member-1',display_name:'创作成员'}}});
@@ -67,6 +67,8 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
  for(const width of [1920,1440,1024]){
   await page.setViewportSize({width,height:1000});
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const rail=await page.locator('#studioSidebar').boundingBox(),frame=await page.locator('#frame-canvas').boundingBox();
+  assert.ok(rail.y>=frame.y && Math.abs(rail.y+rail.height/2-500)<1,`member navigation bounds at ${width}: ${JSON.stringify(rail)}`);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'shell '+width);
   assert.equal(await home.locator('#canvasGate').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,'catalog '+width);
   const metrics=await home.locator('.canvas-item').first().evaluate(el=>{

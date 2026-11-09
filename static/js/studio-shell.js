@@ -1,24 +1,9 @@
 (() => {
  'use strict';
  const sidebar=document.getElementById('studioSidebar');
- const controls=[...sidebar.querySelectorAll('.nav-item,.side-pill')];
- // Reuse the pinned MIT Tabler outlines; closed geometry gets a soft fill
- // in the second SVG so both states keep the same silhouette and stroke.
+ const settings=sidebar.querySelector('.settings-fold-toggle');
+ const controls=[...sidebar.querySelectorAll('.nav-item,.settings-fold-toggle')];
  window.StudioIcons.createIcons({root:sidebar});
- for(const control of controls){
-  const outline=control.querySelector('svg');
-  if(!outline)continue;
-  const symbol=document.createElement('span');symbol.className='studio-rail-symbol';symbol.setAttribute('aria-hidden','true');
-  const accent=outline.cloneNode(true);
-  for(const attr of ['data-tabler','data-lucide','data-studio-icon','id'])accent.removeAttribute(attr);
-  outline.classList.add('studio-rail-outline');accent.classList.add('studio-rail-accent');
-  for(const shape of accent.children){
-   if(['rect','circle','polygon','ellipse'].includes(shape.tagName)||/[zZ]\s*$/.test(shape.getAttribute('d')||'')){
-    shape.setAttribute('fill','currentColor');shape.setAttribute('fill-opacity','.22');
-   }
-  }
-  outline.before(symbol);symbol.append(outline,accent);
- }
  function syncContextLocation(){
   for(const control of controls){
    if(control.matches('.nav-item.active'))control.setAttribute('aria-current','page');
@@ -42,7 +27,7 @@
   owner?.removeAttribute('aria-describedby');owner=null;
  }
  function showTooltip(control){
-  if(window.innerWidth<=900)return;
+  if(window.innerWidth<=900 || control.getAttribute('aria-expanded')==='true')return;
   hideTooltip();owner=control;
   tooltip.textContent=control.getAttribute('aria-label')||control.textContent.trim();
   control.setAttribute('aria-describedby',tooltip.id);tooltip.hidden=false;
@@ -60,7 +45,15 @@
  }
  tooltip.addEventListener('pointerenter',()=>clearTimeout(hideTimer));
  tooltip.addEventListener('pointerleave',deferHide);
- document.addEventListener('keydown',event=>{if(event.key==='Escape')hideTooltip();});
+ document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  if(settings.getAttribute('aria-expanded')==='true'){
+   const restoreFocus=settings.parentElement.contains(document.activeElement);
+   window.setSidebarSettingsCollapsed(true);
+   if(restoreFocus)settings.focus();
+  }
+  hideTooltip();
+ });
  window.addEventListener('resize',hideTooltip);
  window.addEventListener('blur',hideTooltip);
  window.StudioShell={hideTooltip};

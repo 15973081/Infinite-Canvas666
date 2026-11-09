@@ -41,7 +41,6 @@ html.member-workspace-shell body{padding-top:56px;box-sizing:border-box}
 
 html.member-workspace-shell body:has(>.app-shell),html.member-workspace-shell body:has(>.shell){padding-top:0!important}
 html.member-workspace-shell body>.app-shell,html.member-workspace-shell body>.shell{margin-top:56px;height:calc(100vh - 56px)!important}
-html.member-workspace-shell .app-shell>.sidebar{height:100%;max-height:100%}
 
 /* Canvas identity and account controls float over the canvas without a header row. */
 html.member-canvas-shell body>.shell{margin-top:0;height:100vh!important;height:100dvh!important}

@@ -59,20 +59,10 @@ body:is(.studio-skin,.studio-login,.studio-media-editor) :is(button,a,input,text
     outline-offset: 3px;
 }
 
-/* Permanent navigation: a precise rail, an acid active state, quiet dividers. */
-body.studio-home .app-shell::before {
-    content: ''; position: absolute; top: 83px; left: 24px; right: 24px;
-    height: 1px; background: var(--studio-border); pointer-events: none; z-index: 21;
-}
 body.studio-home .studio-desktop-brand {font-weight: 700; letter-spacing: -.06em}
 body.studio-home .studio-desktop-brand::after {content: '/'; color: var(--studio-accent); margin-left: 5px}
-body.studio-home .sidebar nav {border-radius: 4px; border-color: var(--studio-border); background: var(--studio-panel)}
-body.studio-home .sidebar :is(.nav-item,.side-pill) {border-radius: 3px}
-body.studio-home .sidebar .nav-item.active {color: var(--studio-accent-text); background: var(--studio-accent)}
-body.studio-home .sidebar .nav-item.active svg {color: inherit}
 body.studio-home :is(.member-home-wallet,.member-session-account>summary) {border-radius: 3px}
 body.studio-home .member-home-wallet {border-color: var(--studio-border-strong)}
-.studio-rail-tooltip {border-radius: 3px; background: var(--studio-panel); color: var(--studio-text); border-color: var(--studio-border)}
 
 /* Homepage editorial panel. The artwork is a local, lightweight SVG. */
 #canvasGate {padding-top: 26px; background-color: var(--studio-page)}
