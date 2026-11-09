@@ -14,14 +14,15 @@ from fastapi import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse
 
 from app.services import members, authorization as az
+from app.services.auth import PUBLIC_LOGIN_ASSETS
 from app.services.member_context import access_scope
 from app.storage.workspace import workspace_scope
 from app.services.canvas_pages import page_address, page_error
 
 COOKIE = 'canvas_member_session'
-PUBLIC = {'/static/js/infinity-hero.js', '/static/vendor/js/three-0.160.0.module.js', '/login', '/api/auth/login', '/api/auth/status', '/api/auth/activate',
-          '/static/login.html', '/static/css/login.css', '/static/js/login.js',
-          '/static/js/frontend-version.js', '/api/frontend/version'}
+PUBLIC = PUBLIC_LOGIN_ASSETS | {
+    '/login', '/api/auth/login', '/api/auth/status', '/api/auth/activate', '/api/frontend/version',
+}
 ACCOUNT = {'/api/account/billing', '/api/management-entry', '/api/auth/logout', '/api/auth/workspaces', '/api/auth/profile'}
 ACCOUNT.update({'/api/account/data','/api/account/data/export'})
 ACCOUNT.add('/api/account/data/close')

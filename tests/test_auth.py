@@ -9,17 +9,19 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 from app.services import auth
+from app.services.static_pages import STATIC_DIR, VersionedStaticFiles
 
 
 class AuthenticationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.env = patch.dict(os.environ, {"AUTH_DB_PATH": self.temp.name + "/auth.sqlite3",
-                             "DATABASE_BACKEND": "local", "CLOUD_ACCESS_PASSWORD": "",
+                             "DATABASE_BACKEND": "local", "AUTH_MODE": "shared", "CLOUD_ACCESS_PASSWORD": "",
                              "PUBLIC_BASE_URL": ""})
         self.env.start()
         app = FastAPI()
         app.include_router(auth.router)
+        app.mount("/static", VersionedStaticFiles(directory=STATIC_DIR))
         @app.get("/")
         def home():
             return {"workspace": "shared"}
@@ -108,6 +110,29 @@ class AuthenticationTests(unittest.TestCase):
         with self.assertRaises(WebSocketDisconnect):
             with self.client.websocket_connect("/ws"):
                 pass
+
+    def test_login_styles_and_brand_assets_are_public_in_both_modes(self):
+        assets = {
+            "/static/css/studio-cyber.css": "text/css",
+            "/static/css/studio-tokens.css": "text/css",
+            "/static/css/shadox-brand.css": "text/css",
+            "/static/vendor/css/fonts.css": "text/css",
+            "/static/vendor/fonts/inter-2.ttf": "font/ttf",
+            "/static/vendor/fonts/inter-3.ttf": "font/ttf",
+            "/static/vendor/fonts/inter-4.ttf": "font/ttf",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "font/woff2",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "font/woff2",
+            "/static/images/shadox-mark.svg": "image/svg+xml",
+        }
+        for mode, backend in (("shared", "local"), ("members", "postgres")):
+            with patch.dict(os.environ, {"AUTH_MODE": mode, "DATABASE_BACKEND": backend}):
+                self.assertEqual(self.client.get("/login").status_code, 200)
+                for path, media_type in assets.items():
+                    with self.subTest(mode=mode, path=path):
+                        response = self.client.get(path)
+                        self.assertEqual(response.status_code, 200)
+                        self.assertEqual(response.headers["content-type"].split(";")[0], media_type)
+                self.assertEqual(self.client.get("/api/private").status_code, 401)
 
 
 if __name__ == "__main__":

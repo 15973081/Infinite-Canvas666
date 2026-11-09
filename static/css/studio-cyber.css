@@ -200,15 +200,11 @@ body:is(.studio-smart-canvas,.studio-media-editor) .timeline__view-tools button.
 body:is(.studio-smart-canvas,.studio-media-editor) .video-editor__export-button--primary {background: var(--studio-accent); color: var(--studio-accent-text); border-color: var(--studio-accent)}
 body.studio-media-editor .local-media-picker>section {background: var(--studio-panel); border-color: var(--studio-border); border-radius: 6px}
 
-/* Login: bold typography, the original infinity art, and a clear form boundary. */
+/* Compact login layout. */
 body.studio-login .login-shell {background: var(--studio-page)}
 body.studio-login .auth-brand {border-bottom: 1px solid var(--studio-border); margin: 0 4vw; padding: 24px 0}
 body.studio-login .auth-brand a>span {color: var(--studio-accent)}
 body.studio-login .welcome-icon {filter: grayscale(1) sepia(1) saturate(2.5) hue-rotate(22deg); opacity: .45}
-.cyber-login-intro {position: absolute; top: 25%; left: 7vw; width: 50%; pointer-events: none}
-.cyber-login-intro h1 {margin: 22px 0; color: var(--studio-text); font: 700 clamp(48px,6.8vw,104px)/.98 var(--studio-font); letter-spacing: -.065em}
-.cyber-login-intro h1 span {color: var(--studio-accent)}
-.cyber-login-intro p {font-size: 14px; line-height: 1.9; color: var(--studio-text-muted); margin: 0}
 body.studio-login .form-content {padding: 28px; max-width: 410px; background: #10130ff5; border: 1px solid var(--studio-border); border-top: 2px solid var(--studio-accent); margin-block: auto}
 body.studio-login .form-content h2 {font-size: 28px; font-weight: 700; letter-spacing: -.04em}
 body.studio-login .shadox-display {font-family: var(--studio-font); font-size: 1em; font-style: normal; font-weight: 700}
@@ -228,11 +224,8 @@ body.studio-login :is(.subtitle,.workspace-note p,.workspace-note small,.text-bu
     .cyber-intro {min-height: 236px}
     .cyber-intro-foot {padding-inline: 24px; gap: 18px}
     .cyber-intro-foot span:last-child {display: none}
-    .cyber-login-intro {left: 5vw; width: 43%}
-    .cyber-login-intro h1 {font-size: 64px}
 }
 @media(max-width:900px) {
-    .cyber-login-intro {display: none}
     body.studio-login .form-panel {align-items: center; padding: 36px 20px 0}
     body.studio-login .form-content {width: 100%; max-width: 410px}
     body.studio-login .welcome-icon {opacity: .18}

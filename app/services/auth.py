@@ -20,10 +20,27 @@ from app.services.static_pages import static_html_response
 
 router = APIRouter()
 COOKIE = "canvas_session"
-PUBLIC = {'/static/js/infinity-hero.js', '/static/vendor/js/three-0.160.0.module.js', "/login", "/static/login.html", "/static/css/login.css",
-          "/static/js/login.js", "/static/js/frontend-version.js",
-          "/api/frontend/version", "/api/auth/status", "/api/auth/login",
-          "/api/auth/setup"}
+PUBLIC_LOGIN_ASSETS = {
+    "/static/login.html",
+    "/static/css/login.css",
+    "/static/css/studio-cyber.css",
+    "/static/css/studio-tokens.css",
+    "/static/css/shadox-brand.css",
+    "/static/vendor/css/fonts.css",
+    "/static/vendor/fonts/inter-2.ttf",
+    "/static/vendor/fonts/inter-3.ttf",
+    "/static/vendor/fonts/inter-4.ttf",
+    "/static/vendor/fonts/shadox/space-grotesk.woff2",
+    "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2",
+    "/static/images/shadox-mark.svg",
+    "/static/js/login.js",
+    "/static/js/frontend-version.js",
+    "/static/js/infinity-hero.js",
+    "/static/vendor/js/three-0.160.0.module.js",
+}
+PUBLIC = PUBLIC_LOGIN_ASSETS | {
+    "/login", "/api/frontend/version", "/api/auth/status", "/api/auth/login", "/api/auth/setup",
+}
 
 
 @contextmanager
