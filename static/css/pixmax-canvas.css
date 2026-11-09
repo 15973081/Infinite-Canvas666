@@ -1546,8 +1546,8 @@ body:has(.pixmax-generation-controls) [data-combo-selector-panel]{z-index:100150
 }
 
 .create-card-promo span:last-child {
-  background: #123d3d;
-  color: #4ce2f3;
+  background: var(--studio-selected);
+  color: var(--studio-accent-label);
 }
 
 .pixmax-context-menu {

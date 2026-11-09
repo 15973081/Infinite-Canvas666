@@ -36,10 +36,14 @@ async function open(page){
 test('history lives in a nonmodal right sidebar with scoped timeline and no old smart draft entry',async t=>{
  const {page,errors,writes}=await setup(t);await seed(page,[...Array.from({length:20},(_,i)=>({age:1+i*5})),{age:20,member_id:'another-member'},{age:30,canvas_id:'other-canvas'}]);
  const panel=await open(page);assert.equal(await panel.locator('.member-history-row').count(),20);
+ const current=panel.locator('.member-history-current');
+ assert.equal(await current.evaluate(el=>getComputedStyle(el).color),'rgb(210, 255, 58)');
+ assert.equal(await current.evaluate(el=>getComputedStyle(el,'::before').backgroundColor),'rgb(210, 255, 58)');
  assert.equal(await panel.evaluate(n=>n.matches(':modal')),false);
  assert.equal(await page.getByRole('button',{name:'自动草稿',exact:true}).count(),0);
  await page.evaluate(()=>MemberCanvasEdit.openHistory());assert.equal(await page.locator('.member-canvas-history').count(),1);
  const row=panel.locator('.member-history-row').first();await row.locator('summary').click();
+ assert.equal(await row.locator('summary').evaluate(el=>getComputedStyle(el).color),'rgb(210, 255, 58)');
  assert.equal(await row.getByText('1 个节点 · 0 条连线',{exact:true}).count(),1);
  await row.getByRole('button',{name:'恢复到本页',exact:true}).click();await row.getByRole('status').filter({hasText:'请先在底部开始编辑'}).waitFor();
  assert.equal(await page.evaluate(()=>historyDocument.nodes.length),0);

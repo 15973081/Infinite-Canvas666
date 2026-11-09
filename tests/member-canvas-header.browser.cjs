@@ -31,7 +31,17 @@ test('smart canvas keeps its full height and places workspace settings inside it
     assert.equal(await summary.getAttribute('aria-label'),'账号：本地管理员');
     assert.equal(await page.locator('.member-session-space').isVisible(),false);
     await page.screenshot({path:'.local/pixmax-canvas-header.png',clip:{x:0,y:0,width:1280,height:120}});
-    await summary.click();await page.getByLabel('切换工作空间',{exact:true}).click();
+    await summary.click();
+    const balance=account.locator('.member-account-balance');
+    assert.deepEqual(await balance.evaluate(el=>{
+        const style=getComputedStyle(el);
+        return [style.color,style.backgroundColor,style.borderTopColor];
+    }),['rgb(210, 255, 58)','rgb(40, 51, 27)','rgb(101, 115, 79)']);
+    await balance.hover();
+    assert.equal(await balance.evaluate(el=>getComputedStyle(el).borderTopColor),'rgb(210, 255, 58)');
+    await page.keyboard.press('Tab');await balance.focus();
+    assert.equal(await balance.evaluate(el=>el.matches(':focus-visible')&&getComputedStyle(el).outlineColor),'rgb(210, 255, 58)');
+    await page.getByLabel('切换工作空间',{exact:true}).click();
     await page.getByRole('button',{name:'刷新用量',exact:true}).waitFor();
     assert.notEqual(await account.getAttribute('open'),null,'expanding a nested workspace menu keeps the account menu open');
     await page.waitForFunction(()=>document.querySelector('.member-storage-total')?.textContent==='89.2 MB');

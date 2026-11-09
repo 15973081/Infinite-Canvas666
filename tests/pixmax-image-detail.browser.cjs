@@ -57,7 +57,10 @@ async function toolsSetup(t,mode){const f=await setup(t);await f.page.evaluate(m
  },mode);await f.page.getByRole('button',{name:'保存为新节点',exact:true}).waitFor();await f.page.waitForFunction(()=>!document.querySelector('.pixmax-image-tool .primary')?.disabled);return f;}
 
 test('independent crop exports chosen aspect ratio to a new node and preserves original group',async t=>{
- const {page,errors}=await toolsSetup(t,'crop');const modal=page.getByRole('dialog',{name:'裁剪图片',exact:true});await modal.getByLabel('裁剪比例',{exact:true}).selectOption('.75');await modal.getByRole('button',{name:'保存为新节点',exact:true}).click();await modal.waitFor({state:'detached'});
+ const {page,errors}=await toolsSetup(t,'crop');const modal=page.getByRole('dialog',{name:'裁剪图片',exact:true});
+ const save=modal.getByRole('button',{name:'保存为新节点',exact:true});
+ assert.equal(await save.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(210, 255, 58)');
+ await modal.getByLabel('裁剪比例',{exact:true}).selectOption('.75');await save.click();await modal.waitFor({state:'detached'});
  const result=await page.evaluate(()=>({same:JSON.stringify(nodes[0])===sourceBefore,count:nodes.length,exported:exports[0],last:nodes.at(-1)}));assert.equal(result.same,true);assert.equal(result.count,2);assert.equal(result.exported.width,180);assert.equal(result.exported.height,240);assert.equal(result.last.images[0].url,'/result.png');assert.equal(result.last.generationKind,undefined);assert.deepEqual(errors,[]);
 });
 
