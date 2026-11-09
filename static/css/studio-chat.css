@@ -1,5 +1,4 @@
 /* Studio chat: migrated component skin. Styles live with the component; shared tokens own color. */
-body.studio-chat .chat-main{background-image:linear-gradient(var(--studio-grid) 1px,transparent 1px),linear-gradient(90deg,var(--studio-grid) 1px,transparent 1px);background-size:32px 32px}
 body.studio-chat .chat-main>.topbar{border-bottom:1px solid var(--studio-border)}
 body.studio-chat .title-block h1{font-size:20px;letter-spacing:-.3px}
 html body.studio-chat :is(.composer,.chat-rail,.model-picker-popover,.bubble){border-radius:var(--studio-radius-card)}

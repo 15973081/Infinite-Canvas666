@@ -74,6 +74,53 @@ test('GPT @ selection stays visible, is keyboard accessible and only sends skill
  setChatFail(false);await page.locator('#sendBtn').click();await page.waitForFunction(()=>document.querySelectorAll('.chat-skill-chip').length===0);const sent=JSON.parse(calls.filter(c=>c.path==='/api/chat/stream').at(-1).body);assert.deepEqual(sent.skill_ids,['s1']);assert.equal(sent.message,'优化一段夜景');assert.ok(!sent.tools);assert.equal(await page.locator('.chat-skill-history').count(),1);
  await page.setViewportSize({width:390,height:844});await page.locator('#chatSkillButton').click();await page.locator('.chat-skill-option').waitFor();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(out,'chat-at-mobile.png')});await page.locator('#chatSkillSearch').press('Escape');assert.equal(await page.locator('#chatSkillPicker').isVisible(),false);assert.deepEqual(errors,[]);
 });
+test('new chat centers the composer, keeps drafts editable, and docks it for messages',async t=>{
+ const {page,calls,errors}=await fixture(t,'gpt-chat');
+ await page.setViewportSize({width:1440,height:900});
+ const input=page.getByRole('textbox',{name:'消息'});
+ const composer=page.locator('.composer');
+ const starter=page.getByRole('button',{name:'梳理想法'});
+ const checkCentered=async()=>{
+  await starter.waitFor();
+  const box=await composer.boundingBox();
+  assert.ok(box.y>275 && box.y+box.height<550,JSON.stringify(box));
+ };
+ const checkDocked=async()=>{
+  await starter.waitFor({state:'hidden'});
+  const box=await composer.boundingBox();
+  assert.ok(900-box.y-box.height<=25,JSON.stringify(box));
+ };
+ await checkCentered();
+ const initialHeight=(await input.boundingBox()).height;
+ await input.fill('分镜草稿\n夜景\n远景\n灯光');
+ assert.ok((await input.boundingBox()).height>initialHeight);
+ await starter.press('Enter');
+ const draft=await input.inputValue();
+ assert.match(draft,/^分镜草稿\n夜景\n远景\n灯光\n\n请帮我梳理/);
+ assert.equal(await input.evaluate(el=>document.activeElement===el),true);
+ assert.ok(!calls.some(call=>call.path==='/api/chat/stream'));
+ await input.press('Shift+Enter');
+ assert.equal(await input.inputValue(),draft+'\n');
+ await input.press('Enter');
+ await page.getByText('优化后的提示词',{exact:true}).waitFor();
+ await page.waitForFunction(()=>!document.getElementById('sendBtn').disabled);
+ await checkDocked();
+
+ const previous={id:'c1',title:'分镜草稿',messages:[{role:'user',content:draft}]};
+ await page.route('**/api/conversations**',route=>{
+  const request=route.request(), pathname=new URL(request.url()).pathname;
+  if(pathname==='/api/conversations/c1')return route.fulfill({json:{conversation:previous}});
+  if(request.method()==='POST')return route.fulfill({json:{conversation:{id:'c2',title:'新对话',messages:[]}}});
+  return route.fulfill({json:{conversations:[previous]}});
+ });
+ await page.locator('.topbar').getByRole('button',{name:'新建',exact:true}).click();
+ await checkCentered();
+ await page.getByRole('button',{name:'历史',exact:true}).click();
+ await page.locator('#threadList').getByRole('button',{name:'分镜草稿',exact:true}).click();
+ await page.locator('#messages .bubble.user').waitFor();
+ await checkDocked();
+ assert.deepEqual(errors,[]);
+});
 test('an unavailable remembered conversation returns an empty composer without losing skills UI',async t=>{
  const {page,errors}=await fixture(t,'gpt-chat');
  await page.evaluate(()=>localStorage.setItem('gpt_chat_last_conversation_v1','deleted-or-other-space'));

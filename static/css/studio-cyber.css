@@ -114,14 +114,7 @@ body.studio-library .asset-tabs button.active {color: var(--studio-accent); bord
 .skill-card:hover {box-shadow: none; border-color: var(--studio-accent)}
 .skill-dropzone {background: var(--studio-panel)}
 
-/* Chat keeps generous reading space; accent marks the action and start points. */
-body.studio-chat .chat-workspace-label {font-family: var(--studio-font-mono); color: var(--studio-accent)}
-body.studio-chat .chat-start h2 {font-weight: 700; font-size: clamp(26px,3vw,40px); letter-spacing: -.04em}
-body.studio-chat .chat-start-symbol {color: var(--studio-accent)}
-body.studio-chat .chat-starters button {border-radius: 4px; border-top: 2px solid var(--studio-border-strong)}
-body.studio-chat .chat-starters button:hover {border-color: var(--studio-accent); background: var(--studio-selected)}
-html body.studio-chat .composer {border-radius: 5px; box-shadow: none}
-html body.studio-chat .composer:focus-within {border-color: var(--studio-border-strong)}
+/* Chat accent marks the send action. */
 html body.studio-chat .send-btn {background: var(--studio-accent); color: var(--studio-accent-text)}
 html body.studio-chat .send-btn:disabled {background: var(--studio-surface-muted); color: var(--studio-text-muted)}
 
@@ -207,7 +200,6 @@ body.studio-login :is(.subtitle,.workspace-note p,.workspace-note small,.text-bu
 @media(max-width:600px) {
     body.studio-login .auth-brand {margin-inline: 20px}
     body.studio-login .form-content {padding: 24px 20px}
-    body.studio-chat .chat-start h2 {font-size: 26px}
 }
 @media(prefers-reduced-motion:reduce) {
     body:is(.studio-skin,.studio-login,.studio-media-editor) *,
