@@ -25,6 +25,7 @@ from app.services.canvas_tasks import (
 from app.services.volcengine_billing import pricing_context, video_accounting
 from app.services.canvas_ledger import task_billing_fields
 from app.services.canvas_batch import CanvasBatchPreview, CanvasGenerationPreview
+from app.services import seedance_drafts
 router = APIRouter()
 
 
@@ -59,6 +60,9 @@ def _canvas_video_payload_dict(payload: CanvasVideoRequest) -> dict:
     data = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload.dict()
     if data.get('output_format') is None:
         data.pop('output_format', None)
+    for key in ("draft", "draft_source_task_id"):
+        if not data.get(key):
+            data.pop(key, None)
     if not data.get('image_tool'):
         data.pop('image_tool', None)
         data.pop('image_tool_revision', None)
@@ -167,6 +171,9 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
 
 
 def _prepare_canvas_video_task(payload: CanvasVideoRequest):
+    if payload.draft_source_task_id:
+        source_request = get_canvas_task_request(payload.draft_source_task_id)
+        payload.duration = source_request.get("duration", payload.duration)
     if postgres_enabled():
         payload.provider_id = get_api_provider(payload.provider_id)["id"]
     if payload.output_format is not None:
@@ -197,6 +204,8 @@ def _prepare_canvas_video_task(payload: CanvasVideoRequest):
             CANVAS_TASKS[task_id] = existing
             return {"task_id": task_id, "status": existing.get("status") or "queued",
                     **({"canvas_binding": existing["canvas_binding"]} if existing.get("canvas_binding") else {})}, False
+        if payload.draft or payload.draft_source_task_id:
+            seedance_drafts.validate(payload, get_api_provider(payload.provider_id))
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
@@ -322,6 +331,7 @@ def _validate_video_input_roles(payload: CanvasVideoRequest, provider: dict):
 
 async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     provider = get_api_provider(payload.provider_id)
+    draft_source = seedance_drafts.validate(payload, provider)
     _validate_video_output_format(payload, provider)
     _validate_video_input_roles(payload, provider)
     base_url = video_api_root(provider)
@@ -370,7 +380,9 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     try:
         async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
             # --- 构造图片载荷 ---
-            if is_apimart:
+            if draft_source:
+                body = {"model": payload.model, "content": [{"type": "draft_task", "draft_task": {"id": draft_source["task_id"]}}], "resolution": "1080p"}
+            elif is_apimart:
                 # APIMart 只接受 http/https 或 asset:// URL，先上传本地图片取回网络 URL
                 image_with_roles = []
                 invalid_images = []  # 每项为 (原始 URL, 失败原因)
@@ -529,6 +541,8 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                     # 火山方舟视频接口（含 Seedance 2.0 图生视频）均通过 body 的 duration 字段控制时长；
                     # 之前对 seedance-2.0 + 参考图的情况省略了 duration，导致接口回退到默认 5s。
                     body["duration"] = duration
+                    if payload.draft:
+                        body["draft"] = True
                     if ratio:
                         body["ratio"] = ratio
                     if resolution:
@@ -660,7 +674,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         body["return_last_frame"] = True
                     if payload.generate_audio:
                         body["generate_audio"] = True
-            if is_volcengine and is_volcengine_seedance25_model(requested_model):
+            if is_volcengine and is_volcengine_seedance25_model(requested_model) and not draft_source:
                 body['generate_audio'] = payload.generate_audio
                 if payload.output_format is not None:
                     body['output_format'] = payload.output_format
@@ -825,8 +839,9 @@ def _volcengine_video_pricing(payload, provider):
 
 async def _finish_canvas_video(payload, provider, raw, upstream_task_id, context=None):
     result = {"videos": [], "task_id": upstream_task_id, "raw": raw}
+    result.update(seedance_drafts.result_metadata(payload, raw, upstream_task_id, provider))
     if context is not None:
-        result.update(video_accounting(raw, _canvas_video_payload_dict(payload), provider, context))
+        result.update(video_accounting(raw, seedance_drafts.accounting_request(payload), provider, context))
         # Save usage and the price snapshot before any local download can fail.
         if payload.client_task_id:
             _update_video_task_record(payload.client_task_id, result=result, upstream_status="succeeded")

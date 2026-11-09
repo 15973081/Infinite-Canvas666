@@ -492,6 +492,10 @@ def record_task(task):
 
 def task_billing_fields(payload, kind):
     data = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload.dict()
+    if kind == "video" and data.get("draft_source_task_id"):
+        from app.services.seedance_drafts import accounting_request
+        original = accounting_request(payload)
+        data.update(duration=original.get("duration"), videos=original.get("videos", []))
     info = {"providerId": data.get("provider_id", ""), "kind": kind, "model": data.get("model", "")}
     request = {key: data[key] for key in ("prompt", "provider_id", "model", "duration", "resolution", "size", "quality", "n") if key in data}
     if kind == "chat":

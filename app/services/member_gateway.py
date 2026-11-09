@@ -263,6 +263,7 @@ def preflight(actor, workspace, actions, operation='read', resource_id=None):
 def public_provider_config():
     from app.providers.registry import load_api_providers, is_volcengine_provider, is_apimart_provider
     from app.services.media import video_api_root
+    from app.services.seedance_drafts import supports_drafts
     from urllib.parse import urlparse
     # The canvas must compare the registration's ProjectName with this provider's
     # project. This is scope metadata, not a credential.
@@ -274,6 +275,7 @@ def public_provider_config():
         provider['billing_authority'] = 'server'
         # Preserve adapter identity without publishing endpoints or credentials.
         provider['video_adapter'] = 'apimart' if is_apimart_provider(source) else ''
+        provider['seedance_draft'] = supports_drafts(source, 'doubao-seedance-2-5-260628')
         provider['video_capabilities'] = {'native_roles': is_volcengine_provider(source) and not bool(urlparse(video_api_root(source)).path.rstrip('/'))}
         if source.get('protocol') == 'mediakit':
             provider['mediakit_tools'] = [model for model in provider.get('video_models', []) + provider.get('chat_models', [])

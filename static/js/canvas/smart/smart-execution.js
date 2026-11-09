@@ -2035,7 +2035,7 @@ async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=
 
 async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBinding=null,options={}){
     if(!runSettings.videoModel) throw new Error('请先选择视频模型');
-    if(!smartVideoResolutions(runSettings).includes(runSettings.videoResolution || '')) throw new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
+    if(!options.draftSource&&!smartVideoResolutions(runSettings).includes(runSettings.videoResolution || '')) throw new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
     try {
         const targetPlatform = videoProviderPlatform(runSettings.videoProvider || 'comfly');
         const targetProvider = targetPlatform === 'volcengine'
@@ -2065,7 +2065,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
         const refAudios = audioRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean);
         const usesTrustedVolcengineAssets = [...refImages.map(item => item.url), ...refVideos, ...refAudios]
             .some(url => String(url || '').startsWith('asset://'));
-        const payload = {
+        const payload = options.draftSource ? SeedanceDrafts.upgradePayload(options.draftSource) : {
             prompt,
             provider_id: runSettings.videoProvider || 'comfly',
             model: runSettings.videoModel || 'veo3-fast',
@@ -2082,9 +2082,11 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             generate_audio: Boolean(runSettings.videoGenerateAudio),
             multimodal: Boolean(runSettings.videoMultimodal),
             trusted_asset: usesTrustedVolcengineAssets,
-            task_mode: runSettings.videoTaskMode || 'auto'
+            task_mode: runSettings.videoTaskMode || 'auto',
+            ...(runSettings.videoDraft?{draft:true,resolution:'480p'}:{})
         };
-        if(runSettings.videoOutputFormat)payload.output_format=runSettings.videoOutputFormat;
+        if(runSettings.videoDraft&&!SeedanceDrafts.supported((apiProviders||[]).find(p=>p.id===runSettings.videoProvider),runSettings.videoModel))throw Error('当前模型或厂商不支持样片模式，请关闭样片模式或重新选择模型');
+        if(runSettings.videoOutputFormat&&!options.draftSource)payload.output_format=runSettings.videoOutputFormat;
         if(options.preview)return payload;
         if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
         const taskId = options.taskId || uid('canvas_vid');
@@ -2337,7 +2339,7 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={},
     const additions = (images || []).map((item, i) => {
         const url = typeof item === 'string' ? item : item?.url || '';
         const itemKind = (typeof item === 'object' && item.kind) || kind;
-        return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:itemKind, generatedResult:true, ...window.VolcengineVideoBilling?.metadata(result)}));
+        return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:itemKind, generatedResult:true, ...window.VolcengineVideoBilling?.metadata(result), ...window.SeedanceDrafts?.metadata(result)}));
     }).filter(item => item.url);
     node.images = [...(node.images || []).map(img => stripImageGenerationMeta(img)), ...additions];
     const pendingRun = smartPendingTaskRun(node, task, kind);
