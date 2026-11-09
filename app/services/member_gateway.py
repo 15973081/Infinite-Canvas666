@@ -170,7 +170,7 @@ def permissions(path, method):
         return ('canvas.read', 'canvas.edit') if method == 'PUT' else None
     if re.fullmatch(r'/api/canvases/[^/]+/touch', path):
         return ('canvas.read',) if method == 'POST' else None
-    if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
+    if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|abandon|transfers(?:/[^/]+)?))?', path):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method == 'POST' else None
     if re.fullmatch(r'/api/canvases/[^/]+/ledger(?:/.*)?', path):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',)
@@ -237,7 +237,7 @@ def operation(path, method):
         return 'read', None  # This endpoint only returns the existing canvas record.
     if re.fullmatch(r'/api/canvases/[^/]+/page-state', path):
         return 'observe', None
-    if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
+    if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|abandon|transfers(?:/[^/]+)?))?', path):
         return 'observe', None  # Lease handlers enforce maintenance inside their transaction.
     if path in {'/api/maintenance/status', '/ws/stats'} or re.fullmatch(r'/ws/canvases/[^/]+', path):
         return 'observe', None

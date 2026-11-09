@@ -86,6 +86,12 @@ def release(canvas_id: str, request: Request):
     return finish(identity(request), canvas_id, proof_from_headers(dict(request.scope['headers'])))
 
 
+@router.post('/api/canvases/{canvas_id}/edit-lease/abandon')
+def abandon(canvas_id: str, request: Request):
+    from app.services.canvas_leases import release, proof_from_headers
+    return release(identity(request), canvas_id, proof_from_headers(dict(request.scope['headers'])), abandoning=True)
+
+
 @router.get('/api/canvases/{canvas_id}/edit-lease/transfers')
 def transfers(canvas_id: str, request: Request):
     from app.services.canvas_leases import transfers as pending

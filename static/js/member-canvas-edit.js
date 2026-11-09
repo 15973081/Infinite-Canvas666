@@ -731,6 +731,7 @@
     window.addEventListener('member-session:maintenance',event => active?.lease.setMaintenance(event.detail.mode));
     window.addEventListener('pagehide',event => {
         persist();
+        active?.lease.abandon();
         if(active){active.historyPanel?.close();active.mediaPreview?.close();active.subscription?.stop();active.reportSuspended=true;clearTimeout(active.reportTimer);}
         reportPage(active,!event.persisted);
         if(event.persisted) active?.lease.pause('页面已暂停，请保留草稿并重新确认编辑资格。');

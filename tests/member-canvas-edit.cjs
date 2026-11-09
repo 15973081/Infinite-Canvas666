@@ -131,6 +131,21 @@ test('opening a member canvas only observes; saves require explicit start',async
     assert.equal(JSON.parse(init.body).base_revision,3);assert.equal(f.api.active.lease.revision,4);
 });
 
+test('pagehide relinquishes only this pages editing proof with a keepalive request',async()=>{
+    for(const persisted of [false,true]){
+        const f=fixture();await f.mount();await f.api.active.lease.start(async()=>({revision:3}));
+        f.listeners.get('pagehide')({persisted});await new Promise(setImmediate);
+        const requests=f.calls.filter(([path])=>path.endsWith('/abandon'));
+        assert.equal(requests.length,1);
+        assert.equal(requests[0][1].keepalive,true);
+        assert.equal(requests[0][1].headers['X-Canvas-Edit-Token'],'secret-lease-proof');
+        assert.equal(requests[0][1].headers['X-Canvas-Generation'],'1');
+        assert.equal(f.api.canSave,false);
+    }
+    const viewer=fixture();await viewer.mount();viewer.listeners.get('pagehide')({persisted:false});
+    assert.equal(viewer.calls.some(([path])=>path.endsWith('/abandon')),false);
+});
+
 test('page reports capture scope and monotonic dirty/closed state without document or credentials',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);
     const entry=f.api.active;

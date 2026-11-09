@@ -161,6 +161,26 @@ def save(world, path, lease, revision=None, title='已保存'):
 
 
 @pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_page_abandon_releases_after_unacknowledged_save_and_cannot_release_new_owner(world, kind):
+    path, canvas = setup_canvas(world, kind)
+    lease = acquire(world, path)
+    saved = save(world, path, lease, title='刷新前保存')
+    assert saved.status_code == 200, saved.text
+    client = world['editor']
+    closing = proof(world, lease)
+    del closing['X-Canvas-Revision']
+    assert client.post(path+'/edit-lease/abandon', headers=headers(world['a'])).status_code == 428
+    response = client.post(path+'/edit-lease/abandon', headers=closing)
+    assert response.status_code == 200, response.text
+    assert response.json()['revision'] == saved.json()['canvas']['revision']
+    assert client.get(path+'/edit-lease', headers=headers(world['a'])).json()['holder'] is None
+    next_lease = acquire(world, path)
+    assert client.post(path+'/edit-lease/abandon', headers=closing).status_code == 409
+    assert client.get(path+'/edit-lease', headers=headers(world['a'])).json()['generation'] == next_lease['generation']
+    assert save(world, path, next_lease).status_code == 200
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
 def test_http_save_and_all_canvas_mutation_routes_require_bound_proof(world, kind):
     from app.storage.database import connection
     path, canvas = setup_canvas(world, kind)

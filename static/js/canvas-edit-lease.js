@@ -366,6 +366,12 @@
                 return response;
             } finally {this.finishing=false;this.emit();}
         }
+        abandon() {
+            if (!this.token) return Promise.resolve();
+            const headers={'X-Canvas-Edit-Token':this.token,'X-Canvas-Generation':String(this.generation)};
+            return this.transport(`/api/canvases/${encodeURIComponent(this.id)}/edit-lease/abandon`,
+                {method:'POST',headers,keepalive:true}).catch(() => {});
+        }
         dispose() { this.epoch++; this.token = null; this.pending = null; this.deadline = 0; this.state = 'closed'; }
     }
     if (typeof module === 'object' && module.exports) module.exports = CanvasEditLease;

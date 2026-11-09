@@ -198,15 +198,17 @@ def renew(actor, canvas_id, proof):
         return public(conn, row, actor, canvas['revision'])
 
 
-def release(actor, canvas_id, proof):
+def release(actor, canvas_id, proof, *, abandoning=False):
     workspace = current_workspace()
     with az.policy_transaction() as conn:
         # Release may end a valid lease during offline maintenance. It cannot
         # silently save a page: the client supplies its last confirmed revision.
-        canvas, row = validate(conn, actor, workspace, canvas_id, proof, operation='observe')
+        # Closing a page only relinquishes ownership. An in-flight save may have
+        # advanced the revision before its response reached the departing page.
+        canvas, row = validate(conn, actor, workspace, canvas_id, proof, operation='observe', revision=not abandoning)
         save_release_snapshot(conn, canvas, row)
         conn.execute('UPDATE canvas_edit_leases SET released_at=clock_timestamp(),expires_at=clock_timestamp() WHERE workspace_id=%s AND canvas_id=%s', (workspace, canvas_id))
-        event(conn, actor, row, 'release', row['generation'], canvas['revision'])
+        event(conn, actor, row, 'abandon' if abandoning else 'release', row['generation'], canvas['revision'])
         return {'released': True, 'generation': row['generation'], 'revision': canvas['revision']}
 
 
