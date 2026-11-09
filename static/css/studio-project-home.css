@@ -6,7 +6,7 @@ html:has(body.studio-home),html:has(body.studio-canvas-home),body.studio-home,bo
 }
 
 /* Center the catalog at the reference's 1200 / 1600 widths, with 4 / 5 columns. */
-#canvasGate{padding:38px 0 64px;background-image:none}
+#canvasGate{--project-card-radius:8px;--project-card-footer:60px;padding:38px 0 64px;background-image:none}
 #canvasGate .gate-panel{max-width:1200px;padding-inline:40px}
 #canvasGate .gate-head{margin:0 0 28px}
 #canvasGate .gate-title-row{align-items:center;gap:14px}
@@ -27,9 +27,10 @@ html:has(body.studio-home),html:has(body.studio-canvas-home),body.studio-home,bo
 #canvasGate .gate-folder-node.active,#canvasGate .gate-sort-btn.active{box-shadow:none}
 #canvasGate .gate-folder-head{font:12px var(--studio-font);letter-spacing:0}
 #canvasGate .gate-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;align-items:stretch}
-#canvasGate .canvas-item{aspect-ratio:4/3;min-height:0;background:var(--studio-page);border-color:var(--studio-border);border-radius:16px;transition:none}
-#canvasGate .canvas-item:hover{box-shadow:none;border-color:var(--studio-border)}
-#canvasGate .canvas-open{display:grid;grid-template-rows:minmax(0,1fr) 60px;gap:0;height:100%;border-radius:15px;overflow:hidden}
+#canvasGate :is(.canvas-item,.project-folder-card,.project-new-card){box-sizing:border-box;aspect-ratio:4/3;min-width:0;min-height:0;align-self:start;border:1px solid var(--studio-border);border-radius:var(--project-card-radius);background:var(--studio-panel)}
+#canvasGate :is(.canvas-item,.project-folder-card){transition:border-color var(--project-motion) var(--project-ease)}
+#canvasGate :is(.canvas-item,.project-folder-card):is(:hover,:focus-within){box-shadow:none;border-color:var(--studio-accent)}
+#canvasGate :is(.canvas-open,.project-folder-open){display:grid;grid-template-rows:minmax(0,1fr) var(--project-card-footer);gap:0;width:100%;height:100%;padding:0;border-radius:calc(var(--project-card-radius) - 1px);overflow:hidden}
 #canvasGate .studio-canvas-cover{aspect-ratio:auto;min-height:0;height:100%;border:0;background:#15161a;background-image:none;display:grid;place-items:center}
 #canvasGate .canvas-cover-media{position:absolute;inset:0}
 #canvasGate .canvas-cover-copy{display:none}
@@ -40,21 +41,21 @@ html:has(body.studio-home),html:has(body.studio-canvas-home),body.studio-home,bo
 #canvasGate .canvas-cover-unavailable{left:0;right:0;bottom:14px;text-align:center;color:var(--studio-text-muted)}
 #canvasGate .canvas-cover-kind{right:10px;bottom:10px;font:10px/1.5 var(--studio-font);letter-spacing:.5px;background:#08090bcc;border:1px solid #ffffff30}
 #canvasGate .studio-card-type{position:absolute;top:10px;left:12px;max-width:calc(100% - 64px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;font-size:10px;line-height:18px;padding:1px 6px;border-radius:4px;margin:0;color:#d9dbe2;background:#0009}
-#canvasGate .canvas-card-info{display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;height:60px;padding:8px 16px}
-#canvasGate .canvas-card-title{display:block;flex:none;min-width:0;margin:0;font-size:16px;line-height:24px;font-weight:600;letter-spacing:0;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
-#canvasGate .canvas-card-meta{margin:0;min-width:0;align-self:stretch;height:16px}
-#canvasGate .canvas-card-time{font:12px/16px var(--studio-font);letter-spacing:0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#canvasGate :is(.canvas-card-info,.project-folder-info){box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;height:var(--project-card-footer);padding:8px 16px;border-top:1px solid var(--studio-border)}
+#canvasGate :is(.canvas-card-title,.project-folder-info strong){display:block;flex:none;min-width:0;margin:0;font-size:16px;line-height:24px;font-weight:600;letter-spacing:0;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+#canvasGate :is(.canvas-card-meta,.project-folder-meta){margin:0;min-width:0;align-self:stretch;height:16px;color:var(--studio-text-muted);font:12px/16px var(--studio-font)}
+#canvasGate .canvas-card-time{font:inherit;color:inherit;letter-spacing:0;min-width:0;overflow:hidden;text-overflow:ellipsis}
 #canvasGate .studio-card-menu{top:8px;right:8px;bottom:auto;z-index:10;color:var(--studio-text)}
 #canvasGate .canvas-item:has(.studio-card-menu[open]){z-index:20}
 #canvasGate .studio-card-menu summary{opacity:0;background:#141416e6;transition:opacity var(--project-motion) var(--project-ease),background-color var(--project-motion) var(--project-ease)}
 #canvasGate .canvas-item:is(:hover,:focus-within) .studio-card-menu summary,#canvasGate .studio-card-menu[open] summary{opacity:1}
 #canvasGate .studio-card-menu summary{width:32px;height:32px}
-#canvasGate .project-new-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;aspect-ratio:4/3;min-height:0;align-self:stretch;padding:0;border:1px solid var(--studio-border);border-radius:16px;background:var(--studio-panel);color:var(--studio-text-muted);font-size:14px;transition:background-color var(--project-motion) var(--project-ease),color var(--project-motion) var(--project-ease)}
+#canvasGate .project-new-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:0;color:var(--studio-text-muted);font-size:14px;transition:background-color var(--project-motion) var(--project-ease),color var(--project-motion) var(--project-ease)}
 #canvasGate .project-new-card svg{width:24px;height:24px;stroke-width:1.5}
 #canvasGate .project-new-card:is(:hover,:focus-visible){background:var(--studio-surface-muted);color:var(--studio-text)}
-#canvasGate .project-card-enter{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;gap:8px;background:rgb(0 0 0 / 70%);color:#aeb6c5;font-size:14px;opacity:0;pointer-events:none;transition:opacity var(--project-motion) var(--project-ease)}
-#canvasGate .project-card-enter svg{width:20px;height:20px}
-#canvasGate .canvas-item:is(:hover,:focus-within) .project-card-enter{opacity:1}
+#canvasGate :is(.project-card-enter,.project-folder-enter){position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;gap:8px;background:rgb(0 0 0 / 65%);color:var(--studio-accent);font-size:14px;opacity:0;pointer-events:none;transition:opacity var(--project-motion) var(--project-ease)}
+#canvasGate :is(.project-card-enter,.project-folder-enter) svg{width:20px;height:20px}
+#canvasGate :is(.canvas-item,.project-folder-card):is(:hover,:focus-within) :is(.project-card-enter,.project-folder-enter){opacity:1}
 #canvasGate .gate-list-empty{background:transparent;min-height:160px;font-size:14px;line-height:1.8}
 #canvasGate .project-new-card+.gate-list-empty{grid-column:2/-1}
 #canvasGate.trash-mode :is(.project-create-button,.project-create-folder,.project-tools-spacer){display:none}
@@ -113,4 +114,4 @@ body.studio-home .sidebar :is(.nav-item,.side-pill):is(:hover,:focus-visible,.ac
  html:has(body.studio-home).member-session-pending::after,html:has(body.studio-canvas-home).member-session-pending::after{display:none}
 }
 @media(pointer:coarse){#canvasGate .gate-icon-btn,#canvasGate .studio-pick-trigger,#canvasGate .studio-card-menu summary{min-height:44px;min-width:44px}}
-@media(prefers-reduced-motion:reduce){#canvasGate :is(.project-new-card,.project-card-enter,.studio-card-menu summary){transition:none}}
+@media(prefers-reduced-motion:reduce){#canvasGate :is(.canvas-item,.project-folder-card,.project-new-card,.project-card-enter,.project-folder-enter,.studio-card-menu summary){transition:none}}

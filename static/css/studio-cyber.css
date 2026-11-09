@@ -97,18 +97,11 @@ body.studio-home .member-home-wallet {border-color: var(--studio-border-strong)}
 #canvasGate :is(.gate-search,.gate-icon-btn,.studio-pick-trigger) {border-radius: 3px; background-color: var(--studio-panel)}
 #canvasGate .project-create-button {background: var(--studio-accent); color: var(--studio-accent-text)}
 #canvasGate .project-create-button:hover {background: #e0ff80; border-color: #e0ff80}
-#canvasGate :is(.canvas-item,.project-new-card) {border-radius: 4px; background: var(--studio-panel)}
-#canvasGate .canvas-open {border-radius: 3px}
-#canvasGate .canvas-item:hover {border-color: var(--studio-border-strong)}
 #canvasGate .studio-canvas-cover {background-color: #191d16; background-image: linear-gradient(#b4cc7b08 1px,transparent 1px),linear-gradient(90deg,#b4cc7b08 1px,transparent 1px); background-size: 24px 24px}
 #canvasGate .studio-canvas-cover:not(.has-media)::before {color: var(--studio-accent); background-color: var(--studio-accent); opacity: .6}
-#canvasGate .canvas-card-info {border-top: 1px solid var(--studio-border)}
-#canvasGate .canvas-card-title {font-size: 14px}
-#canvasGate .canvas-card-time {font-size: 11px; font-family: var(--studio-font-mono)}
 #canvasGate .studio-card-type {border-radius: 2px; color: var(--studio-text)}
 #canvasGate .project-new-card {border-style: dashed; color: var(--studio-accent); background: #141a0e}
 #canvasGate .project-new-card:is(:hover,:focus-visible) {background: var(--studio-selected); color: var(--studio-accent); border-color: var(--studio-accent)}
-#canvasGate .project-card-enter {color: var(--studio-accent)}
 #canvasGate :is(.studio-pick-menu,.studio-card-menu-items,.canvas-folder-menu) {border-radius: 4px}
 body.studio-canvas-home .name-dialog-choices label {border-radius: 4px}
 body.studio-canvas-home .name-dialog-choices label:has(:checked) {background: var(--studio-selected)}

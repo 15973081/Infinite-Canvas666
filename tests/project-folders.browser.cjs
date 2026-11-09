@@ -4,6 +4,44 @@ const folders=[{id:'brand',name:'品牌项目',parent_id:''},{id:'child',name:'�
 const open=(page,id)=>page.locator(`[data-folder-card="${id}"] .project-folder-open`);
 const back=page=>page.locator('#projectFolderPath').getByRole('button',{name:'全部画布',exact:true}).click();
 
+test('folder and canvas cards align and use the same hover and keyboard focus treatment',async t=>{
+ const {page}=await fixture(t,'classic',false,{directory:true,folders:[folders[0]],
+  extraRecords:[{id:'smart',title:'智能画布',kind:'smart'},{id:'inside',title:'品牌图片',folder_id:'brand',cover_media:{kind:'image',url:'/test-image.svg'}}]});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const cards=page.locator('.gate-list > :is(.project-new-card,.project-folder-card,.canvas-item)');
+ for(const width of [1024,1440,1920]){
+  await page.setViewportSize({width,height:900});
+  const metrics=await cards.evaluateAll(items=>items.map(card=>{
+   const {top,width,height}=card.getBoundingClientRect();
+   const footer=card.querySelector('.project-folder-info,.canvas-card-info');
+   return {top,width,height,radius:getComputedStyle(card).borderRadius,footer:footer?.getBoundingClientRect().height};
+  }));
+  assert.equal(metrics.length,4);
+  for(const card of metrics){
+   assert.ok(Math.abs(card.height-card.width*.75)<1,JSON.stringify(card));
+   assert.ok(Math.abs(card.height-metrics[0].height)<1,JSON.stringify(metrics));
+   assert.equal(card.top,metrics[0].top);
+   assert.equal(card.radius,'8px');
+  }
+  assert.deepEqual(metrics.slice(1).map(card=>card.footer),[60,60,60]);
+ }
+ const folder=page.locator('.project-folder-card');
+ const canvas=page.locator('.canvas-item').first();
+ const appearance=card=>card.evaluate(el=>{
+  const overlay=getComputedStyle(el.querySelector('.project-folder-enter,.project-card-enter'));
+  return [overlay.opacity,overlay.color,overlay.backgroundColor,getComputedStyle(el).borderTopColor];
+ });
+ const before=await folder.boundingBox();
+ await folder.hover();
+ const active=['1','rgb(210, 255, 58)','rgba(0, 0, 0, 0.65)','rgb(210, 255, 58)'];
+ assert.deepEqual(await appearance(folder),active);
+ assert.deepEqual(await folder.boundingBox(),before);
+ await page.mouse.move(0,0);
+ await page.keyboard.press('Tab');
+ await canvas.locator('.canvas-open').focus();
+ assert.deepEqual(await appearance(canvas),active);
+});
+
 test('folder cards group projects, preserve search and return position, and never load full video or graphs',async t=>{
  const {page,errors,writes,requests}=await fixture(t,'classic',false,{directory:true,folders,
   extraRecords:[{id:'inside',title:'品牌图片',folder_id:'brand',cover_media:{kind:'image',url:'/test-image.svg'}},{id:'movie',title:'视频草稿',folder_id:'brand',cover_media:{kind:'video',url:'https://media.example.test/original.mp4'}},{id:'nested',title:'子目录画布',folder_id:'child'}]});
