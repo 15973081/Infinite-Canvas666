@@ -147,6 +147,8 @@ function smartSettingsForNode(node){
         ...recentSettings,
         ...nodeSettings
     };
+    // Only the current node's pending outpaint can lock output dimensions.
+    delete base.outpaintResolutionLocked;
     const preferred=window.CanvasCore.workspaceModelDefault(apiProviders,smartGenerationKind(node));
     if(preferred&&!Object.keys(nodeSettings).length){base.engine='api';if(smartGenerationKind(node)==='video'){base.videoProvider=preferred.provider_id;base.videoModel=preferred.model;}else{base.provider_id=preferred.provider_id;base.model=preferred.model;}}
     const resolved = enforceSmartGenerationKind(node, withOutpaintDisplaySettings(node, base));

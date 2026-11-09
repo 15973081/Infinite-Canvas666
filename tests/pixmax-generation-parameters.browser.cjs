@@ -35,6 +35,50 @@ test('native image resolution quality and count reach the task payload and saved
     await page.screenshot({path:'.local/pixmax-native-generation-image.png'});await page.evaluate(()=>runGeneration());assert.equal(calls.length,4);assert.ok(calls.every(call=>call.size==='2048x2048'&&call.quality==='high'&&call.n===1));
     await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes.find(node=>node.id===record.nodes[0].id).runSettings.count,4);assert.deepEqual(errors,[]);
 });
+for(const lockSource of ['node','canvas defaults','recent settings'])test(`legacy outpaint locks in ${lockSource} do not disable ordinary image generation settings`,async t=>{
+    const {page,errors}=await setup(t),calls=await tasks(page,'image');
+    await page.evaluate(lockSource=>{
+        apiProviders[0].image_models.push('nano-banana-pro');
+        const legacy={engine:'api',apiKind:'image',provider_id:'p',model:'nano-banana-pro',resolution:'1k',ratio:'square',outpaintResolutionLocked:true};
+        if(lockSource==='node')Object.assign(generationNode.runSettings,legacy);
+        if(lockSource==='canvas defaults'){
+            Object.assign(canvasDefaultSmartSettings,legacy);
+            Object.assign(generationNode.runSettings,{model:'nano-banana-pro',resolution:'',ratio:'square'});
+        }
+        if(lockSource==='recent settings'){
+            generationNode.runSettings={};
+            const key=smartSettingsModeKey(legacy);
+            recentSmartSettingsByMode={__lastKey:key,[key]:legacy};
+        }
+        PixmaxNativePrompt.sync();
+    },lockSource);
+    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('横版海报');
+    const menu=await panel(page);
+    const resolution=menu.getByRole('button',{name:'2K',exact:true}),ratio=menu.getByRole('button',{name:'16:9',exact:true});
+    assert.equal(await resolution.isEnabled(),true);
+    assert.equal(await ratio.isEnabled(),true);
+    await resolution.click();await ratio.click();await page.keyboard.press('Escape');
+    await page.evaluate(()=>runGeneration());
+    assert.equal(calls.length,1);
+    assert.equal(calls[0].model,'nano-banana-pro');
+    assert.equal(calls[0].size,'2048x1152');
+    assert.deepEqual(errors,[]);
+});
+
+test('native image settings honor the dimensions of a pending outpaint',async t=>{
+    const {page,errors}=await setup(t);
+    await page.evaluate(()=>{
+        Object.assign(generationNode.runSettings,{resolution:'1k',ratio:'square'});
+        generationNode.outpaintSize={width:768,height:640};
+        PixmaxNativePrompt.sync();
+    });
+    const menu=await panel(page);
+    assert.equal(await menu.getByRole('button',{name:'2K',exact:true}).isDisabled(),true);
+    assert.equal(await menu.getByRole('button',{name:'16:9',exact:true}).isDisabled(),true);
+    const size=await page.evaluate(()=>sizeForRun(PixmaxGenerationParameters.configuration(generationNode)));
+    assert.equal(size,'768x640');
+    assert.deepEqual(errors,[]);
+});
 test('native video resolution sound and MOV reach an ordinary generation task',async t=>{
     const {page,errors}=await setup(t,'video'),calls=await tasks(page,'video');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('海边的摄影师');const menu=await panel(page);
     await menu.getByRole('button',{name:'1080P',exact:true}).click();await menu.getByRole('button',{name:'Audio On',exact:true}).click();await menu.getByRole('button',{name:'MOV',exact:true}).click();await page.keyboard.press('Escape');

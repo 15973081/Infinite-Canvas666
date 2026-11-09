@@ -4,11 +4,7 @@
     let definitionPromise,referenceDefinitions=[];
     const select=(name,options)=>({name,type:'select',options:options.map(([value,name])=>({value:String(value),name}))});
     const supported=node=>Boolean((window.CanvasSession?.enabled||smartSettingsForNode(node).apiKind==='video')&&node?.type==='smart-image'&&!node.segmentReshoot&&!node.localDepth&&isApiLikeEngine(smartSettingsForNode(node).engine));
-    function configuration(node){
-        const resolved=smartSettingsForNode(node),saved=node.runSettings||{},kind=resolved.apiKind;
-        const identity=kind==='video'?saved.videoProvider&&saved.videoModel:saved.provider_id&&saved.model;
-        return identity?enforceSmartGenerationKind(node,{...resolved,...saved}):resolved;
-    }
+    const configuration=node=>smartSettingsForNode(node);
     const draftSupported=config=>config.apiKind==='video'&&SeedanceDrafts.supported(apiProviders.find(p=>p.id===config.videoProvider),config.videoModel)&&resolutions(config).includes('480p');
     const identity=config=>config.apiKind==='video'?[config.videoProvider,config.videoModel]:[config.provider_id,config.model];
     const gateway=config=>config.apiKind==='video'?window.ApimartVideoPolicy?.capabilities(apiProviders.find(provider=>provider.id===config.videoProvider),config.videoModel):null;
