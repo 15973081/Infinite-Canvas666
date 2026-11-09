@@ -505,11 +505,6 @@ function renderCanvasListInto(list, model=canvasGateModel()){
     refreshGateViewControls(model);
     const items = model.items;
     list.innerHTML = '';
-    if(!trashMode&&!String(canvasSearchQuery).trim()){
-        const create=document.createElement('button');create.type='button';create.className='project-new-card';
-        create.innerHTML='<i data-lucide="plus" aria-hidden="true"></i><span>新建画布</span>';
-        create.onclick=()=>window.CanvasHome.beginCreate();list.append(create);
-    }
     const folders=visibleFolderCards();
     folders.forEach(folder=>list.append(window.CanvasFolderCards.card(folder,{
         canvases,folders:canvasFolders,open:id=>setActiveFolder(id,{focus:true}),rename:renameCanvasFolder,

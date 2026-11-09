@@ -87,7 +87,7 @@ test('live workbench creates, saves and opens both canvas types through producti
  await frame.locator('#gateSearchInput').fill('');
  for(const theme of ['dark']){
 
-  await frame.locator('.project-new-card').waitFor();
+  await frame.locator('#gateCreateBtn').waitFor();
   assert.equal(await frame.locator('.studio-start-card,.studio-recent-item').count(),0);
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.nav-item.active')).backgroundColor===
    'rgb(39, 40, 46)');

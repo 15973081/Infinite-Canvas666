@@ -10,13 +10,11 @@ body.studio-chat .messages {padding-top:24px}
 body.studio-chat .empty-state.chat-start {width:min(920px,100%);margin:auto;min-height:0;height:auto;padding:24px 0;display:flex;flex-direction:column;align-items:stretch;gap:28px;text-align:left}
 .chat-start-intro {position:relative;padding-left:82px}
 body.studio-chat .empty-state .chat-start-symbol {position:absolute;left:0;top:6px;width:56px;height:56px;color:var(--studio-text-muted)}
-.chat-start-eyebrow {font:11px var(--studio-font);color:var(--studio-accent-label);letter-spacing:1px}
-.chat-start h2 {margin:10px 0 12px;font-size:30px;line-height:1.4;letter-spacing:-.5px;color:var(--studio-text);font-weight:500}
+.chat-start h2 {margin:0 0 12px;font-size:30px;line-height:1.4;letter-spacing:-.5px;color:var(--studio-text);font-weight:500}
 .chat-start-intro p {margin:0;color:var(--studio-text-muted);font-size:13px;line-height:1.8}
 .chat-starters {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .chat-starters button {display:flex;flex-direction:column;gap:18px;text-align:left;padding:20px;border:1px solid var(--studio-border);border-radius:12px;background:var(--studio-panel);color:var(--studio-text);cursor:pointer;font:inherit}
 .chat-starters button:hover {border-color:var(--studio-border-strong);background:var(--studio-surface-soft)}
-.chat-starter-index {font:10px var(--studio-font-mono);color:var(--studio-text-muted)}
 .chat-starters strong {display:flex;justify-content:space-between;gap:12px;font-size:14px;font-weight:500}
 .chat-starters strong span {color:var(--studio-accent-label)}
 .chat-starters small {font-size:11px;color:var(--studio-text-muted)}

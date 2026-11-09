@@ -75,9 +75,6 @@
                 <h1 class="text-4xl font-extrabold tracking-tighter italic">图片工作台</h1>
                 <p class="image-workspace-subtitle">图片生成与编辑</p>
             </div>
-            <nav class="hidden md:flex gap-8 text-[11px] font-bold uppercase tracking-widest text-gray-400">
-                <a class="image-archive-link" href="#imageWorksAnchor" onclick="document.querySelector('.image-records').open = true">作品记录 <span aria-hidden="true">↗</span></a>
-            </nav>
         </header>
 
         <main class="image-workspace-layout grid grid-cols-1 lg:grid-cols-12 gap-12">
@@ -97,23 +94,23 @@
                     <div class="grid grid-cols-4 gap-4">
                         <div id="drop-zone-1" onclick="document.getElementById('file1').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file1" accept="image/*" class="hidden" onchange="handleFile(this.files[0],1)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">主参考</span>
-                            <img id="prev1" class="preview-img hidden"><button id="del1" onclick="clearSlot(1,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
+                            <button type="button" class="reference-add" aria-label="选择第 1 张参考图片" title="添加参考图片"><i data-lucide="plus" class="w-5 h-5" aria-hidden="true"></i></button>
+                            <img id="prev1" class="preview-img hidden"><button id="del1" aria-label="移除第 1 张参考图片" onclick="clearSlot(1,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                         <div id="drop-zone-2" onclick="document.getElementById('file2').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file2" accept="image/*" class="hidden" onchange="handleFile(this.files[0],2)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">参考 02</span>
-                            <img id="prev2" class="preview-img hidden"><button id="del2" onclick="clearSlot(2,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
+                            <button type="button" class="reference-add" aria-label="选择第 2 张参考图片" title="添加参考图片"><i data-lucide="plus" class="w-5 h-5" aria-hidden="true"></i></button>
+                            <img id="prev2" class="preview-img hidden"><button id="del2" aria-label="移除第 2 张参考图片" onclick="clearSlot(2,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                         <div id="drop-zone-3" onclick="document.getElementById('file3').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file3" accept="image/*" class="hidden" onchange="handleFile(this.files[0],3)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">参考 03</span>
-                            <img id="prev3" class="preview-img hidden"><button id="del3" onclick="clearSlot(3,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
+                            <button type="button" class="reference-add" aria-label="选择第 3 张参考图片" title="添加参考图片"><i data-lucide="plus" class="w-5 h-5" aria-hidden="true"></i></button>
+                            <img id="prev3" class="preview-img hidden"><button id="del3" aria-label="移除第 3 张参考图片" onclick="clearSlot(3,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                         <div id="drop-zone-4" onclick="document.getElementById('file4').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file4" accept="image/*" class="hidden" onchange="handleFile(this.files[0],4)">
-                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">参考 04</span>
-                            <img id="prev4" class="preview-img hidden"><button id="del4" onclick="clearSlot(4,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
+                            <button type="button" class="reference-add" aria-label="选择第 4 张参考图片" title="添加参考图片"><i data-lucide="plus" class="w-5 h-5" aria-hidden="true"></i></button>
+                            <img id="prev4" class="preview-img hidden"><button id="del4" aria-label="移除第 4 张参考图片" onclick="clearSlot(4,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                     </div>
                 </section>
@@ -124,14 +121,17 @@
                     </div>
                     <div class="size-row">
                         <div class="size-field">
+                            <label class="image-field-label" for="providerSelect">厂商</label>
                             <select id="providerSelect" class="size-select" data-studio-select data-select-label="厂商" onchange="setProvider(this.value)"></select>
                         </div>
                         <div class="size-field">
+                            <label class="image-field-label" for="modelSelect">模型</label>
                             <select id="modelSelect" class="size-select" data-studio-select data-select-label="模型" onchange="setModel(this.value)"></select>
                         </div>
                     </div>
                     <div id="adaptiveExtras" class="size-row" style="margin-top:2px;">
                         <div id="qualityField" class="size-field">
+                            <label class="image-field-label" for="qualitySelect">质量</label>
                             <select id="qualitySelect" class="size-select" data-studio-select data-select-label="生成质量" onchange="setQuality(this.value)" title="Quality">
                                 <option value="auto">自动</option>
                                 <option value="low">低</option>
@@ -140,6 +140,7 @@
                             </select>
                         </div>
                         <div id="countField" class="size-field">
+                            <label class="image-field-label" for="countSelect">数量</label>
                             <select id="countSelect" class="size-select" data-studio-select data-select-label="图片数量" onchange="setCount(this.value)" title="Count">
                                 <option value="1" selected>×1</option>
                                 <option value="2">×2</option>
@@ -198,10 +199,9 @@
                     <div id="placeholder" class="image-preview-empty">
                         <strong>暂无生成结果</strong>
                         <p>在左侧输入画面描述，选择模型后生成。<br>编辑已有图片时，可先添加参考图。</p>
-                        <a class="image-empty-history" href="#imageWorksAnchor" onclick="document.querySelector('.image-records').open = true">查看作品记录</a>
                     </div>
                     <img id="outputImg" class="hidden w-full h-full object-contain p-8 cursor-zoom-in" onclick="zoomImage()">
-                    <a id="downloadBtn" href="#" download class="hidden absolute top-8 right-8 w-12 h-12 bg-white/90 shadow-2xl rounded-2xl flex items-center justify-center hover:bg-black hover:text-white"><i data-lucide="download" class="w-4 h-4"></i></a>
+                    <a id="downloadBtn" href="#" download aria-label="下载图片" class="hidden absolute flex items-center justify-center"><i data-lucide="download" class="w-4 h-4" aria-hidden="true"></i></a>
                     <div id="resultActions" hidden></div>
                 </div>
             </div>

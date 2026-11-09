@@ -11,7 +11,7 @@ test('unified creation keeps kind and folder through a failed submission and sen
  });
  await page.evaluate(()=>{window.CanvasNavigation={...CanvasNavigation,go:async url=>{window.createdDestination=url;return true;}};});
  await page.locator('#studioFolderTrigger').click();await page.locator('[data-folder-id="brand"] .gate-folder-main').click();
- await page.locator('.project-new-card').click();
+ await page.locator('#gateCreateBtn').click();
  assert.equal(await page.getByRole('radio',{name:/智能画布/}).isChecked(),true);
  await page.locator('#canvasNameField').fill('品牌视觉');
  await page.getByRole('radio',{name:/经典画布/}).check();
@@ -38,7 +38,7 @@ test('smart creation, search and trash use the existing catalog without original
  await page.getByRole('searchbox').fill('图片');assert.equal(await page.locator('.canvas-item').count(),1);assert.equal(await page.locator('.project-new-card').count(),0);
  await page.getByRole('searchbox').fill('');await page.locator('#gateTrashBtn').click();
  await page.getByText('回收站为空',{exact:true}).waitFor();assert.equal(await page.locator('.project-new-card').count(),0);assert.equal(await page.locator('#gateCreateBtn').isVisible(),false);
- await page.locator('#gateBackBtn').click();await page.locator('.project-new-card').waitFor();
+ await page.locator('#gateBackBtn').click();await page.locator('#gateCreateBtn').waitFor();
  assert.equal(requests.some(url=>url==='/output/movie.mp4'),false);assert.equal(requests.some(url=>/\/api\/canvases\/(canvas-test|second)$/.test(url)),false);assert.deepEqual(errors,[]);
 });
 
@@ -61,7 +61,7 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
  });
  await page.reload();await page.locator('.member-home-wallet').waitFor();
  await page.emulateMedia({reducedMotion:'reduce'});
- const home=page.frameLocator('#frame-canvas');await home.locator('.project-new-card').waitFor();
+ const home=page.frameLocator('#frame-canvas');await home.locator('#gateCreateBtn').waitFor();
  assert.equal(await page.locator('#sidebarLogoToggle').count(),0);
  const shots=path.join(root,'.local/commercial-kickoff');fs.mkdirSync(shots,{recursive:true});
  for(const width of [1920,1440,1024]){
@@ -78,8 +78,9 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
   assert.ok(Math.abs(metrics.height-metrics.width*.75)<1,'card aspect ratio '+width);
   assert.equal(metrics.info,60);
   assert.ok(Math.abs(metrics.cover+metrics.info+2-metrics.height)<1,'cover fills remaining height');
-  const createBox=await home.locator('.project-new-card').boundingBox();
-  assert.ok(Math.abs(createBox.height-metrics.height)<1,'new and existing cards align');
+  const header=await home.locator('.gate-head').boundingBox();
+  assert.equal(header.height,96,'compact directory header');
+  assert.equal(await home.getByRole('button',{name:'新建画布',exact:true}).count(),1);
   const wallet=await page.locator('.member-home-wallet').boundingBox(),account=await page.locator('.member-session-account').boundingBox();
   assert.ok(wallet.x>=0&&wallet.y>=0&&account.x+account.width<=width+1&&wallet.x+wallet.width<=account.x+1,'account controls '+width);
   if([1440,1920].includes(width))await page.screenshot({path:path.join(shots,'project-home-'+width+'.png')});

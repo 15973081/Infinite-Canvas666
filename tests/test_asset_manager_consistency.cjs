@@ -58,9 +58,9 @@ test('virtual geometry follows width even when column count does not change', ()
     assert.equal(after.cardHeight,204);
     const items = Array.from({length:1000},(_,i)=>({id:String(i)}));
     const snapshot = {anchorId:'334',anchorOffset:-20,top:14000};
-    assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+67*214+20);
+    assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+66*214+20);
     items.unshift(...Array.from({length:50},(_,i)=>({id:`new-${i}`})));
-    assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+77*214+20);
+    assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+76*214+20);
     assert.equal(context.assetAnchorScrollTop({...snapshot,anchorId:'removed'},items,after),14000);
 });
 

@@ -270,7 +270,9 @@ async function drop(page,files){
 }
 
 test('MD and ZIP drag import highlight, keyboard upload and file validation share one preview flow',async t=>{
- const {page,calls,errors}=await fixture(t,'skill-library');await page.locator('#skillChooseFile:enabled').waitFor();
+ const {page,calls,errors}=await fixture(t,'skill-library');await page.locator('#skillImport:enabled').waitFor();
+ await page.locator('#skillImport').click();
+ await page.getByRole('button',{name:'下载模板',exact:true}).waitFor();
  const dataTransfer=await transfer(page,[{name:'prompt.MD'}]);
  await page.locator('body').dispatchEvent('dragenter',{dataTransfer});
  await page.locator('#skillDropzone[data-dragging=true]').waitFor();
@@ -297,7 +299,7 @@ test('MD and ZIP drag import highlight, keyboard upload and file validation shar
    await page.locator('#skillFile').setInputFiles({name:'empty.md',mimeType:'text/markdown',buffer:Buffer.alloc(0)});
   }else await drop(page,files);
   assert.match(await page.locator('#skillDropMessage').innerText(),message);
-  assert.equal(await page.getByRole('dialog').count(),0);
+  assert.equal(await page.locator('#skillImportDialog').isVisible(),true);
  }
  assert.equal(calls.filter(c=>c.path==='/api/skills/preview').length,previews);
  const chooserButton=page.getByRole('button',{name:'选择文件',exact:true});await chooserButton.focus();
@@ -311,7 +313,7 @@ test('MD and ZIP drag import highlight, keyboard upload and file validation shar
 });
 
 test('upload state prevents closing and duplicate submits, retaining file and visibility for retry',async t=>{
- const {page,errors}=await fixture(t,'skill-library');await page.locator('#skillChooseFile:enabled').waitFor();
+ const {page,errors}=await fixture(t,'skill-library');await page.locator('#skillImport:enabled').waitFor();
  let releasePreview;const previewGate=new Promise(resolve=>releasePreview=resolve);
  let previewAttempts=0;
  await page.route('**/api/skills/preview',async route=>{
@@ -338,15 +340,17 @@ test('upload state prevents closing and duplicate submits, retaining file and vi
  assert.equal(await dialog.getByRole('combobox').inputValue(),'shared');assert.match(await dialog.getByRole('alert').innerText(),/存储暂不可用/);
  await dialog.getByRole('button',{name:'重试导入'}).click();await dialog.waitFor({state:'detached'});
  assert.equal(attempts,2);assert.ok(bodies.every(body=>body.includes('shared')&&body.includes('retry.zip')));
- assert.match(await page.locator('#skillDropMessage').innerText(),/导入完成/);assert.deepEqual(errors,[]);
+ assert.match(await page.locator('#skillStatus').innerText(),/已导入并安装/);assert.deepEqual(errors,[]);
 });
 
 test('drag import respects missing permissions and failed permission loading without upload requests',async t=>{
- const {page,calls,errors,setCanImport,setFail}=await fixture(t,'skill-library');await page.locator('#skillChooseFile:enabled').waitFor();
+ const {page,calls,errors,setCanImport,setFail}=await fixture(t,'skill-library');await page.locator('#skillImport:enabled').waitFor();
  setCanImport(false);await page.getByRole('button',{name:'刷新',exact:true}).click();
+ await page.getByRole('button',{name:'导入说明',exact:true}).click();
  await page.locator('#skillDropzone[data-state=disabled]').waitFor();
  assert.equal(await page.getByRole('button',{name:'选择文件',exact:true}).isDisabled(),true);
- await drop(page,[{name:'SKILL.md'}]);assert.match(await page.locator('#skillDropMessage').innerText(),/当前无法导入/);
+ await page.keyboard.press('Escape');
+ await drop(page,[{name:'SKILL.md'}]);assert.match(await page.locator('#skillStatus').innerText(),/当前无法导入/);
  setCanImport(true);setFail(true);await page.getByRole('button',{name:'刷新',exact:true}).click();
  await page.getByRole('button',{name:'加载失败，点击重试'}).waitFor();await drop(page,[{name:'SKILL.zip'}]);
  assert.equal(calls.filter(c=>c.path==='/api/skills/preview'||c.path==='/api/skills/import').length,0);

@@ -11,23 +11,27 @@
 </head>
 <body class="studio-skin studio-content">
  <main class="skill-page">
-  <header class="skill-head"><div><span class="skill-index">RESOURCE / 02</span><h1>Skill 库</h1><p>整理提示词方法，在 AI 对话中用 @ 选择。仅作用于文字对话。</p></div><div class="skill-actions"><button id="skillTemplateDownload" type="button">下载模板</button><button id="skillRefresh" type="button">刷新</button><button id="skillImport" class="skill-primary" type="button" disabled>＋ 导入 Skill</button></div></header>
+  <header class="skill-head"><div><h1>Skill 库</h1><p>整理提示词方法，在 AI 对话中用 @ 选择。仅作用于文字对话。</p></div><div class="skill-actions"><button id="skillRefresh" type="button">刷新</button><button id="skillImport" class="skill-primary" type="button" disabled>＋ 导入 Skill</button></div></header>
+  <div class="skill-toolbar"><nav id="skillScopes" aria-label="技能范围"><button type="button" data-scope="all" aria-pressed="true">全部</button><button type="button" data-scope="installed" aria-pressed="false">已安装</button><button type="button" data-scope="workspace" aria-pressed="false">本空间</button><button type="button" data-scope="shared" aria-pressed="false">跨空间共享</button></nav><input id="skillSearch" type="search" aria-label="搜索技能、描述或上传者" placeholder="搜索技能、描述或上传者…" maxlength="160"></div>
+  <div id="skillStatus" role="status" aria-live="polite"></div><section id="skillGrid" class="skill-grid" aria-label="技能列表" aria-busy="true"></section>
+  <button id="skillMore" type="button" hidden>加载更多</button>
+  <details class="skill-notice" id="skillContextUpgrade">
+   <summary>使用说明</summary>
+<p class="skill-notice">安装到当前空间后，勾选启用供本人选择。其他空间的共享技能可安装固定版本，上传者和来源始终可见。</p>
+   <p>AI 对话每次所选 Skill 正文及文本参考文件的总引用上限，由 48,000 字符提升至 1,000,000 字符。正文和文本参考文件完整保留，不截断、不自动精简；超限会显示实际字符数及上限，并拒绝本次发送。</p>
+   <p>每次仍最多引用 6 个 Skill。单个 Skill 的导入限制保持不变：文件最大 2 MiB，正文及可读参考文件合计最多 120,000 字符；安装及本人启用校验仍须通过。总引用计数包含参考文件路径与分隔文字。</p>
+   <p>说明：此次升级不改变已有技能、历史对话和画布数据。Skill 仍仅作为本轮文字参考，不执行脚本或授予平台操作权限。模型自身的上下文容量限制仍适用；平台不会为适配模型自动删减 Skill 内容，较长引用可能增加输入用量及响应时间。</p>
+  </details>
+ </main>
+ <dialog id="skillImportDialog" class="skill-dialog" aria-labelledby="skillImportTitle">
+  <header class="skill-dialog-head"><h2 id="skillImportTitle">导入 Skill</h2><form method="dialog"><button type="submit">关闭</button></form></header>
   <section id="skillDropzone" class="skill-dropzone" aria-label="拖拽导入 Skill" aria-describedby="skillDropMessage" data-state="waiting">
    <svg class="skill-drop-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17v3h16v-3M12 16V4m-4 4 4-4 4 4"/></svg>
    <div class="skill-drop-copy"><strong>将 Skill 文件拖到这里</strong><p id="skillDropMessage" role="status" aria-live="polite">支持 .md 和 .zip，每次一个文件，最大 2 MiB。正在确认导入权限…</p></div>
    <button id="skillChooseFile" type="button" disabled>选择文件</button>
   </section>
-  <div class="skill-toolbar"><nav id="skillScopes" aria-label="技能范围"><button type="button" data-scope="all" aria-pressed="true">全部</button><button type="button" data-scope="installed" aria-pressed="false">已安装</button><button type="button" data-scope="workspace" aria-pressed="false">本空间</button><button type="button" data-scope="shared" aria-pressed="false">跨空间共享</button></nav><input id="skillSearch" type="search" aria-label="搜索技能、描述或上传者" placeholder="搜索技能、描述或上传者…" maxlength="160"></div>
-  <p class="skill-notice">安装到当前空间后，勾选启用供本人选择。其他空间的共享技能可安装固定版本，上传者和来源始终可见。</p>
-  <details class="skill-notice" id="skillContextUpgrade">
-   <summary>2026-10-08 升级公告与说明：Skill 引用上限提升至 1,000,000 字符</summary>
-   <p>AI 对话每次所选 Skill 正文及文本参考文件的总引用上限，由 48,000 字符提升至 1,000,000 字符。正文和文本参考文件完整保留，不截断、不自动精简；超限会显示实际字符数及上限，并拒绝本次发送。</p>
-   <p>每次仍最多引用 6 个 Skill。单个 Skill 的导入限制保持不变：文件最大 2 MiB，正文及可读参考文件合计最多 120,000 字符；安装及本人启用校验仍须通过。总引用计数包含参考文件路径与分隔文字。</p>
-   <p>说明：此次升级不改变已有技能、历史对话和画布数据。Skill 仍仅作为本轮文字参考，不执行脚本或授予平台操作权限。模型自身的上下文容量限制仍适用；平台不会为适配模型自动删减 Skill 内容，较长引用可能增加输入用量及响应时间。</p>
-  </details>
-  <div id="skillStatus" role="status" aria-live="polite"></div><section id="skillGrid" class="skill-grid" aria-label="技能列表" aria-busy="true"></section>
-  <button id="skillMore" type="button" hidden>加载更多</button>
- </main>
+  <footer><button id="skillTemplateDownload" type="button">下载模板</button></footer>
+ </dialog>
  <input id="skillFile" type="file" accept=".md,.zip" hidden>
  <template id="skillTemplate">---
 name: prompt-refiner

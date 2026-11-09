@@ -38,8 +38,7 @@
                         <aside id="historyPopover" class="chat-rail">
                             <div class="rail-head">
                                 <div>
-                                    <div class="rail-kicker">对话列表</div>
-                                    <div class="rail-title">历史</div>
+                                    <div class="rail-title">历史对话</div>
                                 </div>
                                 <button onclick="event.stopPropagation();toggleHistory(false)" class="rail-close" title="关闭" aria-label="关闭"><i data-lucide="x"></i></button>
                             </div>
@@ -707,11 +706,11 @@
             box.innerHTML = '';
             if(!messages.length){
                 box.innerHTML = `<div class="empty-state chat-start">
-                    <div class="chat-start-intro"><svg class="chat-start-symbol" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M10 12h32v28H25L14 49V40h-4z M48 22h6v30H38l-8 7v-7h-7" stroke="currentColor" stroke-width="1.5"/><path d="M18 22h16M18 29h10" stroke="var(--studio-accent-label)" stroke-width="2"/></svg><span class="chat-start-eyebrow">从一个想法开始</span><h2>把灵感聊得更具体</h2><p>整理思路、打磨表达，或为下一幅画面准备提示词。</p></div>
+                    <div class="chat-start-intro"><svg class="chat-start-symbol" viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M10 12h32v28H25L14 49V40h-4z M48 22h6v30H38l-8 7v-7h-7" stroke="currentColor" stroke-width="1.5"/><path d="M18 22h16M18 29h10" stroke="var(--studio-accent-label)" stroke-width="2"/></svg><h2>把灵感聊得更具体</h2><p>整理思路、打磨表达，或为下一幅画面准备提示词。</p></div>
                     <div class="chat-starters">
-                        <button type="button" onclick="useChatStarter(0)"><span class="chat-starter-index">01 / 思路</span><strong>理清一个想法 <span aria-hidden="true">↗</span></strong><small>从目标、受众到行动方向</small></button>
-                        <button type="button" onclick="useChatStarter(1)"><span class="chat-starter-index">02 / 表达</span><strong>打磨一段文字 <span aria-hidden="true">↗</span></strong><small>让文字清楚、自然、有重点</small></button>
-                        <button type="button" onclick="useChatStarter(2)"><span class="chat-starter-index">03 / 画面</span><strong>构思视觉提示词 <span aria-hidden="true">↗</span></strong><small>补全主体、构图与光线细节</small></button>
+                        <button type="button" onclick="useChatStarter(0)"><strong>理清一个想法 <span aria-hidden="true">↗</span></strong><small>从目标、受众到行动方向</small></button>
+                        <button type="button" onclick="useChatStarter(1)"><strong>打磨一段文字 <span aria-hidden="true">↗</span></strong><small>让文字清楚、自然、有重点</small></button>
+                        <button type="button" onclick="useChatStarter(2)"><strong>构思视觉提示词 <span aria-hidden="true">↗</span></strong><small>补全主体、构图与光线细节</small></button>
                     </div><p class="chat-start-note">选择方向会填入草稿，你可以修改后再发送。</p>
                 </div>`;
                 lucide.createIcons();

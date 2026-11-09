@@ -8,6 +8,7 @@ async function main(){
   page.on('pageerror',error=>errors.push(error.message));
   const login=await context.request.post(config.base+'/api/auth/login',{data:{username:config.username,password:config.password},headers:{Origin:config.base}});assert.equal(login.status(),200);
   await page.goto(config.base+'/static/online.html?workspace='+config.workspace);
+  await page.locator('.image-records > summary').click();
   const inbox=page.locator('#onlineInbox');await inbox.getByRole('heading',{name:'作品收件箱'}).waitFor();
   await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
   await inbox.getByLabel('作品引用状态').selectOption('unreferenced');

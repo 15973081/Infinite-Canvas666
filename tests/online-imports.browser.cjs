@@ -25,9 +25,13 @@ async function online(t){
   const request=route.request();calls.push({path:new URL(request.url()).pathname,method:request.method(),body:request.postDataJSON()});
   return route.fulfill({json:request.method()==='POST'?{items:request.postDataJSON().items}:{library:{libraries:[{id:'lib',name:'团队作品',categories:[{id:'cat',name:'精选图片',type:'image'},{id:'wf',name:'工作流',type:'workflow'}]}]}}});
  });
+ // Exercise the legacy archive with member permissions for the destination APIs.
+ await f.page.route('**/static/js/online-inbox.js',route=>route.fulfill({contentType:'application/javascript',body:''}));
+ await f.page.route('**/api/history/page?**',route=>route.fulfill({json:{items:[batch],next_cursor:null}}));
  await f.page.goto(origin+'/static/online.html');
  await f.page.addScriptTag({url:origin+'/static/js/canvas-edit-lease.js'});
- await f.page.evaluate(batch=>{renderImageCard(batch);currentResult=batch;document.getElementById('resultActions').hidden=false;},batch);
+ await f.page.evaluate(batch=>{currentResult=batch;document.getElementById('resultActions').hidden=false;},batch);
+ await f.page.locator('.image-records > summary').click();
  return {...f,records,calls,setBlocked:value=>blocked=value,setFailList:value=>failList=value};
 }
 test('online result, archive and preview import a whole batch into both kinds and existing canvas',async t=>{
@@ -59,8 +63,8 @@ test('online result, archive and preview import a whole batch into both kinds an
 });
 test('library import uses the chosen real group and successful repeats do not duplicate assets',async t=>{
  const f=await online(t),{page}=f;
- for(let repeat=0;repeat<2;repeat++){
-  await page.locator('.masonry-item [data-online-import="library"]').click();const dialog=page.getByRole('dialog');
+ for(const source of ['#resultActions','.masonry-item']){
+  await page.locator(source+' [data-online-import="library"]').click();const dialog=page.getByRole('dialog');
   await dialog.locator('#onlineImportCategory').selectOption('cat');assert.equal(await dialog.locator('#onlineImportCategory option').count(),1);
   await dialog.getByRole('button',{name:'导入',exact:true}).click();await dialog.getByRole('link',{name:'打开素材库'}).waitFor();
   assert.match(await dialog.locator('[role=status]').textContent(),/已保存 2/);await dialog.getByRole('button',{name:'关闭'}).click();

@@ -13,5 +13,4 @@
   <path d="M300 150C210 20 90 45 90 150s120 130 210 0S510 45 510 150s-120 130-210 0Z" stroke="#e6ffb3" stroke-width=".8"/>
   <g stroke="#d2ff3a"><path d="M22 28h18m-9-9v18M558 263h18m-9-9v18M300 14v20M300 266v20"/><path d="M70 61H56v14M530 239h14v-14"/></g>
   <path fill="#d2ff3a" d="M43 218h42v8H43zM507 80h64v9h-64zM523 94h19v6h-19z"/>
-  <g fill="#a7ae9f" font-family="monospace" font-size="9" letter-spacing="1"><text x="53" y="38">FIG. 01 / INFINITY</text></g>
 </svg>

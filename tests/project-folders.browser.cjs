@@ -8,7 +8,7 @@ test('folder and canvas cards align and use the same hover and keyboard focus tr
  const {page}=await fixture(t,'classic',false,{directory:true,folders:[folders[0]],
   extraRecords:[{id:'smart',title:'智能画布',kind:'smart'},{id:'inside',title:'品牌图片',folder_id:'brand',cover_media:{kind:'image',url:'/test-image.svg'}}]});
  await page.emulateMedia({reducedMotion:'reduce'});
- const cards=page.locator('.gate-list > :is(.project-new-card,.project-folder-card,.canvas-item)');
+ const cards=page.locator('.gate-list > :is(.project-folder-card,.canvas-item)');
  for(const width of [1024,1440,1920]){
   await page.setViewportSize({width,height:900});
   const metrics=await cards.evaluateAll(items=>items.map(card=>{
@@ -16,14 +16,14 @@ test('folder and canvas cards align and use the same hover and keyboard focus tr
    const footer=card.querySelector('.project-folder-info,.canvas-card-info');
    return {top,width,height,radius:getComputedStyle(card).borderRadius,footer:footer?.getBoundingClientRect().height};
   }));
-  assert.equal(metrics.length,4);
+  assert.equal(metrics.length,3);
   for(const card of metrics){
    assert.ok(Math.abs(card.height-card.width*.75)<1,JSON.stringify(card));
    assert.ok(Math.abs(card.height-metrics[0].height)<1,JSON.stringify(metrics));
    assert.equal(card.top,metrics[0].top);
    assert.equal(card.radius,'8px');
   }
-  assert.deepEqual(metrics.slice(1).map(card=>card.footer),[60,60,60]);
+  assert.deepEqual(metrics.map(card=>card.footer),[60,60,60]);
  }
  const folder=page.locator('.project-folder-card');
  const canvas=page.locator('.canvas-item').first();
@@ -120,7 +120,7 @@ test('folder menu rename, child creation, canvas creation and deletion reuse exi
  let creation;
  await page.route('**/api/canvases',route=>{if(route.request().method()!=='POST')return route.fallback();creation=route.request().postDataJSON();return route.fulfill({json:{canvas:{id:'created'}}});});
  await page.evaluate(()=>{CanvasNavigation={...CanvasNavigation,go:async()=>true};});
- await page.locator('.project-new-card').click();await page.locator('#canvasNameField').fill('本周画布');await page.getByRole('button',{name:'创建画布',exact:true}).click();
+ await page.locator('#gateCreateBtn').click();await page.locator('#canvasNameField').fill('本周画布');await page.getByRole('button',{name:'创建画布',exact:true}).click();
  await page.getByRole('dialog').waitFor({state:'hidden'});assert.equal(creation.folder_id,'new-child');
  await back(page);await menu.locator('summary').click();page.once('dialog',dialog=>dialog.accept());
  await menu.getByRole('button',{name:'删除文件夹',exact:true}).click();

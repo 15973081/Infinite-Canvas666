@@ -414,7 +414,7 @@ const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|jfif|webp|gif|bmp|avif|svg|mp4|webm|mov|m
 const ASSET_BATCH_SIZE = 32;
 const ASSET_VIRTUAL_OVERSCAN_ROWS = 3;
 
-let assetInspectorCollapsed = false;
+let assetInspectorCollapsed = true;
 function refreshIcons(){
     const head=root.querySelector('.asset-detail > .panel-head');
     if(head && !head.querySelector('[data-inspector-toggle]')){
@@ -422,7 +422,7 @@ function refreshIcons(){
         toggle.type='button';toggle.className='asset-btn inspector-toggle';toggle.dataset.inspectorToggle='';
         const sync=()=>{
             root.classList.toggle('inspector-collapsed',assetInspectorCollapsed);
-            toggle.textContent=assetInspectorCollapsed?'展开详情':'收起详情';
+            toggle.textContent=assetInspectorCollapsed?'查看详情':'收起详情';
             toggle.setAttribute('aria-expanded',String(!assetInspectorCollapsed));
         };
         toggle.addEventListener('click',()=>{
@@ -526,7 +526,7 @@ function assetVirtualMetrics(grid, context){
 function assetAnchorScrollTop(snapshot, items, metrics){
     const index = items.findIndex(item => item.id === snapshot.anchorId);
     return index < 0 ? Number(snapshot.top || 0)
-        : metrics.gridTop + Math.floor((index + 1) / metrics.columns) * metrics.rowStride - Number(snapshot.anchorOffset || 0);
+        : metrics.gridTop + Math.floor(index / metrics.columns) * metrics.rowStride - Number(snapshot.anchorOffset || 0);
 }
 function restoreAssetViewState(snapshot){
     if(!snapshot) return;
@@ -1994,7 +1994,7 @@ function renderAssetVirtualWindow(){
     const scrollTop = context.kind === 'window'
         ? Math.max(0, context.top - gridTop)
         : Math.max(0, scroller.scrollTop - gridTop);
-    const total = items.length + 1; // 上传卡也占一个网格位置
+    const total = items.length;
     const totalRows = Math.ceil(total / columns);
     const visibleRows = Math.ceil(context.viewportHeight / rowStride);
     const startRow = Math.min(
@@ -2012,8 +2012,8 @@ function renderAssetVirtualWindow(){
     const bottomHeight = trailingRows ? Math.max(0, trailingRows * rowStride - gap) : 0;
     const cells = [];
     for(let index = start; index < end; index++){
-        const item=index===0 ? activeAssetCategory() : items[index-1];
-        cells.push({key:index===0 ? 'upload' : `card:${item.id}`,item,html:index===0 ? renderUploadCard(item) : renderAssetCard(item)});
+        const item = items[index];
+        cells.push({key:`card:${item.id}`,item,html:renderAssetCard(item)});
     }
     patchVirtualGrid(grid,cells,topHeight,bottomHeight);
     if(grid.querySelector('[data-lucide]')) refreshIcons();
@@ -2052,6 +2052,7 @@ function renderAssetManager(){
                 <div class="asset-tools">
                     <label class="asset-search-wrap"><i data-lucide="search"></i><input id="assetSearch" class="asset-search" type="search" value="${escapeAttr(assetQuery)}" placeholder="搜索素材"></label>
                     <button class="asset-btn ${assetManageMode ? 'primary' : ''}" type="button" data-asset-manage><i data-lucide="list-checks"></i><span>${assetManageMode ? '完成管理' : '批量管理'}</span></button>
+                    <button class="asset-btn primary" type="button" data-asset-upload ${cat ? '' : 'disabled'}><i data-lucide="upload-cloud"></i><span>上传到当前分组</span></button>
                 </div>
             </div>
             ${renderAssetClipboardBar()}
@@ -2071,7 +2072,6 @@ function renderAssetManager(){
             </div>
             <div class="content-scroll" data-asset-view-library="${escapeAttr(activeAssetLibraryId)}" data-asset-view-category="${escapeAttr(activeAssetCategoryId)}" data-asset-view-query="${escapeAttr(assetQuery)}">
                 <div class="asset-grid" data-asset-virtual-grid>
-                    ${renderUploadCard(cat)}
                     ${visibleItems.map(item => renderAssetCard(item)).join('')}
                     ${renderAssetLoadMore(items.length)}
                     ${items.length ? '' : managerEmptyState(assetQuery,'当前分组还没有素材，可以上传，或从智能画布输出保存到素材库。')}
@@ -2215,15 +2215,6 @@ function renderWorkflowDetail(item){
             </div>
         </div>
     `;
-}
-function renderUploadCard(cat){
-    return `<button id="assetDrop" class="upload-grid-card" type="button" data-asset-upload ${!cat ? 'disabled' : ''}>
-        <span class="upload-thumb"><i data-lucide="upload-cloud"></i></span>
-        <span class="upload-body">
-            <strong>上传到当前分组</strong>
-            <small>拖入文件或点击上传</small>
-        </span>
-    </button>`;
 }
 function renderAssetClipboardBar(){
     if(!assetClipboard?.ids?.length) return '';
@@ -4721,18 +4712,20 @@ root.addEventListener('change', event => {
         scheduleAssetAvatarStatusRefresh(selectedAssetId);
     }
 });
+const managerUploadTargets = '[data-asset-view-library], #localUploadDrop, #workflowDrop';
 root.addEventListener('dragover', event => {
-    const drop = event.target.closest?.('#assetDrop, #localUploadDrop, #workflowDrop');
-    if(!drop) return;
+    const drop = event.target.closest?.(managerUploadTargets);
+    if(!drop || !Array.from(event.dataTransfer?.types || []).includes('Files')) return;
     event.preventDefault();
     drop.classList.add('drag-over');
 });
 root.addEventListener('dragleave', event => {
-    event.target.closest?.('#assetDrop, #localUploadDrop, #workflowDrop')?.classList.remove('drag-over');
+    const drop = event.target.closest?.(managerUploadTargets);
+    if(drop && !drop.contains(event.relatedTarget)) drop.classList.remove('drag-over');
 });
 root.addEventListener('drop', event => {
-    const drop = event.target.closest?.('#assetDrop, #localUploadDrop, #workflowDrop');
-    if(!drop) return;
+    const drop = event.target.closest?.(managerUploadTargets);
+    if(!drop || !event.dataTransfer?.files.length) return;
     event.preventDefault();
     drop.classList.remove('drag-over');
     if(drop.id === 'localUploadDrop') uploadLocalAssets(event.dataTransfer.files);

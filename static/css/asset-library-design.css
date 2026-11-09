@@ -11,7 +11,8 @@ body.studio-library .asset-tabs button.active {background:var(--studio-selected)
 body.studio-library .asset-tabs button.active>svg {color:var(--studio-accent-label)}
 body.studio-library .asset-manager-root {grid-template-columns:230px minmax(0,1fr);grid-template-rows:minmax(260px,1fr) clamp(210px,24vh,280px);gap:14px}
 body.studio-library .asset-manager-root.inspector-collapsed {grid-template-rows:minmax(260px,1fr) 48px}
-body.studio-library .inspector-collapsed .detail-scroll {display:none}
+body.studio-library .inspector-collapsed :is(.detail-scroll,.asset-detail>.panel-head>.panel-actions) {display:none}
+body.studio-library [data-asset-view-library].drag-over {outline:2px dashed var(--studio-focus);outline-offset:-2px}
 body.studio-library .asset-detail .panel-title {margin-right:auto}
 body.studio-library .inspector-toggle {flex-shrink:0}
 body.studio-library .asset-nav {grid-column:1;grid-row:1 / 3;background:transparent;border:0;border-right:1px solid var(--studio-border);border-radius:0;padding-right:14px}

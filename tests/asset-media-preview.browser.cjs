@@ -60,6 +60,13 @@ test('Library audio detail loads on demand, supports playback, and releases audi
     await page.evaluate(library=>{assetLibrary=library;activeAssetLibraryId='one';activeAssetCategoryId='images';selectedAssetId='audio';render();},library);
     assert.equal(await page.locator('[data-asset-card=file] img, [data-asset-card=file] video').count(),0,'generic files are not decoded as images');
     assert.equal(await page.locator('[data-asset-card=file] .asset-file-icon').count(),1);
+    const viewport=page.locator('[data-asset-view-library]');
+    const initialHeight=(await viewport.boundingBox()).height;
+    assert.equal(await viewport.locator('[data-asset-virtual-grid] > :first-child').getAttribute('data-asset-card'),'audio');
+    await page.locator('[data-asset-card=file]').click();
+    await page.locator('[data-asset-card=audio]').click();
+    assert.equal((await viewport.boundingBox()).height,initialHeight);
+    await page.getByRole('button',{name:'查看详情',exact:true}).click();
     const requests=[];page.on('request',r=>requests.push(new URL(r.url()).pathname));
     // A valid PCM sample exercises native playback without external services.
     const wav=Buffer.alloc(44+16000);
@@ -72,7 +79,7 @@ test('Library audio detail loads on demand, supports playback, and releases audi
         await button.focus();
         assert.equal(await page.locator('.asset-audio-detail .detail-media-frame').count(),0,'audio uses its own detail layout');
         assert.equal(await page.locator('audio').count(),0,'no eager player is mounted');
-        await button.click();
+        await button.press('Enter');
         const dialog=page.getByRole('dialog',{name:'音频预览'});
         await dialog.waitFor({state:'visible'});
         assert.equal(await dialog.locator('audio').getAttribute('preload'),'none');
@@ -80,9 +87,9 @@ test('Library audio detail loads on demand, supports playback, and releases audi
         await dialog.locator('audio').evaluate(async media=>{window.previewAudio=media;await media.play();});
         assert.equal(await page.evaluate(()=>previewAudio.paused),false);
         await page.keyboard.press('Escape');
-        await dialog.waitFor({state:'detached'});
+        await page.waitForFunction(()=>!previewAudio.isConnected);
         assert.equal(await page.evaluate(()=>previewAudio.paused && !previewAudio.hasAttribute('src')),true);
-        assert.equal(await button.evaluate(el=>el===document.activeElement),true);
+        await page.waitForFunction(() => document.activeElement?.matches('button[data-asset-preview="audio"]'));
     }
     assert.ok(requests.includes('/assets/sound.wav'));
     assert.equal(writes.length,0);

@@ -7,7 +7,7 @@ test('directory menus retain filtering, counts and keyboard focus without busine
   extraRecords:[{id:'b',title:'Beta',kind:'smart',folder_id:'brand',updated_at:2},{id:'c',title:'Gamma',updated_at:3},{id:'d',title:'Delta',updated_at:4}],folders:[{id:'brand',name:'品牌项目'}]});
  const before=writes.length;
  assert.equal(await page.locator('#studioRecent').count(),0);
- assert.equal(await page.locator('.project-new-card').count(),1);
+ assert.equal(await page.getByRole('button',{name:'新建画布',exact:true}).count(),1);
  await page.locator('#studioFolderTrigger').press('ArrowDown');
  assert.equal(await page.locator('.gate-folder-node.active .gate-folder-main').evaluate(el=>el===document.activeElement),true);
  await page.locator('.gate-folder-node.active .gate-folder-main').press('End');
@@ -41,7 +41,7 @@ test('directory fits desktop screens and exposes failed-load recovery and reduce
  await page.getByRole('button',{name:'重新加载',exact:true}).click();
  assert.equal(await page.locator('#studioHomeFeedback').isVisible(),false);
  await page.emulateMedia({reducedMotion:'reduce'});
- assert.equal(await page.locator('.project-new-card').evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
+ assert.equal(await page.locator('.canvas-item').first().evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
  assert.deepEqual(errors,[]);
 });
 
