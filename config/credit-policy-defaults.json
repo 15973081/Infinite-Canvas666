@@ -1,0 +1,2545 @@
+{
+  "creditsPerCNY": 15,
+  "tiers": [
+    {
+      "minAmount": 69,
+      "bonusRate": 0.15
+    },
+    {
+      "minAmount": 399,
+      "bonusRate": 0.3
+    },
+    {
+      "minAmount": 2499,
+      "bonusRate": 0.5
+    },
+    {
+      "minAmount": 4999,
+      "bonusRate": 0.7
+    }
+  ],
+  "rewards": {
+    "firstRechargeEnabled": true,
+    "firstRechargeMinimum": 69,
+    "firstRechargeCredits": 500,
+    "referralEnabled": true,
+    "inviterCredits": 10,
+    "inviteeCredits": 10,
+    "maxReferralCount": 20,
+    "creationEnabled": true,
+    "creationMaxCredits": 10000,
+    "creationMinimumPercent": 60
+  },
+  "validity": "PERMANENT",
+  "rules": [
+    {
+      "modelCode": "MIDJOURNEY_NIJI_7",
+      "modelName": "悠船 Niji V7",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "aspectRatio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1:1": 16,
+          "2:3": 16,
+          "3:2": 16,
+          "3:4": 16,
+          "4:3": 16,
+          "16:9": 16
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "PIXDANCE_2_5",
+      "modelName": "Seedance 2.5",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "480P": 19,
+          "720P": 42,
+          "1080P": 105
+        },
+        "isInputVideoPerSecond": true,
+        "videoInputSecondPrices": {
+          "480P": 15,
+          "720P": 30,
+          "1080P": 75
+        },
+        "combinationPricesWithVideo": {
+          "480P": 15,
+          "720P": 30,
+          "1080P": 75
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1786032000,
+      "activityEndTime": 1786636800,
+      "enabled": true
+    },
+    {
+      "modelCode": "SORA_2_PRO",
+      "modelName": "PixSR 2 Pro",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "720P": 24,
+          "1080P": 40
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "DOUBAO_SEED_2_1_PRO",
+      "modelName": "Doubao Seed 2.1 Pro",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 4,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MINIMAX_M3",
+      "modelName": "MiniMax M3",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 1,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "GEMINI_25_PRO",
+      "modelName": "Gen 2.5 Pro",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 3,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "DOUBAO_SEEDREAM_5_PRO",
+      "modelName": "Doubao Seedream 5.0 Pro",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1K": 8,
+          "2K": 10
+        }
+      },
+      "discountType": "ACTIVITY",
+      "discountRate": 0.6,
+      "returnDiscountedPrice": true,
+      "activityStartTime": 1784779200,
+      "activityEndTime": 1792771200,
+      "enabled": true
+    },
+    {
+      "modelCode": "VIDU_Q3_MIX",
+      "modelName": "Vidu Q3 Mix",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "720P": 13,
+          "1080P": 16
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1782461100,
+      "activityEndTime": 1783872000,
+      "enabled": true
+    },
+    {
+      "modelCode": "ELEVENLABS_V2",
+      "modelName": "PixLabs V2",
+      "nodeType": "GENERATE_AUDIO",
+      "billingType": "INPUT_TEXT",
+      "basePrice": 1,
+      "pricingConfig": {
+        "minPrice": 1,
+        "unitChars": 20
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VIDU_Q3_PRO",
+      "modelName": "Vidu Q3 Pro",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "720P": 16,
+          "1080P": 17
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "DOUBAO_SEEDREAM_4_5",
+      "modelName": "Doubao Seedream 4.5",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 6,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MINIMAX_SPEECH_28_HD",
+      "modelName": "MiniMax Speech 2.8 HD",
+      "nodeType": "GENERATE_AUDIO",
+      "billingType": "INPUT_TEXT",
+      "basePrice": 2,
+      "pricingConfig": {
+        "minPrice": 2,
+        "unitChars": 200,
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "IMAGE_UPSCALE",
+      "modelName": "Image Upscale",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "superResolutionType",
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "super||2K": 3,
+          "super||4K": 4,
+          "ultra||2K": 4,
+          "ultra||4K": 5,
+          "fidelity||2K": 5,
+          "fidelity||4K": 6,
+          "super||1080P": 2,
+          "ultra||1080P": 3,
+          "fidelity||1080P": 4
+        },
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "DOUBAO_SEED_2_PRO",
+      "modelName": "Doubao Seed 2.0 Pro",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 2,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "SMART_ERASE",
+      "modelName": "Smart Erase",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VIDEO_UPSCALE",
+      "modelName": "Video Upscale",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution",
+          "frameRate"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "2K||": 1,
+          "4K||": 3,
+          "1080P||": 1,
+          "2K||30FPS": 2,
+          "2K||60FPS": 3,
+          "4K||30FPS": 4,
+          "4K||60FPS": 6,
+          "1080P||30FPS": 2,
+          "1080P||60FPS": 3
+        },
+        "isInputVideoPerSecond": false,
+        "combinationPricesWithVideo": {
+          "2K||": 1,
+          "4K||": 3,
+          "1080P||": 1,
+          "2K||30FPS": 2,
+          "2K||60FPS": 3,
+          "4K||30FPS": 4,
+          "4K||60FPS": 6,
+          "1080P||30FPS": 2,
+          "1080P||60FPS": 3
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "GLM_52",
+      "modelName": "GLM 5.2",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 4,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {},
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "QWEN_IMAGE_EDIT_MAX",
+      "modelName": "Qwen Image Edit Max",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 16,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VIDU_Q2_PRO",
+      "modelName": "Vidu Q2 Pro",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "720P": 5,
+          "1080P": 10
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "KLING_2_6",
+      "modelName": "Kling 2.6",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution",
+          "includeAudio"
+        ],
+        "combinationPrices": {
+          "720P||true": 4,
+          "1080P||true": 16,
+          "720P||false": 4,
+          "1080P||false": 8
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "WAN3_0_PRIME",
+      "modelName": "Wan 3.0 Prime",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "480P": 11,
+          "720P": 22,
+          "1080P": 44
+        },
+        "isInputVideoPerSecond": true,
+        "videoInputSecondPrices": {
+          "480P": 11,
+          "720P": 22,
+          "1080P": 44
+        },
+        "combinationPricesWithVideo": {
+          "480P": 11,
+          "720P": 22,
+          "1080P": 44
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1787760000,
+      "activityEndTime": 1788192000,
+      "enabled": true
+    },
+    {
+      "modelCode": "PIXDANCE_2",
+      "modelName": "Seedance 2.0",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "4K": 143,
+          "480P": 10,
+          "720P": 28,
+          "1080P": 70,
+          "SUPER_4K": 80,
+          "SUPER_720P": 16,
+          "SUPER_1080P": 36
+        },
+        "combinationPricesWithVideo": {
+          "4K": 185,
+          "480P": 14,
+          "720P": 36,
+          "1080P": 90,
+          "SUPER_4K": 100,
+          "SUPER_720P": 20,
+          "SUPER_1080P": 44
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "PIXVERSE_C1",
+      "modelName": "PixVerse C1",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution",
+          "includeAudio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "360P||true": 4,
+          "540P||true": 5,
+          "720P||true": 7,
+          "1080P||true": 12,
+          "360P||false": 3,
+          "540P||false": 4,
+          "720P||false": 5,
+          "1080P||false": 10
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MIDJOURNEY_V8_1",
+      "modelName": "悠船 V8.1",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "aspectRatio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1:1": 20,
+          "2:3": 20,
+          "3:2": 20,
+          "3:4": 20,
+          "4:3": 20,
+          "16:9": 20,
+          "21:9": 20,
+          "9:16": 20,
+          "9:21": 20
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MINIMAX_H3",
+      "modelName": "MiniMax H3",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 2,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "2K": 22,
+          "768P": 14
+        },
+        "isInputVideoPerSecond": true,
+        "videoInputSecondPrices": {
+          "2K": 22,
+          "768P": 14
+        },
+        "combinationPricesWithVideo": {
+          "2K": 22,
+          "768P": 14
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1787292000,
+      "activityEndTime": 1788191999,
+      "enabled": true
+    },
+    {
+      "modelCode": "HUNYUAN_3D_PRO_31",
+      "modelName": "Hunyuan 3D Pro 3.1",
+      "nodeType": "GENERATE_3D",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "referModel",
+          "generateType",
+          "enablePBR",
+          "faceCount"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "textTo3D||Normal||true||300000": 185,
+          "textTo3D||Normal||true||500000": 205,
+          "imageTo3D||Normal||true||300000": 185,
+          "imageTo3D||Normal||true||500000": 205,
+          "multiTo3D||Normal||true||300000": 235,
+          "multiTo3D||Normal||true||500000": 255,
+          "textTo3D||Normal||false||300000": 135,
+          "textTo3D||Normal||false||500000": 155,
+          "imageTo3D||Normal||false||300000": 135,
+          "imageTo3D||Normal||false||500000": 155,
+          "multiTo3D||Normal||false||300000": 185,
+          "multiTo3D||Normal||false||500000": 205,
+          "textTo3D||Geometry||true||300000": 165,
+          "textTo3D||Geometry||true||500000": 185,
+          "imageTo3D||Geometry||true||300000": 165,
+          "imageTo3D||Geometry||true||500000": 185,
+          "multiTo3D||Geometry||true||300000": 215,
+          "multiTo3D||Geometry||true||500000": 235,
+          "textTo3D||Geometry||false||300000": 115,
+          "textTo3D||Geometry||false||500000": 135,
+          "imageTo3D||Geometry||false||300000": 115,
+          "imageTo3D||Geometry||false||500000": 135,
+          "multiTo3D||Geometry||false||300000": 165,
+          "multiTo3D||Geometry||false||500000": 185
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "BANANA_PRO",
+      "modelName": "PixNano Pro",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1K": 14,
+          "2K": 14,
+          "4K": 26
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1781228700,
+      "activityEndTime": 1783872000,
+      "enabled": true
+    },
+    {
+      "modelCode": "DEEPSEEK_V4_FLASH",
+      "modelName": "DeepSeek V4 Flash",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 2,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {},
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "HUNYUAN_3D_PRO_30",
+      "modelName": "Hunyuan 3D Pro 3.0",
+      "nodeType": "GENERATE_3D",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "referModel",
+          "generateType",
+          "enablePBR",
+          "faceCount"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "textTo3D||LowPoly||true||0": 130,
+          "imageTo3D||LowPoly||true||0": 130,
+          "multiTo3D||LowPoly||true||0": 170,
+          "textTo3D||LowPoly||false||0": 90,
+          "imageTo3D||LowPoly||false||0": 90,
+          "multiTo3D||LowPoly||false||0": 130,
+          "textTo3D||Normal||true||300000": 155,
+          "textTo3D||Normal||true||500000": 175,
+          "textTo3D||Sketch||true||300000": 170,
+          "textTo3D||Sketch||true||500000": 190,
+          "imageTo3D||Normal||true||300000": 155,
+          "imageTo3D||Normal||true||500000": 185,
+          "imageTo3D||Sketch||true||300000": 170,
+          "imageTo3D||Sketch||true||500000": 190,
+          "multiTo3D||Normal||true||300000": 195,
+          "multiTo3D||Normal||true||500000": 215,
+          "multiTo3D||Sketch||true||300000": 210,
+          "multiTo3D||Sketch||true||500000": 230,
+          "textTo3D||LowPoly||true||300000": 170,
+          "textTo3D||LowPoly||true||500000": 190,
+          "textTo3D||Normal||false||300000": 115,
+          "textTo3D||Normal||false||500000": 135,
+          "textTo3D||Sketch||false||300000": 130,
+          "textTo3D||Sketch||false||500000": 150,
+          "imageTo3D||LowPoly||true||300000": 170,
+          "imageTo3D||LowPoly||true||500000": 190,
+          "imageTo3D||Normal||false||300000": 115,
+          "imageTo3D||Normal||false||500000": 135,
+          "imageTo3D||Sketch||false||300000": 130,
+          "imageTo3D||Sketch||false||500000": 150,
+          "multiTo3D||LowPoly||true||300000": 210,
+          "multiTo3D||LowPoly||true||500000": 230,
+          "multiTo3D||Normal||false||300000": 155,
+          "multiTo3D||Normal||false||500000": 175,
+          "multiTo3D||Sketch||false||300000": 170,
+          "multiTo3D||Sketch||false||500000": 190,
+          "textTo3D||Geometry||true||300000": 135,
+          "textTo3D||Geometry||true||500000": 155,
+          "textTo3D||LowPoly||false||300000": 130,
+          "textTo3D||LowPoly||false||500000": 150,
+          "imageTo3D||Geometry||true||300000": 135,
+          "imageTo3D||Geometry||true||500000": 155,
+          "imageTo3D||LowPoly||false||300000": 130,
+          "imageTo3D||LowPoly||false||500000": 150,
+          "multiTo3D||Geometry||true||300000": 175,
+          "multiTo3D||Geometry||true||500000": 215,
+          "multiTo3D||LowPoly||false||300000": 170,
+          "multiTo3D||LowPoly||false||500000": 190,
+          "textTo3D||Geometry||false||300000": 95,
+          "textTo3D||Geometry||false||500000": 115,
+          "imageTo3D||Geometry||false||300000": 95,
+          "imageTo3D||Geometry||false||500000": 115,
+          "multiTo3D||Geometry||false||300000": 135,
+          "multiTo3D||Geometry||false||500000": 175
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "JIMENG_5_LITE",
+      "modelName": "Doubao Seedream 5.0 Lite",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 5,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "BANANA_2",
+      "modelName": "PixNano 2",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1K": 8,
+          "2K": 12,
+          "4K": 18
+        },
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1781228700,
+      "activityEndTime": 1783872000,
+      "enabled": true
+    },
+    {
+      "modelCode": "SEEDANCE_1_5",
+      "modelName": "Seedance 1.5 Pro",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution",
+          "includeAudio"
+        ],
+        "combinationPrices": {
+          "480P||true": 4,
+          "720P||true": 10,
+          "1080P||true": 22,
+          "480P||false": 2,
+          "720P||false": 5,
+          "1080P||false": 11
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "DOUBAO_SEED_2_LITE",
+      "modelName": "Doubao Seed 2.0 lite",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 1,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "GPT_IMAGE_2_5_SUNBURST",
+      "modelName": "PixImage 2.5 Sunburst",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "quality",
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "low||1K": 4,
+          "low||2K": 6,
+          "low||4K": 8,
+          "max||1K": 50,
+          "max||2K": 100,
+          "max||4K": 150,
+          "high||1K": 12,
+          "high||2K": 24,
+          "high||4K": 40,
+          "xhigh||1K": 24,
+          "xhigh||2K": 46,
+          "xhigh||4K": 70,
+          "medium||1K": 8,
+          "medium||2K": 10,
+          "medium||4K": 12
+        },
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VEGA_10_PRO",
+      "modelName": "Vega 1.0 Pro",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "2K": 125,
+          "4K": 143,
+          "720P": 28,
+          "1080P": 70
+        },
+        "isInputVideoPerSecond": false,
+        "combinationPricesWithVideo": {
+          "2K": 165,
+          "4K": 185,
+          "720P": 36,
+          "1080P": 90
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1789401600,
+      "activityEndTime": 1790784000,
+      "enabled": true
+    },
+    {
+      "modelCode": "QWEN_IMAGE_3",
+      "modelName": "Qwen Image 3",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 1,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1K": 6,
+          "2K": 7
+        },
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "PIXVERSE_V6",
+      "modelName": "PixVerse V6",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution",
+          "duration",
+          "extendDuration",
+          "includeAudio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "360P||5||5||true": 20,
+          "360P||5||8||true": 20,
+          "360P||8||5||true": 32,
+          "360P||8||8||true": 32,
+          "540P||5||5||true": 25,
+          "540P||5||8||true": 25,
+          "540P||8||5||true": 40,
+          "540P||8||8||true": 40,
+          "720P||5||5||true": 30,
+          "720P||5||8||true": 30,
+          "720P||8||5||true": 48,
+          "720P||8||8||true": 48,
+          "1080P||5||5||true": 60,
+          "1080P||5||8||true": 60,
+          "1080P||8||5||true": 96,
+          "1080P||8||8||true": 96,
+          "360P||10||5||true": 40,
+          "360P||10||8||true": 40,
+          "360P||15||5||true": 60,
+          "360P||15||8||true": 60,
+          "360P||5||10||true": 20,
+          "360P||5||15||true": 20,
+          "360P||5||5||false": 15,
+          "360P||5||8||false": 15,
+          "360P||8||10||true": 32,
+          "360P||8||15||true": 32,
+          "360P||8||5||false": 24,
+          "360P||8||8||false": 24,
+          "540P||10||5||true": 50,
+          "540P||10||8||true": 50,
+          "540P||15||5||true": 75,
+          "540P||15||8||true": 75,
+          "540P||5||10||true": 25,
+          "540P||5||15||true": 25,
+          "540P||5||5||false": 20,
+          "540P||5||8||false": 20,
+          "540P||8||10||true": 40,
+          "540P||8||15||true": 40,
+          "540P||8||5||false": 32,
+          "540P||8||8||false": 32,
+          "720P||10||5||true": 60,
+          "720P||10||8||true": 60,
+          "720P||15||5||true": 90,
+          "720P||15||8||true": 90,
+          "720P||5||10||true": 30,
+          "720P||5||15||true": 30,
+          "720P||5||5||false": 25,
+          "720P||5||8||false": 25,
+          "720P||8||10||true": 48,
+          "720P||8||15||true": 48,
+          "720P||8||5||false": 30,
+          "720P||8||8||false": 30,
+          "1080P||10||5||true": 120,
+          "1080P||10||8||true": 120,
+          "1080P||15||5||true": 180,
+          "1080P||15||8||true": 180,
+          "1080P||5||10||true": 60,
+          "1080P||5||15||true": 60,
+          "1080P||5||5||false": 45,
+          "1080P||5||8||false": 45,
+          "1080P||8||10||true": 96,
+          "1080P||8||15||true": 96,
+          "1080P||8||5||false": 72,
+          "1080P||8||8||false": 72,
+          "360P||10||10||true": 40,
+          "360P||10||15||true": 40,
+          "360P||10||5||false": 30,
+          "360P||10||8||false": 30,
+          "360P||15||10||true": 60,
+          "360P||15||15||true": 60,
+          "360P||15||5||false": 45,
+          "360P||15||8||false": 45,
+          "360P||5||10||false": 15,
+          "360P||5||15||false": 15,
+          "360P||8||10||false": 24,
+          "360P||8||15||false": 24,
+          "540P||10||10||true": 50,
+          "540P||10||15||true": 50,
+          "540P||10||5||false": 40,
+          "540P||10||8||false": 40,
+          "540P||15||10||true": 75,
+          "540P||15||15||true": 75,
+          "540P||15||5||false": 60,
+          "540P||15||8||false": 60,
+          "540P||5||10||false": 20,
+          "540P||5||15||false": 20,
+          "540P||8||10||false": 32,
+          "540P||8||15||false": 32,
+          "720P||10||10||true": 60,
+          "720P||10||15||true": 60,
+          "720P||10||5||false": 50,
+          "720P||10||8||false": 50,
+          "720P||15||10||true": 90,
+          "720P||15||15||true": 90,
+          "720P||15||5||false": 75,
+          "720P||15||8||false": 75,
+          "720P||5||10||false": 25,
+          "720P||5||15||false": 25,
+          "720P||8||10||false": 40,
+          "720P||8||15||false": 40,
+          "1080P||10||10||true": 120,
+          "1080P||10||15||true": 120,
+          "1080P||10||5||false": 90,
+          "1080P||10||8||false": 90,
+          "1080P||15||10||true": 180,
+          "1080P||15||15||true": 180,
+          "1080P||15||5||false": 135,
+          "1080P||15||8||false": 135,
+          "1080P||5||10||false": 45,
+          "1080P||5||15||false": 45,
+          "1080P||8||10||false": 72,
+          "1080P||8||15||false": 72,
+          "360P||10||10||false": 30,
+          "360P||10||15||false": 30,
+          "360P||15||10||false": 45,
+          "360P||15||15||false": 45,
+          "540P||10||10||false": 40,
+          "540P||10||15||false": 40,
+          "540P||15||10||false": 60,
+          "540P||15||15||false": 60,
+          "720P||10||10||false": 50,
+          "720P||10||15||false": 50,
+          "720P||15||10||false": 75,
+          "720P||15||15||false": 75,
+          "1080P||10||10||false": 90,
+          "1080P||10||15||false": 90,
+          "1080P||15||10||false": 135,
+          "1080P||15||15||false": 135
+        },
+        "combinationPricesWithVideo": {
+          "360P||5||5||true": 20,
+          "360P||5||8||true": 32,
+          "360P||8||5||true": 20,
+          "360P||8||8||true": 32,
+          "540P||5||5||true": 25,
+          "540P||5||8||true": 40,
+          "540P||8||5||true": 25,
+          "540P||8||8||true": 40,
+          "720P||5||5||true": 35,
+          "720P||5||8||true": 56,
+          "720P||8||5||true": 35,
+          "720P||8||8||true": 56,
+          "1080P||5||5||true": 70,
+          "1080P||5||8||true": 112,
+          "1080P||8||5||true": 70,
+          "1080P||8||8||true": 112,
+          "360P||10||5||true": 20,
+          "360P||10||8||true": 32,
+          "360P||15||5||true": 20,
+          "360P||15||8||true": 32,
+          "360P||5||10||true": 40,
+          "360P||5||15||true": 60,
+          "360P||5||5||false": 15,
+          "360P||5||8||false": 24,
+          "360P||8||10||true": 40,
+          "360P||8||15||true": 60,
+          "360P||8||5||false": 15,
+          "360P||8||8||false": 24,
+          "540P||10||5||true": 25,
+          "540P||10||8||true": 40,
+          "540P||15||5||true": 25,
+          "540P||15||8||true": 40,
+          "540P||5||10||true": 50,
+          "540P||5||15||true": 75,
+          "540P||5||5||false": 20,
+          "540P||5||8||false": 32,
+          "540P||8||10||true": 50,
+          "540P||8||15||true": 75,
+          "540P||8||5||false": 20,
+          "540P||8||8||false": 32,
+          "720P||10||5||true": 35,
+          "720P||10||8||true": 56,
+          "720P||15||5||true": 35,
+          "720P||15||8||true": 56,
+          "720P||5||10||true": 70,
+          "720P||5||15||true": 105,
+          "720P||5||5||false": 25,
+          "720P||5||8||false": 40,
+          "720P||8||10||true": 70,
+          "720P||8||15||true": 105,
+          "720P||8||5||false": 25,
+          "720P||8||8||false": 40,
+          "1080P||10||5||true": 70,
+          "1080P||10||8||true": 112,
+          "1080P||15||5||true": 70,
+          "1080P||15||8||true": 112,
+          "1080P||5||10||true": 140,
+          "1080P||5||15||true": 210,
+          "1080P||5||5||false": 45,
+          "1080P||5||8||false": 72,
+          "1080P||8||10||true": 140,
+          "1080P||8||15||true": 210,
+          "1080P||8||5||false": 45,
+          "1080P||8||8||false": 72,
+          "360P||10||10||true": 40,
+          "360P||10||15||true": 60,
+          "360P||10||5||false": 15,
+          "360P||10||8||false": 24,
+          "360P||15||10||true": 40,
+          "360P||15||15||true": 60,
+          "360P||15||5||false": 15,
+          "360P||15||8||false": 24,
+          "360P||5||10||false": 30,
+          "360P||5||15||false": 45,
+          "360P||8||10||false": 30,
+          "360P||8||15||false": 45,
+          "540P||10||10||true": 50,
+          "540P||10||15||true": 75,
+          "540P||10||5||false": 20,
+          "540P||10||8||false": 32,
+          "540P||15||10||true": 50,
+          "540P||15||15||true": 75,
+          "540P||15||5||false": 20,
+          "540P||15||8||false": 32,
+          "540P||5||10||false": 40,
+          "540P||5||15||false": 60,
+          "540P||8||10||false": 40,
+          "540P||8||15||false": 60,
+          "720P||10||10||true": 70,
+          "720P||10||15||true": 105,
+          "720P||10||5||false": 25,
+          "720P||10||8||false": 40,
+          "720P||15||10||true": 70,
+          "720P||15||15||true": 105,
+          "720P||15||5||false": 25,
+          "720P||15||8||false": 40,
+          "720P||5||10||false": 50,
+          "720P||5||15||false": 75,
+          "720P||8||10||false": 50,
+          "720P||8||15||false": 75,
+          "1080P||10||10||true": 140,
+          "1080P||10||15||true": 210,
+          "1080P||10||5||false": 45,
+          "1080P||10||8||false": 72,
+          "1080P||15||10||true": 140,
+          "1080P||15||15||true": 210,
+          "1080P||15||5||false": 45,
+          "1080P||15||8||false": 72,
+          "1080P||5||10||false": 90,
+          "1080P||5||15||false": 135,
+          "1080P||8||10||false": 90,
+          "1080P||8||15||false": 135,
+          "360P||10||10||false": 30,
+          "360P||10||15||false": 45,
+          "360P||15||10||false": 30,
+          "360P||15||15||false": 45,
+          "540P||10||10||false": 40,
+          "540P||10||15||false": 60,
+          "540P||15||10||false": 40,
+          "540P||15||15||false": 60,
+          "720P||10||10||false": 50,
+          "720P||10||15||false": 75,
+          "720P||15||10||false": 50,
+          "720P||15||15||false": 75,
+          "1080P||10||10||false": 90,
+          "1080P||10||15||false": 135,
+          "1080P||15||10||false": 90,
+          "1080P||15||15||false": 135
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "BANANA",
+      "modelName": "PixNano",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 4,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1781228700,
+      "activityEndTime": 1783872000,
+      "enabled": true
+    },
+    {
+      "modelCode": "GPT_IMAGE_2_1K",
+      "modelName": "Pix Image 2 1K",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "quality"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "low": 2,
+          "high": 4,
+          "medium": 3
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "DOUBAO_SEED_2_1_TURBO",
+      "modelName": "Doubao Seed 2.1 Turbo",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 3,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MIDJOURNEY_V8_2",
+      "modelName": "悠船 V8.2",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "aspectRatio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1:1": 20,
+          "2:3": 20,
+          "3:2": 20,
+          "3:4": 20,
+          "4:3": 20,
+          "16:9": 20,
+          "21:9": 20,
+          "9:16": 20,
+          "9:21": 20
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "KLING_V3_OMNI",
+      "modelName": "Kling V3 Omni",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution",
+          "includeAudio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "4K||true": 48,
+          "4K||false": 48,
+          "720P||true": 15,
+          "1080P||true": 18,
+          "720P||false": 11,
+          "1080P||false": 15
+        },
+        "combinationPricesWithVideo": {
+          "4K||true": 48,
+          "4K||false": 48,
+          "720P||true": 15,
+          "1080P||true": 18,
+          "720P||false": 17,
+          "1080P||false": 22
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "PIXDANCE_2_FAST",
+      "modelName": "Seedance 2.0 Fast",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "480P": 8,
+          "720P": 22,
+          "1080P": 52,
+          "SUPER_4K": 60,
+          "SUPER_720P": 14,
+          "SUPER_1080P": 26
+        },
+        "combinationPricesWithVideo": {
+          "480P": 10,
+          "720P": 28,
+          "1080P": 62,
+          "SUPER_4K": 68,
+          "SUPER_720P": 18,
+          "SUPER_1080P": 32
+        }
+      },
+      "discountType": "ACTIVITY",
+      "discountRate": 0.6,
+      "returnDiscountedPrice": true,
+      "activityStartTime": 1791543600,
+      "activityEndTime": 1793462399,
+      "enabled": true
+    },
+    {
+      "modelCode": "GEMINI_31_FLASH",
+      "modelName": "Gen 3.1 Flash",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 1,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "GEMINI_3_FLASH",
+      "modelName": "Gen 3 Flash",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 1,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "WAN2_6",
+      "modelName": "Wan 2.6",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "720P": 10,
+          "1080P": 15
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "PIXDANCE_2_MINI",
+      "modelName": "Seedance 2.0 Mini",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "480P": 5,
+          "720P": 14,
+          "SUPER_4K": 24,
+          "SUPER_720P": 8,
+          "SUPER_1080P": 16
+        },
+        "combinationPricesWithVideo": {
+          "480P": 7,
+          "720P": 18,
+          "SUPER_4K": 30,
+          "SUPER_720P": 13,
+          "SUPER_1080P": 22
+        }
+      },
+      "discountType": "ACTIVITY",
+      "discountRate": 0.6,
+      "returnDiscountedPrice": true,
+      "activityStartTime": 1791543600,
+      "activityEndTime": 1793462399,
+      "enabled": true
+    },
+    {
+      "modelCode": "MINIMAX_IMAGE_01_LIVE",
+      "modelName": "MiniMax Image 01 Live",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "aspectRatio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1:1": 2,
+          "2:3": 2,
+          "3:2": 2,
+          "3:4": 2,
+          "4:3": 2,
+          "16:9": 2,
+          "9:16": 2
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "GEMINI_31_PRO",
+      "modelName": "Gen 3.1 Pro",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 4,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "PIXDANCE_2_IP",
+      "modelName": "Seedance 2.0 IP",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution",
+          "ipTemplate"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "480P||template001": 11,
+          "720P||template001": 31,
+          "1080P||template001": 70
+        },
+        "combinationPricesWithVideo": {
+          "480P||template001": 13,
+          "720P||template001": 40,
+          "1080P||template001": 88
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "QWEN_IMAGE_EDIT_PLUS",
+      "modelName": "Qwen Image Edit Plus",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 8,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VIDU_Q2",
+      "modelName": "Vidu Q2",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "SORA_2",
+      "modelName": "PixSR 2",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "720P": 8
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MINIMAX_IMAGE_01",
+      "modelName": "MiniMax Image 01",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "aspectRatio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1:1": 2,
+          "2:3": 2,
+          "3:2": 2,
+          "3:4": 2,
+          "4:3": 2,
+          "16:9": 2,
+          "21:9": 2,
+          "9:16": 2
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "KLING_O1",
+      "modelName": "Kling O1",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "720P": 8,
+          "1080P": 11
+        },
+        "combinationPricesWithVideo": {
+          "720P": 13,
+          "1080P": 17
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MINIMAX_H3_MAX",
+      "modelName": "MiniMax H3 Max",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 2,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "480P": 10,
+          "768P": 24
+        },
+        "isInputVideoPerSecond": true,
+        "videoInputSecondPrices": {
+          "480P": 10,
+          "768P": 24
+        },
+        "combinationPricesWithVideo": {
+          "480P": 10,
+          "768P": 24
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MINIMAX_SPEECH_28_TURBO",
+      "modelName": "MiniMax Speech 2.8 Turbo",
+      "nodeType": "GENERATE_AUDIO",
+      "billingType": "INPUT_TEXT",
+      "basePrice": 1,
+      "pricingConfig": {
+        "minPrice": 1,
+        "unitChars": 200,
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "HAPPYHORSE_11",
+      "modelName": "HappyHorse 1.1",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "720P": 28,
+          "1080P": 36
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "HAILUO_02",
+      "modelName": "Hailuo 02",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "768P": 6,
+          "1080P": 12
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "GEMINI_3_PRO",
+      "modelName": "Gen 3 Pro",
+      "nodeType": null,
+      "billingType": "TASK_PARAMS",
+      "basePrice": 4,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "WAN3_0",
+      "modelName": "Wan 3.0",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "480P": 6,
+          "720P": 12,
+          "1080P": 24
+        },
+        "isInputVideoPerSecond": true,
+        "videoInputSecondPrices": {
+          "480P": 6,
+          "720P": 12,
+          "1080P": 24
+        },
+        "combinationPricesWithVideo": {
+          "480P": 6,
+          "720P": 12,
+          "1080P": 24
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1787846400,
+      "activityEndTime": 1788191999,
+      "enabled": true
+    },
+    {
+      "modelCode": "GPT_IMAGE_2_5_FLARE",
+      "modelName": "PixImage 2.5 Flare",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "quality",
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "low||1K": 4,
+          "low||2K": 6,
+          "low||4K": 8,
+          "max||1K": 50,
+          "max||2K": 100,
+          "max||4K": 150,
+          "high||1K": 12,
+          "high||2K": 24,
+          "high||4K": 40,
+          "xhigh||1K": 24,
+          "xhigh||2K": 46,
+          "xhigh||4K": 70,
+          "medium||1K": 8,
+          "medium||2K": 10,
+          "medium||4K": 12
+        },
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VEO31_PREVIEW",
+      "modelName": "Video 3.1 Preview",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution",
+          "includeAudio"
+        ],
+        "combinationPrices": {
+          "4K||true": 72,
+          "4K||false": 48,
+          "720P||true": 50,
+          "1080P||true": 50,
+          "720P||false": 25,
+          "1080P||false": 25
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "GPT_IMAGE_2",
+      "modelName": "PixImage 2",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "quality",
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 3,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "low||1K": 2,
+          "low||2K": 3,
+          "low||4K": 4,
+          "high||1K": 31,
+          "high||2K": 48,
+          "high||4K": 70,
+          "medium||1K": 9,
+          "medium||2K": 13,
+          "medium||4K": 20
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1781228400,
+      "activityEndTime": 1783872000,
+      "enabled": true
+    },
+    {
+      "modelCode": "HAPPYHORSE_10",
+      "modelName": "HappyHorse 1.0",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "720P": 26,
+          "1080P": 48
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": 1780037640,
+      "activityEndTime": 1780243200,
+      "enabled": true
+    },
+    {
+      "modelCode": "PIXDANCE_2_5_DRAFT",
+      "modelName": "Seedance 2.5 Draft",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": true,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "480P": 19,
+          "1080P": 105
+        },
+        "isInputVideoPerSecond": false,
+        "combinationPricesWithVideo": {
+          "480P": 15,
+          "1080P": 75
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "ELEVENLABS_MUSIC",
+      "modelName": "PixLabs Music",
+      "nodeType": "GENERATE_AUDIO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "duration"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "30": 60,
+          "60": 120,
+          "90": 180,
+          "120": 240,
+          "150": 300,
+          "180": 360,
+          "210": 420,
+          "240": 480,
+          "270": 540,
+          "300": 600
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "ELEVENLABS_V3",
+      "modelName": "PixLabs V3",
+      "nodeType": "GENERATE_AUDIO",
+      "billingType": "INPUT_TEXT",
+      "basePrice": 1,
+      "pricingConfig": {
+        "minPrice": 1,
+        "unitChars": 20
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "GEMINI_25_FLASH",
+      "modelName": "Gen 2.5 Flash",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 1,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "combinationPrices": {}
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "DEEPSEEK_V4_PRO",
+      "modelName": "DeepSeek V4 Pro",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 4,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {},
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VEO31",
+      "modelName": "Video 3.1",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution",
+          "includeAudio"
+        ],
+        "combinationPrices": {
+          "4K||true": 72,
+          "4K||false": 48,
+          "720P||true": 50,
+          "1080P||true": 50,
+          "720P||false": 25,
+          "1080P||false": 25
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MIDJOURNEY",
+      "modelName": "悠船 V7",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "aspectRatio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1:1": 16,
+          "2:3": 16,
+          "3:2": 16,
+          "3:4": 16,
+          "4:3": 16,
+          "16:9": 16,
+          "21:9": 16,
+          "9:16": 16,
+          "9:21": 16
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "KLING_V3",
+      "modelName": "Kling V3",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution",
+          "includeAudio"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "4K||true": 48,
+          "4K||false": 48,
+          "720P||true": 17,
+          "1080P||true": 22,
+          "720P||false": 11,
+          "1080P||false": 15
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VEO31_FAST",
+      "modelName": "Video 3.1 Fast",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution",
+          "includeAudio"
+        ],
+        "combinationPrices": {
+          "4K||true": 37,
+          "4K||false": 43,
+          "720P||true": 20,
+          "1080P||true": 20,
+          "720P||false": 12,
+          "1080P||false": 12
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "QWEN_IMAGE_3_PRO",
+      "modelName": "Qwen Image 3 Pro",
+      "nodeType": "GENERATE_IMAGE",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 1,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "1K": 6,
+          "2K": 7
+        },
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MINIMAX_MUSIC_26",
+      "modelName": "MiniMax Music 2.6",
+      "nodeType": "GENERATE_AUDIO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "musicMode"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "CUSTOM": 20,
+          "ADAPTIVE": 20,
+          "INSTRUMENTAL": 20
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "HAILUO_23",
+      "modelName": "Hailuo 2.3",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": true,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "768P": 7,
+          "1080P": 9
+        }
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "VIDU_Q4_PREVIEW",
+      "modelName": "Vidu Q4 Preview",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "isPerSecond": false,
+        "isInputVideo": false,
+        "selectedParams": [
+          "resolution"
+        ],
+        "audioExtraPrice": 0,
+        "imageExtraPrice": 0,
+        "videoExtraPrice": 0,
+        "combinationPrices": {
+          "2K": 36,
+          "4K": 73,
+          "540P": 9,
+          "720P": 18,
+          "1080P": 23
+        },
+        "isInputVideoPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    }
+  ]
+}

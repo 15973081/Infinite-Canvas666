@@ -2,7 +2,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
-  const names = {tenants:'企业租户',account:'邮箱与登录',creditGifts:'积分管理',imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
+  const names = {creditPolicy:'积分规则',tenants:'企业租户',account:'邮箱与登录',creditGifts:'积分管理',imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   let memberSearch = '', memberStatus = '';
   let enterpriseId='';
   const enterpriseViews={enterpriseSummary:'企业概览',enterprisePeople:'成员管理',enterpriseWorkspaces:'空间管理',enterpriseModels:'可用模型',enterpriseCosts:'企业费用',enterpriseSettings:'企业设置',enterpriseEvents:'操作记录'};
@@ -50,6 +50,7 @@
     email_not_configured:'邮件服务尚未配置，请联系管理员设置 SMTP。',email_delivery_failed:'邮件发送失败，请稍后重试或联系管理员。',email_rate_limited:'发送或验证请求过于频繁，请稍后重试。',invalid_email:'请填写有效邮箱地址。',email_unavailable:'该邮箱暂不可绑定，请使用其他邮箱。',invalid_email_code:'验证码无效、已过期或尝试次数已达上限，请重新发送。',
     tenant_rule_denied:'企业权限规则已限制此操作，请联系企业或平台管理员。',tenant_unavailable:'企业不存在或已停用。',tenant_forbidden:'你没有此企业的管理权限。',tenant_changed:'企业设置已更新，请刷新后重试。',tenant_member_required:'请选择本企业的有效成员。',last_tenant_administrator:'企业必须保留至少一位有效管理员。',invalid_invitation:'邀请已使用、过期或失效。',invitation_email_mismatch:'请先绑定并验证邀请指定的邮箱。',invitation_login_required:'账号或邮箱已存在，请登录现有账号后接受邀请。',legacy_tenant_models:'默认企业沿用现有供应商分配。',model_not_available:'只能分配已授权的模型，请刷新。',password_length:'密码长度需为 12–256 位。',invalid_username:'账号不能包含 @，请使用邮箱登录或填写其他账号名。',
     invalid_credit_gift:'请填写有效账号、正整数积分、赠送原因和来源依据。',
+    credit_policy_changed:'积分规则已被其他管理员修改。请保留修改内容，刷新后重新核对，避免覆盖他人配置。',
     credit_gift_target_unavailable:'收款账号不存在、未激活或已停用。',
     credit_gift_preview_changed:'收款账号或赠送内容已变化，请重新预览。',
     credit_gift_request_conflict:'此请求编号已用于另一笔赠送，请按请求编号核对来源记录。',
@@ -138,7 +139,7 @@
       const code = data.detail?.code;
       if (response.status === 409 && code === 'member_identity_changed') { identityPaused = true; serial++; notice(errors.member_identity_changed, true); }
       if (response.status === 401) showLogin();
-      const error = new Error(errors[code] || (response.status === 422 ? '请检查填写内容。' : '操作未完成，请刷新后重试。'));
+      const error = new Error(errors[code] || (typeof data.detail === 'string' ? data.detail : response.status === 422 ? '请检查填写内容。' : '操作未完成，请刷新后重试。'));
       error.status = response.status; error.code = code; throw error;
     }
     return data;
@@ -243,6 +244,7 @@
       tenants:async()=>[await window.ManagementTenants.create({api,dialog,table,button,refresh})],
       account:async()=>[await window.ManagementTenants.account({api})],
       creditGifts: creditGiftsView,
+      creditPolicy: creditPolicyView,
       imageTools: imageToolsView,
       modelBilling: modelBillingView,
       billing: billingView,
@@ -273,6 +275,12 @@
     const canGift = me.permissions.includes('credits.gift.platform');
     if(!canGift && !me.permissions.includes('audit.platform'))return denied();
     return [await window.ManagementCreditGifts.create({api,canGift,memberId:me.member.id})];
+  }
+  async function creditPolicyView(){
+    if(workspace)return [el('p','积分规则属于平台，请切换到全平台范围。','muted')];
+    const canEdit=me.permissions.includes('credits.configure.platform');
+    if(!canEdit&&!me.permissions.includes('audit.platform'))return denied();
+    return [await window.ManagementCreditPolicy.create({api,canEdit})];
   }
   async function imageToolsView(){
     if(!me.permissions.includes('provider.configure'))return denied();

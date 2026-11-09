@@ -107,6 +107,27 @@ class CreditGift(Input):
     evidence_ref: str = Field(min_length=1, max_length=500)
 
 
+class CreditPolicySave(Input):
+    config: dict
+    expected_version: int = Field(ge=0)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class CreditPolicyPreview(Input):
+    config: dict | None = None
+    kind: Literal['topup', 'model']
+    amount: int = Field(default=69, ge=1, le=1000000, strict=True)
+    first_recharge: bool = False
+    model_code: str = Field(default='', max_length=120)
+    params: dict = Field(default_factory=dict)
+    count: int = Field(default=1, ge=1, le=1000, strict=True)
+    prompt: str = Field(default='', max_length=100000)
+    input_image_count: int = Field(default=0, ge=0, le=1000, strict=True)
+    input_video_count: int = Field(default=0, ge=0, le=1000, strict=True)
+    input_audio_count: int = Field(default=0, ge=0, le=1000, strict=True)
+    input_video_seconds: float = Field(default=0, ge=0, le=86400)
+
+
 class CreditGiftApply(CreditGift):
     preview_token: str = Field(min_length=64, max_length=64)
 
@@ -408,6 +429,21 @@ def create_app(static_dir=None):
     def retire(request: Request, role_id: str, data: Retirement, workspace: str | None = None):
         members.retire_role(actor(request), role_id, data.confirmation, workspace=workspace, replacement=data.replacement, revoke=data.revoke)
         return {'ok': True}
+
+    @app.get('/api/credits/policy')
+    def credit_policy_read(request: Request):
+        from app.services.credit_policy import management
+        return management(actor(request))
+
+    @app.put('/api/credits/policy')
+    def credit_policy_save(request: Request, data: CreditPolicySave):
+        from app.services.credit_policy import management
+        return management(actor(request), **data.model_dump())
+
+    @app.post('/api/credits/policy/preview')
+    def credit_policy_preview(request: Request, data: CreditPolicyPreview):
+        from app.services.credit_policy import preview
+        return preview(actor(request), data)
 
     @app.get('/api/credits/gifts')
     def credit_gift_history(request: Request, username: str = Query('', max_length=64),

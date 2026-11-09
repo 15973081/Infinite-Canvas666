@@ -1,0 +1,20 @@
+.credit-policy{display:grid;gap:20px;max-width:1200px}
+.credit-policy>form{display:grid;gap:24px}
+.credit-policy fieldset{min-width:0;margin:0;padding:24px;border:1px solid #e5e8ef;border-radius:8px}
+.credit-policy legend{font-size:18px;font-weight:600;padding:0 8px}
+.credit-policy .provider-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:16px 0}
+.credit-policy label{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.credit-policy label.check{flex-direction:row;align-items:center}
+.credit-policy label.check input{width:auto}
+.credit-policy input,.credit-policy select{min-width:0;width:100%}
+.credit-policy-tiers .provider-fields{grid-template-columns:1fr 1fr auto;align-items:end}
+.credit-policy-matrix{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;max-height:420px;overflow:auto;padding:16px 4px}
+.credit-policy details{border-top:1px solid #e5e8ef;padding:16px 0}
+.credit-policy summary{cursor:pointer;font-weight:600}
+.credit-policy-notice{margin:0;padding:14px 18px;background:#eef4ff;color:#244777;border-radius:6px;line-height:1.7}
+.credit-policy-result{display:block;min-height:48px;margin:18px 0;padding:16px;background:#f5f8ff;border:1px solid #dde7f9;border-radius:6px;font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.credit-policy-result:empty{display:none}
+.credit-policy .actions{display:flex;align-items:end;gap:16px}
+.credit-policy .actions label{flex:1}
+.credit-policy [disabled]{opacity:.65}
+@media(max-width:700px){.credit-policy fieldset{padding:14px}.credit-policy-tiers .provider-fields{grid-template-columns:1fr}.credit-policy .actions{align-items:stretch;flex-direction:column}}
