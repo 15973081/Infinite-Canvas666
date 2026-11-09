@@ -29,6 +29,44 @@ async function setup(t) {
 const documentState = p => p.evaluate(() => ({nodes:JSON.parse(JSON.stringify(nodes)),
     connections:JSON.parse(JSON.stringify(canvas.connections)), undo:undoStack.length,
     pending:Boolean(pendingUndoSnapshot), dirty:smartCanvasDirty}));
+
+test('zoom gestures over canvas controls change the viewport without resizing the UI',async t=>{
+    const {page,errors}=await setup(t);
+    const targets=['.pixmax-bottom-controls','.pixmax-topbar'];
+    for(const editable of [true,false]){
+        await page.evaluate(value=>MemberCanvasEdit.setEditable(value),editable);
+        for(const selector of targets){
+            const before=await page.evaluate(selector=>({scale:viewport.scale,dpr:devicePixelRatio,width:document.querySelector(selector).getBoundingClientRect().width,height:document.querySelector(selector).getBoundingClientRect().height}),selector);
+            await page.locator(selector).hover();
+            await page.keyboard.down('Control');await page.mouse.wheel(0,40);await page.keyboard.up('Control');
+            await page.waitForFunction(scale=>viewport.scale!==scale,before.scale);
+            const after=await page.evaluate(selector=>({dpr:devicePixelRatio,width:document.querySelector(selector).getBoundingClientRect().width,height:document.querySelector(selector).getBoundingClientRect().height}),selector);
+            assert.equal(after.dpr,before.dpr);
+            assert.equal(after.height,before.height);
+            assert.ok(Math.abs(after.width-before.width)<2);
+        }
+    }
+    const result=await page.evaluate(()=>{
+        const target=document.querySelector('.pixmax-topbar');
+        const before={...viewport};
+        target.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:80}));
+        const ordinary={...viewport};
+        const popup=document.createElement('div');document.body.append(popup);
+        popup.addEventListener('wheel',event=>event.stopPropagation());
+        const pinch=new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:40,clientX:500,clientY:400});
+        popup.dispatchEvent(pinch);const popupScale=viewport.scale;popup.remove();
+        const dialog=document.createElement('dialog');document.body.append(dialog);dialog.showModal();
+        const modalPinch=new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:40});
+        dialog.dispatchEvent(modalPinch);dialog.remove();
+        return {before,ordinary,pinchPrevented:pinch.defaultPrevented,popupScale,modalPrevented:modalPinch.defaultPrevented,modalScale:viewport.scale};
+    });
+    assert.deepEqual(result.ordinary,result.before);
+    assert.equal(result.pinchPrevented,true);
+    assert.notEqual(result.popupScale,result.before.scale);
+    assert.equal(result.modalPrevented,true);
+    assert.equal(result.modalScale,result.popupScale);
+    assert.deepEqual(errors,[]);
+});
 async function point(p, selector) {
     const box = await p.locator(selector).first().boundingBox();
     assert.ok(box, selector);

@@ -3853,15 +3853,12 @@ function bindSmartWorkspaceGestures(){
             scheduleSave();
         }
     };
-    shell.addEventListener('wheel', e => {
-        if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.pixmax-context-menu,.create-menu,.image-edit-modal,.smart-audio-lightbox,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
+    document.addEventListener('wheel', e => {
+        if(!e.ctrlKey&&!e.metaKey)return;
         e.preventDefault();
-        if(!e.ctrlKey&&!e.metaKey){
-            const unit=e.deltaMode===1?20:1;
-            viewport.x-=(e.shiftKey?e.deltaY:e.deltaX)*unit*.5;
-            viewport.y-=e.shiftKey?0:e.deltaY*unit*.5;
-            applyViewport();return;
-        }
+        // Media editors and dialogs retain their own content gestures.
+        if(e.target.closest('dialog,[role="dialog"],.image-edit-modal,.smart-audio-lightbox,.log-modal,.shortcut-modal'))return;
+        e.stopPropagation();
         const rect = shell.getBoundingClientRect();
         const sx = e.clientX - rect.left;
         const sy = e.clientY - rect.top;
@@ -3870,6 +3867,15 @@ function bindSmartWorkspaceGestures(){
         viewport.scale = Math.min(2,Math.max(.1,safeScale(viewport.scale * factor)));
         viewport.x = sx - before.x * viewport.scale;
         viewport.y = sy - before.y * viewport.scale;
+        applyViewport();
+    }, {passive:false,capture:true});
+    shell.addEventListener('wheel', e => {
+        if(e.ctrlKey||e.metaKey)return;
+        if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.pixmax-context-menu,.create-menu,.image-edit-modal,.smart-audio-lightbox,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
+        e.preventDefault();
+        const unit=e.deltaMode===1?20:1;
+        viewport.x-=(e.shiftKey?e.deltaY:e.deltaX)*unit*.5;
+        viewport.y-=e.shiftKey?0:e.deltaY*unit*.5;
         applyViewport();
     }, {passive:false});
     shell.ondragover = e => setSmartDropCopyEffect(e, true);

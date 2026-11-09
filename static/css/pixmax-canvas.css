@@ -1998,12 +1998,18 @@ body.smart-node-drag .node-port {
 
 [data-native-camera] [role="presentation"]{min-width:0;flex:1}
 
-[data-native-generation-controls]{min-width:0;flex-wrap:wrap}
-[data-native-generation-options]{min-width:0;max-width:100%;height:auto;flex-wrap:wrap}
-[data-native-generation-options]>span{max-width:100%}
+[data-native-generation-controls]{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;min-width:0}
+[data-native-generation-options]{min-width:0;max-width:100%;height:auto;flex-wrap:nowrap;gap:4px}
+[data-native-generation-options]>:is(div,span){min-width:0}
+[data-native-generation-options]>div:has(>button[aria-label="生成厂商"]){flex:0 1 110px}
+[data-native-generation-options]>div:has(>button[aria-label="生成模型"]){flex:1 1 180px;max-width:240px}
+[data-native-generation-options]>div:has(>button[aria-label="生成参数"]){flex:0 1 180px}
+[data-native-generation-options]>span{flex-shrink:0}
 [data-native-generation-options] button{max-width:100%}
-.pixmax-native-prompt button[aria-label="生成厂商"]{min-width:110px;max-width:180px}
-.pixmax-native-prompt button[aria-label="生成模型"]{min-width:180px;max-width:min(320px,100%)}
+.pixmax-native-prompt button:is([aria-label="生成厂商"],[aria-label="生成模型"],[aria-label="生成参数"]){min-width:0;width:100%}
+.pixmax-native-prompt button[aria-label="生成参数"]>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+[data-native-generation-controls]>div:last-child>span{margin-left:0}
+[data-native-generation-submit]{white-space:nowrap}
 .pixmax-native-form-model-options{min-width:min(340px,calc(100vw - 32px));max-width:calc(100vw - 32px)}
 .pixmax-native-form-model-options [data-select-option]{white-space:normal;overflow-wrap:anywhere}
 .pixmax-native-form-model-options [data-select-option] .truncate{white-space:normal;overflow:visible;text-overflow:clip}

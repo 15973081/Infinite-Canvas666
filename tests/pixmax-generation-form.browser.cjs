@@ -32,6 +32,40 @@ async function host(t,{priced=false}={}){
     await f.page.evaluate(()=>{apiProviders=[{id:'p',name:'原生表单',has_key:true,enabled:true,image_models:['gpt-image-2']}];Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});window.formHost=createGenerationNodeAt({x:400,y:100},'image');Object.assign(formHost.runSettings,{engine:'api',apiKind:'image',provider_id:'p',model:'gpt-image-2'});render();});await f.page.locator('.pixmax-native-generation-form [role=textbox]').waitFor();return {...f,quotes};
 }
 
+test('long generation options keep submit aligned in desktop and fullscreen composers',async t=>{
+    const {page,errors}=await host(t);
+    await page.emulateMedia({reducedMotion:'reduce'});
+    const longModel='gpt-image-2.5-sunburst-long-model-name';
+    await page.evaluate(model=>{apiProviders[0].name='较长的图像生成服务供应商';apiProviders[0].image_models.push(model);PixmaxNativePrompt.sync();},longModel);
+    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('测试画面');
+    await page.getByRole('button',{name:'生成模型',exact:true}).click();
+    await page.locator('[data-select-option]').filter({hasText:longModel}).click();
+    await page.getByRole('button',{name:'生成参数',exact:true}).click();
+    const parameters=page.locator('[data-combo-selector-panel]');
+    await parameters.getByRole('button',{name:'4K',exact:true}).click();
+    await parameters.getByRole('button',{name:'9:21',exact:true}).click();
+    await page.keyboard.press('Escape');
+    await page.locator('[data-native-generation-submit]').filter({hasText:'费用待核算'}).waitFor();
+    for(const fullscreen of [false,true]){
+        if(fullscreen)await page.getByRole('button',{name:'全屏',exact:true}).click();
+        for(const width of [1024,1440,1920]){
+            await page.setViewportSize({width,height:1000});
+            const surface=page.locator(`[data-native-generation-surface][data-fullscreen="${fullscreen}"]`);
+            const controls=surface.locator('[data-native-generation-controls]');
+            const bounds=await controls.evaluate(el=>{
+                const options=el.querySelector('[data-native-generation-options]'),model=el.querySelector('[aria-label="生成模型"]'),submit=el.querySelector('[data-native-generation-submit]');
+                const a=model.getBoundingClientRect(),b=submit.getBoundingClientRect(),r=el.getBoundingClientRect();
+                return {sameRow:Math.abs(a.y+a.height/2-b.y-b.height/2)<2,fits:options.scrollWidth<=options.clientWidth+1&&b.right<=r.right+1,modelWidth:model.clientWidth};
+            });
+            assert.ok(bounds.sameRow&&bounds.fits,JSON.stringify({width,fullscreen,...bounds}));
+            assert.ok(bounds.modelWidth<=241,JSON.stringify({width,fullscreen,...bounds}));
+        }
+        await page.setViewportSize({width:1440,height:1000});
+        await page.screenshot({path:'.local/pixmax-generation-controls-'+(fullscreen?'fullscreen':'desktop')+'.png'});
+    }
+    assert.deepEqual(errors,[]);
+});
+
 for(const generator of [false,true])test(`standalone ${generator?'generation video keeps native controls':'media video hides generation controls'}`,async t=>{
     const {page,errors,writes}=await fixture(t,'smart',false,{secureOrigin:true});
     await page.evaluate(generator=>{
