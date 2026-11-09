@@ -4068,7 +4068,7 @@ function bindClassicBoardEvents(){
         if(e.target.closest?.('#createMenu, #linkCreateMenu, #nodeInputMenu, #nodeOutputMenu, #imageNodeMenu')) return;
         closeCreateMenu();
     });
-    board.onwheel = e => {
+    function zoomFromWheel(e) {
         if(!canvas) return;
         e.preventDefault();
         const before = screenToWorld(e.clientX, e.clientY);
@@ -4079,6 +4079,17 @@ function bindClassicBoardEvents(){
         applyViewport({viewportOnly:true});
         scheduleGeometryRefresh();
         scheduleViewportSave();
+    }
+    document.addEventListener('wheel', e => {
+        if(!canvas||(!e.ctrlKey&&!e.metaKey))return;
+        e.preventDefault();
+        if(e.target.closest('dialog,[role="dialog"],.image-edit-modal,.output-lightbox,.asset-manager-modal,.log-modal'))return;
+        e.stopPropagation();
+        zoomFromWheel(e);
+    }, {passive:false,capture:true});
+    board.onwheel = e => {
+        if(e.ctrlKey||e.metaKey)return;
+        zoomFromWheel(e);
     };
 }
 

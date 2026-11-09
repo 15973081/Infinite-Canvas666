@@ -64,6 +64,63 @@ async function shellFixture(t,stored){
  return {page,errors};
 }
 
+test('homepage shell and embedded catalog cancel zoom gestures while allowing ordinary wheel events',async t=>{
+ const {page,errors}=await shellFixture(t,null);
+ const before=await page.evaluate(()=>({dpr:devicePixelRatio,width:innerWidth}));
+ for(const surface of [page,page.frameLocator('#frame-canvas')]){
+  const results=await surface.locator('body').evaluate(root=>{
+   const target=root.querySelector('input')||root.querySelector('button'),events=[
+    new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-80}),
+    new WheelEvent('wheel',{bubbles:true,cancelable:true,metaKey:true,deltaY:-80}),
+    new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:80})];
+   return events.map(event=>{target.dispatchEvent(event);return event.defaultPrevented;});
+  });
+  assert.deepEqual(results,[true,true,false]);
+ }
+ for(const locator of [page.locator('#studioSidebar'),page.frameLocator('#frame-canvas').getByRole('searchbox')]){
+  await locator.hover();await page.keyboard.down('Control');await page.mouse.wheel(0,-120);await page.keyboard.up('Control');
+ }
+ assert.deepEqual(await page.evaluate(()=>({dpr:devicePixelRatio,width:innerWidth})),before);
+ assert.deepEqual(errors,[]);
+});
+
+test('desktop catalog adds columns within card size bounds and still scrolls normally',async t=>{
+ const {page,errors}=await fixture(t,'classic',false,{directory:true,extraRecords:Array.from({length:35},(_,i)=>({id:'project-'+i,title:'项目 '+i,updated_at:i}))});
+ for(const width of [1024,1440,1920,2560]){
+  await page.setViewportSize({width,height:900});
+  const size=await page.locator('.canvas-item').first().boundingBox();
+  assert.ok(size.width>=240&&size.width<=304,JSON.stringify({width,card:size.width}));
+ }
+ await page.mouse.move(1000,600);await page.mouse.wheel(0,500);
+ await page.waitForFunction(()=>document.getElementById('canvasGate').scrollTop>0);
+ assert.deepEqual(errors,[]);
+});
+
+test('all workbench pages prevent browser zoom in embedded and standalone views',async t=>{
+ const {page,errors}=await shellFixture(t,null);
+ const pages=['online','gpt-chat','asset-manager','skill-library'];
+ for(const mode of ['embedded','standalone'])for(const name of pages){
+  let body;
+  if(mode==='embedded'){
+   await page.locator(`[data-page="${name}"]`).click();
+   body=page.frameLocator('#frame-'+name).locator('body');
+  }else{
+   await page.goto('http://workbench.test/static/'+name+'.html');
+   body=page.locator('body');
+  }
+  await body.waitFor();
+  const result=await body.evaluate(root=>{
+   const target=root.querySelector('textarea,input,button')||root;
+   return [{ctrlKey:true},{metaKey:true},{}].map(modifiers=>{
+    const event=new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:-80,...modifiers});
+    target.dispatchEvent(event);return event.defaultPrevented;
+   });
+  });
+  assert.deepEqual(result,[true,true,false],mode+' '+name);
+ }
+ assert.deepEqual(errors,[]);
+});
+
 test('floating navigation centers in the desktop viewport with neutral selection and keyboard labels',async t=>{
  const {page,errors}=await shellFixture(t,null);
  await page.emulateMedia({reducedMotion:'reduce'});

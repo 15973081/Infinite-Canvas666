@@ -1,6 +1,11 @@
 (function(){
-    // Layout follows the CSS viewport. Browser/OS zoom and canvas zoom remain native.
+    // Workbench gestures preserve UI scale; canvas and media handlers own content zoom.
     document.documentElement.classList.add('studio-theme-dark', 'theme-dark');
+    document.addEventListener('wheel', event => {
+        if(event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+        }
+    }, {capture:true,passive:false});
     const SCALE_KEY = 'studio_ui_scale_mode';
     function applyDisplay(){
         document.body?.classList.add('studio-theme-dark', 'theme-dark');

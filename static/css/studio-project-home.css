@@ -26,7 +26,7 @@ html:has(body.studio-home),html:has(body.studio-canvas-home),body.studio-home,bo
 #canvasGate .gate-folder-node,#canvasGate .gate-folder-main,#canvasGate .gate-sort-btn{border-radius:7px}
 #canvasGate .gate-folder-node.active,#canvasGate .gate-sort-btn.active{box-shadow:none}
 #canvasGate .gate-folder-head{font:12px var(--studio-font);letter-spacing:0}
-#canvasGate .gate-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;align-items:stretch}
+#canvasGate .gate-list{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:24px;align-items:stretch}
 #canvasGate :is(.canvas-item,.project-folder-card){box-sizing:border-box;aspect-ratio:4/3;min-width:0;min-height:0;align-self:start;border:1px solid var(--studio-border);border-radius:var(--project-card-radius);background:var(--studio-panel)}
 #canvasGate :is(.canvas-item,.project-folder-card){transition:border-color var(--project-motion) var(--project-ease)}
 #canvasGate :is(.canvas-item,.project-folder-card):is(:hover,:focus-within){box-shadow:none;border-color:var(--studio-accent)}
@@ -79,7 +79,7 @@ body.studio-home #frame-canvas{filter:none;transform:none;transition:opacity .15
 @media(min-width:761px){
  body.studio-home .member-session-bar{left:190px;right:24px;top:24px;width:auto;height:40px;padding:0;background:transparent;border:0;box-shadow:none;gap:12px}
 }
-@media(min-width:1536px){#canvasGate .gate-panel{max-width:1600px}#canvasGate .gate-list{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(min-width:1536px){#canvasGate .gate-panel{max-width:1600px}}
 @media(max-width:1180px){#canvasGate{padding:30px 0 56px}#canvasGate .gate-search{max-width:none}#canvasGate .project-tools-spacer{display:none}}
 .studio-desktop-required{display:none}
 @media(max-width:900px){

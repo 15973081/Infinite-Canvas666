@@ -1,6 +1,35 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {fixture}=require('./helpers/canvas-browser.cjs');
 
+test('classic: zoom over tools stays on the canvas and preserves UI scrolling and preview gestures',async t=>{
+ const {page,errors}=await fixture(t,'classic',true);
+ for(const editable of [true,false]){
+  await page.evaluate(value=>MemberCanvasEdit.setEditable(value),editable);
+  for(const selector of ['.canvas-nav','#quickToolbar']){
+   const before=await page.evaluate(selector=>({scale:viewport.scale,dpr:devicePixelRatio,height:document.querySelector(selector).getBoundingClientRect().height}),selector);
+   await page.locator(selector).hover();
+   await page.keyboard.down('Control');await page.mouse.wheel(0,-80);await page.keyboard.up('Control');
+   await page.waitForFunction(scale=>viewport.scale!==scale,before.scale);
+   const after=await page.evaluate(selector=>({dpr:devicePixelRatio,height:document.querySelector(selector).getBoundingClientRect().height}),selector);
+   assert.equal(after.dpr,before.dpr);assert.equal(after.height,before.height);
+  }
+ }
+ const result=await page.evaluate(()=>{
+  const before=viewport.scale,toolbar=document.querySelector('#quickToolbar');
+  toolbar.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:40}));
+  const ordinary=viewport.scale,input=document.createElement('textarea');toolbar.append(input);
+  input.addEventListener('wheel',e=>e.stopPropagation());
+  const pinch=new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:40,clientX:500,clientY:300});
+  input.dispatchEvent(pinch);const inputScale=viewport.scale;input.remove();
+  const preview=new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:40});
+  document.getElementById('outputLightbox').dispatchEvent(preview);
+  return {before,ordinary,inputScale,pinchPrevented:pinch.defaultPrevented,previewPrevented:preview.defaultPrevented,previewScale:viewport.scale};
+ });
+ assert.equal(result.before,result.ordinary);assert.notEqual(result.inputScale,result.before);
+ assert.equal(result.pinchPrevented,true);assert.equal(result.previewPrevented,true);
+ assert.equal(result.previewScale,result.inputScale);assert.deepEqual(errors,[]);
+});
+
 for(const kind of ['smart','classic'])test(kind+': navigation stays local while content changes still save',async t=>{
  const original={x:17,y:23,scale:1};
  const {page,writes,record,errors}=await fixture(t,kind,true,{record:{viewport:original}});
