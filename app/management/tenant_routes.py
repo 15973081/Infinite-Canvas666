@@ -20,12 +20,27 @@ class SpaceCreate(Input):
     administrator:str=Field(min_length=1,max_length=80)
 class SpaceAssignment(Input):
     member_id:str=Field(min_length=1,max_length=80)
-    role:Literal['admin','editor','viewer','remove']
+    role:Literal['admin','editor','viewer','remove']|None=None
+    role_ids:list[str]|None=Field(default=None,max_length=50)
+class InvitationSpace(Input):
+    workspace_id:str=Field(min_length=1,max_length=80)
+    role_ids:list[str]=Field(min_length=1,max_length=50)
+class SpaceStatus(Input):
+    archived:bool
+class SpaceRole(Input):
+    name:str=Field(min_length=1,max_length=80)
+    permissions:list[str]=Field(max_length=100)
+class SpaceRoleUpdate(SpaceRole):
+    version:int=Field(ge=1)
 class MemberRole(Input):
     role:Literal['admin','member','remove']
+    permissions:list[str]|None=Field(default=None,max_length=50)
+    version:int=Field(ge=1)
 class Invitation(Input):
     email:str=Field(max_length=254)
     role:Literal['admin','member']='member'
+    permissions:list[str]=Field(default_factory=list,max_length=50)
+    spaces:list[InvitationSpace]=Field(default_factory=list,max_length=50)
 class Accept(Input):
     token:str=Field(min_length=20,max_length=128)
     username:str=Field(default='',max_length=64)
@@ -50,11 +65,21 @@ def update(request:Request,tid:str,data:TenantUpdate): return tenants.update(act
 @router.post('/api/tenants/{tid}/spaces')
 def space(request:Request,tid:str,data:SpaceCreate): return tenants.create_space(actor(request),tid,data.name,data.administrator)
 @router.put('/api/tenants/{tid}/spaces/{wid}/members')
-def assign(request:Request,tid:str,wid:str,data:SpaceAssignment): return tenants.assign_space(actor(request),tid,wid,data.member_id,data.role)
+def assign(request:Request,tid:str,wid:str,data:SpaceAssignment): return tenants.assign_space(actor(request),tid,wid,data.member_id,data.role,data.role_ids)
+@router.get('/api/tenants/{tid}/spaces/{wid}/members')
+def space_members(request:Request,tid:str,wid:str): return tenants.space_members(actor(request),tid,wid)
+@router.put('/api/tenants/{tid}/spaces/{wid}/status')
+def space_status(request:Request,tid:str,wid:str,data:SpaceStatus): return tenants.archive_space(actor(request),tid,wid,data.archived)
+@router.get('/api/tenants/{tid}/spaces/{wid}/roles')
+def space_roles(request:Request,tid:str,wid:str): return tenants.space_roles(actor(request),tid,wid)
+@router.post('/api/tenants/{tid}/spaces/{wid}/roles')
+def create_space_role(request:Request,tid:str,wid:str,data:SpaceRole): return tenants.save_space_role(actor(request),tid,wid,data.name,data.permissions)
+@router.put('/api/tenants/{tid}/spaces/{wid}/roles/{rid}')
+def update_space_role(request:Request,tid:str,wid:str,rid:str,data:SpaceRoleUpdate): return tenants.save_space_role(actor(request),tid,wid,data.name,data.permissions,rid,data.version)
 @router.put('/api/tenants/{tid}/members/{mid}')
-def member(request:Request,tid:str,mid:str,data:MemberRole): return tenants.change_member(actor(request),tid,mid,data.role)
+def member(request:Request,tid:str,mid:str,data:MemberRole): return tenants.change_member(actor(request),tid,mid,data.role,data.permissions,data.version)
 @router.post('/api/tenants/{tid}/invitations')
-def invite(request:Request,tid:str,data:Invitation): return tenants.invite(actor(request),tid,data.email,data.role)
+def invite(request:Request,tid:str,data:Invitation): return tenants.invite(actor(request),tid,data.email,data.role,data.permissions,[s.model_dump() for s in data.spaces])
 @router.post('/api/auth/invitations/accept')
 def accept(request:Request,data:Accept):
     account_email.throttle('accept:'+data.token,request.client.host if request.client else 'unknown')
@@ -95,6 +120,14 @@ class EnterpriseRules(Input):
     create_spaces:bool
     manage_members:bool
     assign_models:bool
+    manage_admins:bool
+    edit_profile:bool
+    archive_spaces:bool
+    assign_spaces:bool
+    manage_roles:bool
+    billing_read:bool
+    audit_read:bool
+    manage_rules:bool
 class RuleUpdate(Input):
     rules:EnterpriseRules
     version:int=Field(ge=0)

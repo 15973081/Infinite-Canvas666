@@ -26,6 +26,8 @@ def snapshot(actor):
             if permissions & SPACE_MANAGEMENT or platform & {'space.assign', 'space.archive'}:
                 spaces.append({**row, 'permissions': sorted(permissions)})
         tenant_rows=conn.execute('SELECT t.id,t.name,t.status,tm.role FROM tenants t JOIN tenant_members tm ON tm.tenant_id=t.id WHERE tm.member_id=%s',(actor.member_id,)).fetchall()
+        for tenant in tenant_rows:
+            tenant['permissions']=sorted(az.tenant_permissions(conn,actor.member_id,tenant['id']))
         if not platform and not spaces and not any(t['role']=='admin' and t['status']=='active' for t in tenant_rows):
             az.fail('management_permission_required')
         return {'member': members.profile(member), 'permissions': sorted(platform), 'workspaces': spaces, 'tenants':tenant_rows,
@@ -102,7 +104,7 @@ def roles(actor, workspace=None):
         else:
             az.require(conn, actor, action, workspace)
         permitted = set(az.WORKSPACE_PERMISSIONS if workspace else az.PLATFORM_PERMISSIONS)
-        if not az.superadmin(conn, actor.member_id):
+        if not az.superadmin(conn, actor.member_id) and not (workspace and az.tenant_admin(conn,actor.member_id,workspace)):
             permitted &= az.effective_permissions(conn, actor.member_id, workspace)
         rows = conn.execute('SELECT id,name,builtin_key,active,version FROM roles WHERE workspace_id IS NOT DISTINCT FROM %s ORDER BY name,id', (workspace,)).fetchall()
         result = []

@@ -42,7 +42,8 @@ def test_tenant_spaces_isolate_members_and_suspend_access(enterprise_admin):
     assert foreign['id'] not in [t['id'] for t in tenants.listing(actor)['tenants']]
     denied(lambda:tenants.detail(actor,foreign['id']),'tenant_forbidden')
     denied(lambda:tenants.assign_space(actor,tenant['id'],space['id'],b['id'],'viewer'),'tenant_member_required')
-    denied(lambda:tenants.change_member(actor,tenant['id'],a['id'],'member'),'last_tenant_administrator')
+    denied(lambda:tenants.change_member(actor,tenant['id'],a['id'],'member'),'tenant_permission_denied')
+    denied(lambda:tenants.change_member(enterprise_admin,tenant['id'],a['id'],'member'),'last_tenant_administrator')
     assert queries.snapshot(actor)['workspaces'][0]['id']==space['id']
     with az.policy_transaction() as conn:
         az.require(conn,actor,'canvas.read',space['id'])
@@ -198,14 +199,14 @@ def test_tenant_governance_ceiling_enforcement_and_audit(enterprise_admin):
     foreign=tenants.create(enterprise_admin,'另一企业',other['username'])
     space=tenants.create_space(actor,tenant['id'],'已有空间',owner['id'])
     values={k:True for k in tenants.RULES}
-    tenants.update_rules(enterprise_admin,tenant['id'],{**values,'create_spaces':False,'manage_members':False},0,True)
+    tenants.update_rules(enterprise_admin,tenant['id'],{**values,'create_spaces':False,'manage_members':False,'assign_spaces':False,'manage_roles':False},0,True)
     denied(lambda:tenants.update_rules(actor,tenant['id'],values,1,True),'permission_denied')
     denied(lambda:tenants.update_rules(actor,tenant['id'],values,1),'tenant_rule_denied')
     denied(lambda:tenants.create_space(actor,tenant['id'],'禁止创建',owner['id']),'tenant_rule_denied')
     with az.policy_transaction() as conn:
         denied(lambda:az.require(conn,actor,'space.members.manage',space['id']),'tenant_rule_denied')
         assert 'space.members.manage' not in az.effective_permissions(conn,actor.member_id,space['id'])
-    tightened={**values,'create_spaces':False,'manage_members':False,'assign_models':False}
+    tightened={**values,'create_spaces':False,'manage_members':False,'assign_spaces':False,'manage_roles':False,'assign_models':False}
     tenants.update_rules(actor,tenant['id'],tightened,1)
     denied(lambda:tenants.set_defaults(actor,tenant['id'],space['id'],[],0),'tenant_rule_denied')
     denied(lambda:tenants.update_rules(actor,tenant['id'],tightened,1),'tenant_changed')
@@ -230,3 +231,122 @@ def test_tenant_disabling_invitations_blocks_pending_acceptance(enterprise_admin
     denied(lambda:tenants.invite(actor,tenant['id'],email,'member'),'tenant_rule_denied')
     denied(lambda:tenants.accept(token,username='blocked-'+uuid.uuid4().hex,display_name='待加入成员',password=PASSWORD),'invalid_invitation')
     assert len(sent)==1
+
+def test_tenant_admin_individual_grants_and_workspace_billing(enterprise_admin):
+    from app.services import tenants,authorization as az,account_billing
+    from app.management import queries
+    owner,actor=user(enterprise_admin)
+    tenant=tenants.create(enterprise_admin,'独立授权企业',owner['username'])
+    space=tenants.create_space(actor,tenant['id'],'费用空间',owner['id'])
+    grants=['invite_members','manage_members','assign_spaces']
+    tenants.change_member(enterprise_admin,tenant['id'],owner['id'],'admin',grants,1)
+    detail=tenants.detail(actor,tenant['id'])
+    assert set(detail['permissions'])==set(grants)
+    assert queries.snapshot(actor)['tenants'][0]['permissions']==sorted(grants)
+    denied(lambda:account_billing.report(actor,tenant=tenant['id']),'tenant_permission_denied')
+    denied(lambda:tenants.events(actor,tenant['id']),'tenant_permission_denied')
+    denied(lambda:tenants.create_space(actor,tenant['id'],'不能创建',owner['id']),'tenant_permission_denied')
+    denied(lambda:tenants.update_rules(actor,tenant['id'],{k:True for k in tenants.RULES},0),'tenant_permission_denied')
+    with az.policy_transaction() as conn:
+        denied(lambda:az.require(conn,actor,'billing.read',space['id']),'tenant_permission_denied')
+        denied(lambda:az.require(conn,actor,'audit.read',space['id']),'tenant_permission_denied')
+        assert 'billing.read' not in az.effective_permissions(conn,actor.member_id,space['id'])
+        az.require(conn,actor,'canvas.read',space['id'])
+        az.require(conn,actor,'space.members.manage',space['id'])
+    denied(lambda:tenants.change_member(enterprise_admin,tenant['id'],owner['id'],'admin',[],1),'tenant_member_changed')
+    denied(lambda:tenants.change_member(enterprise_admin,tenant['id'],owner['id'],'admin',['provider.configure'],2),'invalid_admin_permissions')
+    tenants.change_member(enterprise_admin,tenant['id'],owner['id'],'admin',['billing_read'],2)
+    assert account_billing.report(actor,tenant=tenant['id'])['records']==0
+    values={k:True for k in tenants.RULES};values['billing_read']=False
+    tenants.update_rules(enterprise_admin,tenant['id'],values,0,True)
+    denied(lambda:account_billing.report(actor,tenant=tenant['id']),'tenant_rule_denied')
+
+
+def test_tenant_admin_delegation_respects_scope_and_self(enterprise_admin):
+    from app.services import tenants,authorization as az
+    from app.storage.database import connection
+    owner,actor=user(enterprise_admin);other,delegate=user(enterprise_admin)
+    tenant=tenants.create(enterprise_admin,'管理员委派',owner['username'])
+    with connection() as conn:
+        conn.execute('INSERT INTO tenant_members(tenant_id,member_id) VALUES(%s,%s)',(tenant['id'],other['id']))
+    grants=['manage_admins','invite_members','billing_read']
+    tenants.change_member(enterprise_admin,tenant['id'],owner['id'],'admin',grants,1)
+    denied(lambda:tenants.change_member(actor,tenant['id'],owner['id'],'admin',grants,2),'cannot_manage_administrator')
+    denied(lambda:tenants.change_member(actor,tenant['id'],other['id'],'admin',['create_spaces'],1),'cannot_delegate_permission')
+    tenants.change_member(actor,tenant['id'],other['id'],'admin',['billing_read'],1)
+    denied(lambda:tenants.change_member(delegate,tenant['id'],owner['id'],'member',[],2),'tenant_permission_denied')
+    tenants.change_member(enterprise_admin,tenant['id'],other['id'],'admin',list(az.TENANT_PERMISSIONS),2)
+    denied(lambda:tenants.change_member(actor,tenant['id'],other['id'],'member',[],3),'cannot_manage_administrator')
+    foreign=tenants.create(enterprise_admin,'其他授权企业',other['username'])
+    denied(lambda:tenants.change_member(actor,foreign['id'],other['id'],'admin',[],1),'tenant_forbidden')
+
+
+def test_tenant_invite_admin_requires_delegation_and_acceptance_rechecks(enterprise_admin,monkeypatch):
+    from app.services import tenants,email_delivery
+    monkeypatch.setenv('SMTP_HOST','smtp.example.test');monkeypatch.setenv('SMTP_FROM','sender@example.test');monkeypatch.setenv('EMAIL_TOKEN_SECRET','x'*40)
+    sent=[];monkeypatch.setattr(email_delivery,'send',lambda *args:sent.append(args))
+    owner,actor=user(enterprise_admin);tenant=tenants.create(enterprise_admin,'邀请授权',owner['username'])
+    email='admin-'+uuid.uuid4().hex+'@example.test'
+    denied(lambda:tenants.invite(actor,tenant['id'],email,'admin'),'tenant_permission_denied')
+    tenants.change_member(enterprise_admin,tenant['id'],owner['id'],'admin',['invite_members','manage_admins','billing_read'],1)
+    denied(lambda:tenants.invite(actor,tenant['id'],'denied-'+email,'admin',['create_spaces']),'cannot_delegate_permission')
+    tenants.invite(actor,tenant['id'],email,'admin',['billing_read'])
+    token=re.search(r'邀请凭证：(\S+)',sent[-1][2])[1]
+    tenants.change_member(enterprise_admin,tenant['id'],owner['id'],'admin',['invite_members'],2)
+    denied(lambda:tenants.accept(token,username='pending-'+uuid.uuid4().hex,display_name='待加入',password=PASSWORD),'invalid_invitation')
+    assert len(sent)==1
+
+
+def test_tenant_custom_space_roles_and_invitation_assignment(enterprise_admin,monkeypatch):
+    from app.services import tenants,email_delivery,members,authorization as az
+    from app.storage.database import connection
+    monkeypatch.setenv('SMTP_HOST','smtp.example.test');monkeypatch.setenv('SMTP_FROM','sender@example.test');monkeypatch.setenv('EMAIL_TOKEN_SECRET','x'*40)
+    sent=[];monkeypatch.setattr(email_delivery,'send',lambda *args:sent.append(args))
+    owner,actor=user(enterprise_admin);tenant=tenants.create(enterprise_admin,'空间分配',owner['username'])
+    space=tenants.create_space(actor,tenant['id'],'协作空间',owner['id'])
+    rid=tenants.save_space_role(actor,tenant['id'],space['id'],'素材查看',['asset.read'])['id']
+    assert rid in [r['id'] for r in tenants.space_roles(actor,tenant['id'],space['id'])['roles']]
+    assignments=[{'workspace_id':space['id'],'role_ids':[rid]}]
+    tenants.invite(actor,tenant['id'],'space-'+uuid.uuid4().hex+'@example.test','member',spaces=assignments)
+    token=re.search(r'邀请凭证：(\S+)',sent[-1][2])[1];username='space-'+uuid.uuid4().hex
+    tenants.accept(token,username=username,display_name='空间成员',password=PASSWORD)
+    login=members.login(username,PASSWORD,audience='management');joined=members.resolve_session(login['token'],'management')
+    with az.policy_transaction() as conn:
+        assert az.effective_permissions(conn,joined.member_id,space['id'])=={'asset.read'}
+    catalog=tenants.space_members(actor,tenant['id'],space['id'])
+    assert next(m['role_ids'] for m in catalog['members'] if m['member_id']==joined.member_id)==[rid]
+    tenants.assign_space(actor,tenant['id'],space['id'],joined.member_id,role_ids=[rid])
+    tenants.archive_space(actor,tenant['id'],space['id'],True)
+    with az.policy_transaction() as conn:
+        denied(lambda:az.require(conn,joined,'asset.read',space['id']),'workspace_unavailable')
+    tenants.archive_space(actor,tenant['id'],space['id'],False)
+    other,other_actor=user(enterprise_admin);foreign=tenants.create(enterprise_admin,'外部企业',other['username'])
+    foreign_space=tenants.create_space(other_actor,foreign['id'],'外部空间',other['id'])
+    denied(lambda:tenants.invite(actor,tenant['id'],'foreign@example.test','member',spaces=[{'workspace_id':foreign_space['id'],'role_ids':[rid]}]),'workspace_forbidden')
+    assert len(sent)==1
+
+def test_tenant_permission_routes_recheck_after_revocation(enterprise_admin,monkeypatch,tmp_path):
+    from app.services import tenants
+    from app.management.application import create_app
+    from fastapi.testclient import TestClient
+    from tools.build_management import build
+    owner,actor=user(enterprise_admin);tenant=tenants.create(enterprise_admin,'接口授权',owner['username'])
+    space=tenants.create_space(actor,tenant['id'],'接口空间',owner['id'])
+    monkeypatch.setenv('MANAGEMENT_BASE_URL','http://localhost:8766')
+    with TestClient(create_app(build(tmp_path/'console')),base_url='http://localhost:8766',headers={'Origin':'http://localhost:8766'}) as client:
+        assert client.post('/api/auth/login',json={'username':owner['username'],'password':PASSWORD}).status_code==200
+        base='/api/tenants/'+tenant['id'];space_base=base+'/spaces/'+space['id']
+        created=client.post(space_base+'/roles',json={'name':'只读素材','permissions':['asset.read']})
+        assert created.status_code==200,created.text
+        rid=created.json()['id']
+        assert client.put(space_base+'/roles/'+rid,json={'name':'画布素材查看','permissions':['asset.read','canvas.read'],'version':1}).status_code==200
+        assert client.put(space_base+'/roles/'+rid,json={'name':'平台管理员','permissions':['tenant.manage'],'version':2}).status_code==400
+        assert client.put(base+'/members/'+owner['id'],json={'role':'admin','permissions':['manage_admins'],'version':1}).status_code==403
+        tenants.change_member(enterprise_admin,tenant['id'],owner['id'],'admin',['invite_members'],1)
+        assert client.get(base+'/billing').status_code==403
+        assert client.get(base+'/events').status_code==403
+        assert client.get(space_base+'/members').status_code==403
+        assert client.get(space_base+'/roles').status_code==403
+        assert client.put(space_base+'/status',json={'archived':True}).status_code==403
+        assert client.get(base).json()['permissions']==['invite_members']
+        assert client.get('/api/me').json()['tenants'][0]['permissions']==['invite_members']

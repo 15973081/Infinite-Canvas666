@@ -8,12 +8,13 @@
   const enterpriseViews={enterpriseSummary:'企业概览',enterprisePeople:'成员管理',enterpriseWorkspaces:'空间管理',enterpriseModels:'可用模型',enterpriseCosts:'企业费用',enterpriseSettings:'企业设置',enterpriseEvents:'操作记录'};
   Object.assign(names,enterpriseViews);
   const enterpriseMode=()=>me?.console_mode==='enterprise';
+  const enterpriseViewAllowed=key=>{const permission={enterpriseCosts:'billing_read',enterpriseEvents:'audit_read'}[key];return !permission||(me?.tenants||[]).find(t=>t.id===enterpriseId)?.permissions?.includes(permission);};
   const enterpriseNav=el('nav');enterpriseNav.id='enterprise-navigation';enterpriseNav.hidden=true;enterpriseNav.setAttribute('aria-label','企业管理导航');
   for(const [key,title] of Object.entries(enterpriseViews)){const b=el('button');const source={enterpriseSummary:'overview',enterprisePeople:'members',enterpriseWorkspaces:'spaces',enterpriseModels:'modelBilling',enterpriseCosts:'billing',enterpriseSettings:'roles',enterpriseEvents:'audit'}[key];const icon=document.querySelector('[data-view="'+source+'"] svg');if(icon)b.append(icon.cloneNode(true));b.append(document.createTextNode(title));b.dataset.view=key;enterpriseNav.append(b);}
   $('#admin-navigation nav').after(enterpriseNav);
   function filterNavigation(){
     const query=$('#navigation-search').value.trim().toLocaleLowerCase();let matches=0;
-    document.querySelectorAll('#admin-navigation [data-view]').forEach(item=>{const eligible=item.dataset.view==='account'||(enterpriseMode()?item.dataset.view in enterpriseViews:!(item.dataset.view in enterpriseViews));item.hidden=!eligible||!item.textContent.toLocaleLowerCase().includes(query);if(!item.hidden)matches++;});
+    document.querySelectorAll('#admin-navigation [data-view]').forEach(item=>{const eligible=item.dataset.view==='account'||(enterpriseMode()?item.dataset.view in enterpriseViews&&enterpriseViewAllowed(item.dataset.view):!(item.dataset.view in enterpriseViews));item.hidden=!eligible||!item.textContent.toLocaleLowerCase().includes(query);if(!item.hidden)matches++;});
     document.querySelectorAll('.nav-group').forEach(group=>{group.hidden=!Array.from(group.querySelectorAll('[data-view]')).some(item=>!item.hidden);if(query&&!group.hidden)group.open=true;});
     $('#navigation-empty').hidden=matches>0;
   }
@@ -47,6 +48,11 @@
     $('#close-navigation').focus();
   }
   const errors = {
+    tenant_permission_denied:'尚未授予此项企业管理权限，请联系有权管理员调整。',
+    cannot_manage_administrator:'不能修改自身权限，或此管理员的授权超出你的可管理范围。',
+    invalid_admin_permissions:'请选择有效的企业管理权限。',
+    tenant_member_changed:'此成员的角色或权限已更新，请刷新后重新设置。',
+    space_role_required:'请至少选择一个空间角色；退出空间请使用“移出此空间”。',
     email_not_configured:'邮件服务尚未配置，请联系管理员设置 SMTP。',email_delivery_failed:'邮件发送失败，请稍后重试或联系管理员。',email_rate_limited:'发送或验证请求过于频繁，请稍后重试。',invalid_email:'请填写有效邮箱地址。',email_unavailable:'该邮箱暂不可绑定，请使用其他邮箱。',invalid_email_code:'验证码无效、已过期或尝试次数已达上限，请重新发送。',
     tenant_rule_denied:'企业权限规则已限制此操作，请联系企业或平台管理员。',tenant_unavailable:'企业不存在或已停用。',tenant_forbidden:'你没有此企业的管理权限。',tenant_changed:'企业设置已更新，请刷新后重试。',tenant_member_required:'请选择本企业的有效成员。',last_tenant_administrator:'企业必须保留至少一位有效管理员。',invalid_invitation:'邀请已使用、过期或失效。',invitation_email_mismatch:'请先绑定并验证邀请指定的邮箱。',invitation_login_required:'账号或邮箱已存在，请登录现有账号后接受邀请。',legacy_tenant_models:'默认企业沿用现有供应商分配。',model_not_available:'只能分配已授权的模型，请刷新。',password_length:'密码长度需为 12–256 位。',invalid_username:'账号不能包含 @，请使用邮箱登录或填写其他账号名。',
     invalid_credit_gift:'请填写有效账号、正整数积分、赠送原因和来源依据。',
@@ -211,7 +217,7 @@
       companies.forEach(t=>{const o=el('option',t.name);o.value=t.id;select.append(o);});
       if(!companies.some(t=>t.id===enterpriseId))enterpriseId=companies[0]?.id||'';
       select.value=enterpriseId;workspace='';
-      if(!(view in enterpriseViews)&&view!=='account')view='enterpriseSummary';
+      if(!(view in enterpriseViews)&&view!=='account'||!enterpriseViewAllowed(view))view='enterpriseSummary';
       await render();return;
     }
     if(view in enterpriseViews)view='overview';
@@ -221,6 +227,7 @@
     select.value = workspace; await render();
   }
   async function render() {
+    if(enterpriseMode()){if(!enterpriseViewAllowed(view))view='enterpriseSummary';filterNavigation();}
     const requestSerial = ++serial, content = $('#content');
     $('#title').textContent = names[view];
     content.dataset.currentView = view;
@@ -1105,7 +1112,7 @@
     if (!me || identityPaused || permissionPaused) return;
     if (accessCheck) return accessCheck;
     const bound = me;
-    const grants = snapshot => JSON.stringify({permissions:[...new Set(snapshot.permissions)].sort(),tenants:(snapshot.tenants||[]).map(t=>[t.id,t.status,t.role]).sort((a,b)=>a[0].localeCompare(b[0])),
+    const grants = snapshot => JSON.stringify({permissions:[...new Set(snapshot.permissions)].sort(),tenants:(snapshot.tenants||[]).map(t=>[t.id,t.status,t.role,[...(t.permissions||[])].sort()]).sort((a,b)=>a[0].localeCompare(b[0])),
       workspaces:snapshot.workspaces.map(space => [space.id,space.status,[...new Set(space.permissions)].sort()]).sort((a,b)=>a[0].localeCompare(b[0]))});
     const pause = () => { permissionPaused = true; serial++; notice(permissionChanged, true); };
     accessCheck = (async () => {

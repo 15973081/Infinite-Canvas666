@@ -32,9 +32,9 @@ def report(actor, *, personal=False, workspace=None, tenant=None, member_id='', 
         raise HTTPException(400, {'code':'invalid_billing_query'})
     with az.policy_transaction() as conn:
         if tenant:
-            from app.services.tenants import require
+            from app.services.tenants import require, require_rule
             if personal or actor.audience!='management': az.fail('permission_denied')
-            require(conn,actor,tenant)
+            require_rule(conn,actor,require(conn,actor,tenant),'billing_read')
         elif personal:
             if actor.audience != 'workbench': az.fail('permission_denied')
             az.active_member(conn, actor)

@@ -2,7 +2,7 @@
 'use strict';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const field=(title,name,type='text')=>{const l=el('label',title),i=el('input');i.name=name;i.type=type;i.required=true;i.maxLength=type==='email'?254:256;l.append(i);return l;};
-const select=(title,name,rows)=>{const l=el('label',title),s=el('select');s.name=name;for(const [value,label] of rows)s.append(new Option(label,value));l.append(s);return l;};
+const select=(title,name,rows)=>{const l=el('label',title),s=el('select');s.name=name;s.setAttribute('aria-label',title);for(const [value,label] of rows)s.append(new Option(label,value));l.append(s);return l;};
 let selected='';
 async function create({api,dialog,table,button,refresh,tenantId,section}){
  const enterprise=Boolean(tenantId);
@@ -22,21 +22,94 @@ async function create({api,dialog,table,button,refresh,tenantId,section}){
  }
  if(!enterprise)bar.prepend(button('返回企业列表',()=>{selected='';return refresh();}));
  const detail=await api('/api/tenants/'+tenant.id),tid=tenant.id,base='/api/tenants/'+encodeURIComponent(tid),company=detail.tenant;
+ const allowed=new Set(detail.permissions),permitted=key=>allowed.has(key),labels=detail.permission_catalog;
+ const restricted=(control,key)=>{if(!permitted(key)){control.disabled=true;control.title=detail.rules[key]===false?'企业权限规则已限制此操作':'尚未授予此管理权限';}return control;};
+ const permissionFields=(values=[])=>{
+  const box=el('div',undefined,'tenant-permissions'),choices=new Set(detail.delegatable_permissions);
+  const templates=el('div',undefined,'toolbar');
+  for(const [name,keys] of [['人员管理',['invite_members','manage_members','assign_spaces']],['项目管理',['create_spaces','archive_spaces','assign_spaces','assign_models']],['费用查看',['billing_read']],['综合管理',Object.keys(labels).filter(k=>k!=='manage_admins')]]){
+   templates.append(button(name,()=>{box.querySelectorAll('input').forEach(i=>{if(!i.disabled){i.checked=keys.includes(i.value);i.dispatchEvent(new Event('change'));}});}));
+  }
+  box.append(el('p','授权范围仅限本企业。管理员任命需单独勾选。','muted'),templates);
+  for(const [key,title] of Object.entries(labels)){
+   const row=el('label',undefined,'tenant-permission-row'),check=el('input'),text=el('span'),status=el('span',undefined,'muted');
+   check.type='checkbox';check.name='permission';check.value=key;check.checked=values.includes(key);check.disabled=!choices.has(key);
+   text.append(el('span',title));
+   const update=()=>{status.textContent=company.platform_rules[key]===false?'平台已限制':company.enterprise_rules[key]===false?'企业已关闭':!choices.has(key)?'超出可授予范围':check.checked?(values.includes(key)?'当前生效':'保存后生效'):(values.includes(key)?'保存后撤销':'未授予');};check.onchange=update;update();
+   row.append(check,text,status);box.append(row);
+  }
+  return box;
+ };
  const heading=el('section',undefined,'card overview-banner');heading.append(el('h2',company.name),el('p','企业状态：'+(company.status==='active'?'已启用':'已停用')+' · '+detail.members.length+' 位成员 · '+detail.spaces.length+' 个空间'));if(!enterprise || section==='summary')root.append(heading);
  const nameField=field('企业名称','name');nameField.querySelector('input').value=company.name;
- bar.append(button('企业设置',()=>dialog('企业设置',[nameField,select('状态','status',detail.can_suspend?[['active','启用'],['disabled','停用']]:[[company.status,company.status==='active'?'启用':'停用']])],f=>post(base,{name:f.get('name'),status:f.get('status'),version:company.version},'PUT'))));
+ bar.append(restricted(button('企业设置',()=>dialog('企业设置',[nameField,select('状态','status',detail.can_suspend?[['active','启用'],['disabled','停用']]:[[company.status,company.status==='active'?'启用':'停用']])],f=>post(base,{name:f.get('name'),status:f.get('status'),version:company.version},'PUT'))),'edit_profile'));
  const tabs=el('div',undefined,'management-tabs');tabs.setAttribute('role','tablist');const panels=[];
  const activate=index=>{panels.forEach((p,i)=>p.hidden=i!==index);Array.from(tabs.children).forEach((b,i)=>b.setAttribute('aria-selected',String(i===index)));};
- if(!enterprise)root.append(tabs);for(const title of ['企业成员','空间分配','模型授权','企业费用','权限规则','操作记录']){const index=panels.length,panel=el('section');panel.setAttribute('role','tabpanel');panels.push(panel);const b=button(title,()=>activate(index));b.setAttribute('role','tab');tabs.append(b);root.append(panel);}activate(0);
+ if(!enterprise)root.append(tabs);for(const title of ['企业成员','空间分配','模型授权','企业费用','权限规则','操作记录']){const index=panels.length,panel=el('section');panel.setAttribute('role','tabpanel');panels.push(panel);const b=button(title,()=>activate(index));b.setAttribute('role','tab');if(index===3&&!permitted('billing_read')||index===5&&!permitted('audit_read'))b.hidden=true;tabs.append(b);root.append(panel);}activate(0);
  const people=panels[0],inviteBar=el('div',undefined,'toolbar');
- const invite=button('邀请成员',()=>dialog('发送企业邀请',[field('受邀邮箱','email','email'),select('企业角色','role',[['member','普通成员'],['admin','企业管理员']])],f=>post(base+'/invitations',Object.fromEntries(f))),'primary');invite.disabled=!data.delivery_configured;inviteBar.append(invite);people.append(inviteBar);
+ const invite=restricted(button('邀请成员',async()=>{
+  const role=select('企业角色','role',[['member','普通成员'],...(permitted('manage_admins')?[['admin','企业管理员']]:[])]),permissions=permissionFields();permissions.hidden=true;
+  role.querySelector('select').onchange=e=>permissions.hidden=e.target.value!=='admin';
+  const fields=[field('受邀邮箱','email','email'),role,permissions],assignments=[];
+  if(permitted('assign_spaces')){
+   const space=select('加入协作空间','workspace',[['','暂不分配'],...detail.spaces.filter(w=>w.status==='active').map(w=>[w.id,w.name])]);
+   const choices=el('div'),message=el('p','','muted');let request=0;
+   space.querySelector('select').onchange=async e=>{
+    const current=++request,wid=e.target.value;assignments.length=0;choices.replaceChildren();message.textContent='';if(!wid)return;
+    message.textContent='正在读取空间角色…';
+    try{const state=await api(base+'/spaces/'+encodeURIComponent(wid)+'/members');if(current!==request)return;
+     const roles=select('空间角色','space_role',state.roles.filter(r=>r.delegatable).map(r=>[r.id,r.name]));
+     choices.append(roles);assignments.push({workspace_id:wid,roles});message.textContent='接受邀请后自动加入；已有空间角色保持不变。';
+    }catch(error){if(current===request)message.textContent=error.message;}
+   };fields.push(space,choices,message);
+  }
+  dialog('发送企业邀请',fields,f=>{
+   if(f.get('workspace')&&(!assignments.length||!f.get('space_role')))throw new Error('请选择可授予的空间角色。');
+   return post(base+'/invitations',{email:f.get('email'),role:f.get('role'),permissions:f.get('role')==='admin'?f.getAll('permission'):[],spaces:assignments.map(a=>({workspace_id:a.workspace_id,role_ids:[f.get('space_role')]}))});
+  },'发送邀请',true);
+ },'primary'),'invite_members');if(!data.delivery_configured)invite.disabled=true;inviteBar.append(invite);people.append(inviteBar);
  if(!data.delivery_configured)people.append(el('p','邮件发送服务尚未配置，暂不能发送邀请。请配置 SMTP 后使用。','muted'));
- people.append(table(['成员','已验证邮箱','账号状态','企业角色','操作'],detail.members.map(m=>[m.display_name+' / '+m.username,m.email||'未绑定',m.status,m.role==='admin'?'企业管理员':'普通成员',button('调整角色',()=>dialog('调整企业成员',[el('p',m.display_name+'（'+m.username+'）'),select('角色','role',[['member','普通成员'],['admin','企业管理员'],['remove','移出企业']])],f=>post(base+'/members/'+encodeURIComponent(m.id),{role:f.get('role')},'PUT')))])));
+ people.append(el('p','企业管理员的权限按人配置。空间角色决定画布、素材和任务的操作范围。','muted'));
+ people.append(table(['成员','已验证邮箱','企业角色 / 生效权限','操作'],detail.members.map(m=>{
+  const summary=el('div');summary.append(el('span',m.role==='admin'?'企业管理员':'普通成员'));
+  if(m.role==='admin')summary.append(el('p',m.effective_permissions.map(k=>labels[k]).join('、')||'未授予管理能力','muted tenant-permission-summary'));
+  const edit=button(m.role==='admin'?'设置管理员权限':'调整角色',()=>{
+   const options=[['member','普通成员'],...(m.can_manage_admin?[['admin','企业管理员']]:[]),['remove','移出企业']];
+   const role=select('企业角色','role',options),permissions=permissionFields(m.admin_permissions);role.querySelector('select').value=m.role;permissions.hidden=m.role!=='admin';
+   role.querySelector('select').onchange=e=>permissions.hidden=e.target.value!=='admin';
+   dialog('调整企业成员',[el('p',m.display_name+'（'+m.username+'）'),role,permissions],f=>post(base+'/members/'+encodeURIComponent(m.id),{role:f.get('role'),permissions:f.get('role')==='admin'?f.getAll('permission'):[],version:m.version},'PUT'),'保存成员权限',true);
+  });
+  edit.disabled=m.role==='admin'?!m.can_manage_admin:!permitted('manage_members')&&!m.can_manage_admin;
+  if(edit.disabled)edit.title=m.id===detail.actor_id?'自身管理员权限由平台或其他有权管理员调整':'未获得调整此成员的授权';
+  return [m.display_name+' / '+m.username+(m.status==='active'?'':'（账号未启用）'),m.email||'未绑定',summary,edit];
+ })));
  if(detail.invitations.length){people.append(el('h2','最近邀请'));people.append(table(['邮箱','角色','有效期','状态'],detail.invitations.map(i=>[i.email,i.role==='admin'?'管理员':'成员',new Date(i.expires_at).toLocaleString(),i.consumed_at?'已处理 / 已撤销':new Date(i.expires_at)>new Date()?'待接受':'已过期'])));}
  const memberChoices=detail.members.filter(m=>m.status==='active').map(m=>[m.id,m.display_name+' / '+m.username]);
  panels[1].append(button('创建空间',()=>dialog('创建企业空间',[field('空间名称','name'),select('空间管理员','administrator',memberChoices)],f=>post(base+'/spaces',Object.fromEntries(f))),'primary'));
  panels[1].append(el('p','成员加入企业后，还需分配空间权限。移出空间不会删除企业资源。','muted'));
- panels[1].append(table(['空间','状态','操作'],detail.spaces.map(w=>[w.name,w.status==='active'?'启用':'归档',button('分配成员',()=>dialog('分配空间 · '+w.name,[select('企业成员','member_id',memberChoices),select('空间权限','role',[['viewer','查看者'],['editor','编辑者'],['admin','空间管理员'],['remove','移出此空间']])],f=>post(base+'/spaces/'+encodeURIComponent(w.id)+'/members',Object.fromEntries(f),'PUT')))])));
+ panels[1].append(table(['空间','状态','操作'],detail.spaces.map(w=>{
+  const actions=el('div',undefined,'toolbar'),url=base+'/spaces/'+encodeURIComponent(w.id);
+  actions.append(restricted(button('分配成员',async()=>{
+   const state=await api(url+'/members'),member=select('企业成员','member_id',memberChoices),roles=el('div',undefined,'tenant-permissions');
+   for(const r of state.roles){const row=el('label',undefined,'check'),i=el('input');i.type='checkbox';i.name='role_id';i.value=r.id;i.disabled=!r.delegatable;row.append(i,el('span',r.name+(r.active?'':'（已停用）')+(!r.delegatable&&r.active?'（超出可授予范围）':'')));roles.append(row);}
+   const current=el('p','','muted');const choose=()=>{const value=member.querySelector('select').value,assigned=state.members.find(m=>m.member_id===value)?.role_ids||[];roles.querySelectorAll('input').forEach(i=>i.checked=assigned.includes(i.value));current.textContent='当前角色：'+(state.roles.filter(r=>assigned.includes(r.id)).map(r=>r.name).join('、')||'尚未加入空间');};
+   member.querySelector('select').onchange=choose;choose();
+   const remove=button('移出此空间',()=>dialog('移出空间',[el('p','将所选成员移出「'+w.name+'」，企业成员身份和空间资源保留。')],()=>post(url+'/members',{member_id:member.querySelector('select').value,role:'remove'},'PUT'),'确认移出'));
+   dialog('分配空间 · '+w.name,[member,current,roles,remove],f=>post(url+'/members',{member_id:f.get('member_id'),role_ids:Array.from(roles.querySelectorAll('input:checked')).map(i=>i.value)},'PUT'),'保存空间角色',true);
+  }),'assign_spaces'));
+  actions.append(restricted(button(w.status==='active'?'归档空间':'恢复空间',()=>dialog(w.status==='active'?'归档空间':'恢复空间',[el('p',w.status==='active'?'归档「'+w.name+'」后暂停访问，已有资源保留。':'恢复「'+w.name+'」的访问。')],()=>post(url+'/status',{archived:w.status==='active'},'PUT'))),'archive_spaces'));
+  actions.append(restricted(button('空间角色',async()=>{
+   const state=await api(url+'/roles');
+   const edit=role=>{
+    const name=field('角色名称','name');name.querySelector('input').value=role?.name||'';
+    const choices=el('div',undefined,'permissions');
+    for(const p of state.catalog){const row=el('label',undefined,'check'),i=el('input');i.type='checkbox';i.name='permission';i.value=p.id;i.checked=role?.permissions.includes(p.id)||false;i.disabled=!p.delegatable;row.append(i,el('span',p.name));choices.append(row);}
+    dialog(role?'编辑空间角色':'创建空间角色',[name,choices],f=>post(url+'/roles'+(role?'/'+encodeURIComponent(role.id):''),{name:f.get('name'),permissions:f.getAll('permission'),...(role?{version:role.version}:{})},role?'PUT':'POST'),'保存空间角色',true);
+   };
+   dialog('空间角色 · '+w.name,[button('创建空间角色',()=>edit()),table(['角色','权限','操作'],state.roles.map(r=>[r.name,r.permissions.map(k=>state.catalog.find(p=>p.id===k)?.name||k).join('、'),r.builtin_key?'内置角色':button('编辑',()=>edit(r))]))],null,'关闭',true);
+  }),'manage_roles'));
+  return [w.name,w.status==='active'?'启用':'归档',actions];
+ })));
  const models=await api(base+'/models');
  if(models.legacy)panels[2].append(el('p','默认企业保留现有供应商分配。新建企业使用“平台授权给企业 → 企业分配给空间”的模型权限。','muted'));
  else {
@@ -66,8 +139,7 @@ async function create({api,dialog,table,button,refresh,tenantId,section}){
    dialog('空间默认模型 · '+space.name,controls,f=>post(base+'/spaces/'+encodeURIComponent(space.id)+'/model-defaults',{version:(models.default_versions||[]).find(v=>v.workspace_id===space.id)?.version||0,models:Array.from(f).filter(([k,v])=>v).map(([kind,value])=>{const [provider_id,model]=JSON.parse(value);return {kind,provider_id,model};})},'PUT'));
  }));}
  panels[3].append(el('p','仅统计本企业所属空间。个人积分与历史个人资产不转入企业，不启用积分扣费。','muted'));
- if(!enterprise || section==='costs')panels[3].append(await window.CanvasBillingUI.create({management:true,fetchReport:p=>api(base+'/billing?'+new URLSearchParams(p))}));
- const labels={invite_members:'邀请企业成员',create_spaces:'创建协作空间',manage_members:'调整成员与空间权限',assign_models:'分配空间模型与默认模型'};
+ if(permitted('billing_read')&&(!enterprise || section==='costs'))panels[3].append(await window.CanvasBillingUI.create({management:true,fetchReport:p=>api(base+'/billing?'+new URLSearchParams(p))}));
  if(!enterprise || section==='settings'){
   const rules=await api(base+'/rules'),settings=panels[4];
   settings.append(el('h2','企业权限规则'),el('p','企业和空间的管理操作受以下规则约束。平台关闭的能力，企业不能自行开启。','muted'));
@@ -76,34 +148,34 @@ async function create({api,dialog,table,button,refresh,tenantId,section}){
    const fields=Object.entries(labels).map(([key,title])=>{const label=el('label',undefined,'check'),input=el('input');input.type='checkbox';input.name=key;input.checked=(platformLimits?rules.platform_rules[key]:rules.effective[key]);input.disabled=!platformLimits&&!rules.platform_rules[key];label.append(input,el('span',title+(!platformLimits&&!rules.platform_rules[key]?'（平台已限制）':'')));return label;});
    dialog(platformLimits?'设置平台授权范围':'设置企业权限规则',fields,f=>post(base+'/rules',{version:rules.version,platform_limits:platformLimits,rules:Object.fromEntries(Object.keys(labels).map(k=>[k,f.has(k)]))},'PUT'));
   }
-  settings.append(button('调整企业规则',()=>editRules(false),'primary'));
+  settings.append(restricted(button('调整企业规则',()=>editRules(false),'primary'),'manage_rules'));
   if(rules.can_set_limits)settings.append(button('设置平台授权范围',()=>editRules(true)));
   settings.append(el('h2','平台专属管理'),el('p','供应商、API 接口、密钥、模型新增、定价、数据库、备份与系统维护仅由平台管理。企业只能分配已获授权的模型，不能自行接入模型或扩大授权。','muted'));
  }
- if(!enterprise || section==='events'){
+ if(permitted('audit_read')&&(!enterprise || section==='events')){
   const eventsPanel=panels[5],list=el('div'),more=button('加载更多',()=>loadEvents()),actions={'tenant.create':'创建企业','tenant.update':'修改企业设置','tenant.space.create':'创建空间','tenant.space.assign':'调整空间成员','tenant.member.update':'调整企业成员','tenant.invite':'邀请成员','tenant.invite.accept':'接受企业邀请','tenant.models.assign':'调整模型授权','tenant.rules.update':'调整权限规则','space.model_defaults':'调整默认模型'};let before='';
   async function loadEvents(){const result=await api(base+'/events'+(before?'?before='+before:''));list.append(table(['时间','操作人','操作','目标'],result.events.map(e=>[new Date(e.created_at).toLocaleString(),e.actor_name||'受邀成员',actions[e.action]||e.action,e.target_id||'—'])));if(!result.events.length&&!before)list.append(el('p','暂无企业操作记录。','empty'));before=result.next;more.hidden=!before;}
   eventsPanel.append(el('h2','企业操作记录'),el('p','仅展示本企业的成员、空间、模型及权限设置记录。','muted'),list,more);await loadEvents();
  }
- const permitted=key=>detail.can_suspend||detail.rules?.[key]!==false;
- for(const b of root.querySelectorAll('button')){const text=b.textContent,key=text==='邀请成员'?'invite_members':text==='创建空间'?'create_spaces':['调整角色','分配成员'].includes(text)?'manage_members':text==='选择模型'||text.startsWith('设置默认模型 ·')?'assign_models':null;if(key&&!permitted(key)){b.disabled=true;b.title='企业权限规则已限制此操作';}}
+ for(const b of root.querySelectorAll('button')){const text=b.textContent,key=text==='创建空间'?'create_spaces':text==='选择模型'||text.startsWith('设置默认模型 ·')?'assign_models':null;if(key)restricted(b,key);}
  if(enterprise){
   const sections={people:0,workspaces:1,models:2,costs:3,settings:4,events:5};
   panels.forEach((panel,i)=>panel.hidden=i!==sections[section]);
   if(section==='settings'){
    const settings=el('section',undefined,'card');settings.append(el('h2','企业设置'),el('p','企业名称：'+company.name),el('p','企业状态：'+(company.status==='active'?'已启用':'已停用')));
-   settings.append(button('修改企业名称',()=>dialog('修改企业名称',[nameField],f=>post(base,{name:f.get('name'),status:company.status,version:company.version},'PUT'))));root.append(settings);
+   settings.append(restricted(button('修改企业名称',()=>dialog('修改企业名称',[nameField],f=>post(base,{name:f.get('name'),status:company.status,version:company.version},'PUT'))),'edit_profile'));root.append(settings);
   }
   if(section==='summary'){
    const metrics=el('div',undefined,'metrics');
    for(const [title,value] of [['企业成员',detail.members.length],['协作空间',detail.spaces.length],['已授权模型',models.grants.length]]){const card=el('section',undefined,'card');card.append(el('p',title,'muted'),el('strong',value,'metric'));metrics.append(card);}root.append(metrics);
+   if(permitted('billing_read')){
    root.append(el('h2','本月费用'));
    const now=new Date(),from=new Date(now.getFullYear(),now.getMonth(),1).getTime();
    const bill=await api(base+'/billing?from_ms='+from);
    const costs=el('section',undefined,'card');
    for(const total of bill.totals)costs.append(el('p',total.currency+' '+(Number(total.amount_micros)/1000000).toLocaleString('zh-CN',{maximumFractionDigits:6})+' · '+total.records+' 条账单'));
    if(!bill.totals.length)costs.append(el('p','本月暂无费用记录。','muted'));
-   costs.append(el('p','费用按企业空间归集，暂不启用积分扣费。未定价费用请在企业费用中核对。','muted'));root.append(costs);
+   costs.append(el('p','费用按企业空间归集，暂不启用积分扣费。未定价费用请在企业费用中核对。','muted'));root.append(costs);}
   }
  }
  return root;

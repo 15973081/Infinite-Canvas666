@@ -45,6 +45,15 @@ WORKSPACE_PERMISSIONS = {
     'maintenance.space': '维护本空间', 'audit.read': '本空间审计',
     'backup.read': '本空间备份记录', 'backup.request': '请求本空间备份',
 }
+TENANT_PERMISSIONS = {
+    'invite_members': '邀请普通成员', 'manage_members': '移除普通成员',
+    'manage_admins': '任命管理员与设置权限', 'edit_profile': '修改企业资料',
+    'create_spaces': '创建协作空间', 'archive_spaces': '归档与恢复空间',
+    'assign_spaces': '分配空间成员与角色', 'manage_roles': '管理空间角色',
+    'assign_models': '分配空间模型与默认模型', 'billing_read': '查看企业费用',
+    'audit_read': '查看操作记录', 'manage_rules': '调整企业权限规则',
+}
+DEFAULT_TENANT_ADMIN = set(TENANT_PERMISSIONS) - {'manage_admins'}
 VIEWER = {'canvas.read', 'canvas.export', 'asset.read', 'task.read'}
 EDITOR = VIEWER | {
     'canvas.create', 'canvas.edit', 'canvas.delete', 'canvas.restore',
@@ -102,14 +111,37 @@ def tenant_admin(conn, member_id, workspace):
         JOIN tenant_members tm ON tm.tenant_id=t.id WHERE w.id=%s AND t.status='active'
         AND tm.member_id=%s AND tm.role='admin'""",(workspace,member_id)).fetchone())
 
-TENANT_SPACE_MANAGEMENT = {'space.members.manage','space.roles.manage','billing.read','audit.read'}
+TENANT_SPACE_MANAGEMENT = {
+    'space.members.manage': 'assign_spaces', 'space.roles.manage': 'manage_roles',
+    'billing.read': 'billing_read', 'audit.read': 'audit_read',
+}
 
 
-def tenant_member_management_allowed(conn,member_id,workspace):
+def tenant_rules(tenant):
+    return {key: tenant['platform_rules'].get(key, True) and tenant['enterprise_rules'].get(key, True)
+            for key in TENANT_PERMISSIONS}
+
+
+def tenant_permissions(conn, member_id, tenant_id):
+    row = conn.execute('''SELECT t.platform_rules,t.enterprise_rules,tm.admin_permissions
+        FROM tenants t JOIN tenant_members tm ON tm.tenant_id=t.id
+        WHERE t.id=%s AND t.status='active' AND tm.member_id=%s AND tm.role='admin' ''',
+        (tenant_id, member_id)).fetchone()
+    if not row:
+        return set()
+    return set(row['admin_permissions']) & {key for key, enabled in tenant_rules(row).items() if enabled}
+
+
+def tenant_space_permissions(conn, member_id, workspace):
+    row = conn.execute('SELECT tenant_id FROM workspaces WHERE id=%s', (workspace,)).fetchone()
+    return tenant_permissions(conn, member_id, row['tenant_id']) if row else set()
+
+
+def tenant_member_management_allowed(conn,member_id,workspace,action='space.members.manage'):
     if 'tenant.manage' in effective_permissions(conn,member_id):
         return True
     row=conn.execute("SELECT t.platform_rules,t.enterprise_rules FROM workspaces w JOIN tenants t ON t.id=w.tenant_id WHERE w.id=%s",(workspace,)).fetchone()
-    return bool(row and row['platform_rules'].get('manage_members',True) and row['enterprise_rules'].get('manage_members',True))
+    return bool(row and tenant_rules(row)[TENANT_SPACE_MANAGEMENT[action]])
 
 
 def effective_permissions(conn, member_id, workspace=None):
@@ -125,9 +157,12 @@ def effective_permissions(conn, member_id, workspace=None):
             WHERE g.member_id=%s AND g.workspace_id=%s''', (member_id, workspace))
     result={r['permission_id'] for r in rows}
     if workspace is not None and tenant_admin(conn,member_id,workspace):
-        result |= TENANT_SPACE_MANAGEMENT
-    if workspace is not None and result & {'space.members.manage','space.roles.manage'} and not tenant_member_management_allowed(conn,member_id,workspace):
-        result -= {'space.members.manage','space.roles.manage'}
+        granted = tenant_space_permissions(conn, member_id, workspace)
+        result |= {action for action, key in TENANT_SPACE_MANAGEMENT.items() if key in granted}
+        result -= {action for action, key in TENANT_SPACE_MANAGEMENT.items() if key not in granted}
+    if workspace is not None:
+        result -= {action for action in ('space.members.manage','space.roles.manage')
+                   if action in result and not tenant_member_management_allowed(conn,member_id,workspace,action)}
     return result
 
 
@@ -142,12 +177,14 @@ def require(conn, principal, action, workspace=None):
             fail('workspace_unavailable')
         # Cross-space management is explicit; superadmin is not blanket access
         # to every member's canvas, private conversation, or media contents.
-        if action in {'space.members.manage','space.roles.manage'} and not tenant_member_management_allowed(conn,principal.member_id,workspace):
+        if action in {'space.members.manage','space.roles.manage'} and not tenant_member_management_allowed(conn,principal.member_id,workspace,action):
             fail('tenant_rule_denied')
         management = action in {'space.members.manage', 'space.roles.manage', 'maintenance.space', 'audit.read', 'backup.read', 'backup.request', 'billing.read', 'billing.assign'}
-        if action in TENANT_SPACE_MANAGEMENT and tenant_admin(conn,principal.member_id,workspace):
-            return member
         if management and superadmin(conn, principal.member_id):
+            return member
+        if action in TENANT_SPACE_MANAGEMENT and tenant_admin(conn,principal.member_id,workspace):
+            if TENANT_SPACE_MANAGEMENT[action] not in tenant_space_permissions(conn, principal.member_id, workspace):
+                fail('tenant_permission_denied')
             return member
         if not conn.execute('SELECT 1 FROM tenant_members WHERE tenant_id=%s AND member_id=%s',(row['tenant_id'],principal.member_id)).fetchone():
             fail('tenant_forbidden')

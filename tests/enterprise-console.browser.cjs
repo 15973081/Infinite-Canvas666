@@ -1,7 +1,10 @@
-const {chromium}=require('playwright');const assert=require('assert/strict');
+const {chromium}=require('playwright');const assert=require('assert/strict'),fs=require('node:fs');
 (async()=>{const browser=await chromium.launch({channel:'chrome',headless:true});try{
 const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
-const tenants=[{id:'acme',name:'星河设计',status:'active',role:'admin',version:1},{id:'beta',name:'远山科技',status:'active',role:'admin',version:1}];
+const catalog={invite_members:'邀请普通成员',create_spaces:'创建协作空间',manage_members:'移除普通成员',assign_spaces:'分配空间成员与角色',assign_models:'分配空间模型与默认模型',billing_read:'查看企业费用',audit_read:'查看操作记录',manage_rules:'调整企业权限规则'};
+const rules=Object.fromEntries(Object.keys(catalog).map(k=>[k,k!=='create_spaces'])),permissions=Object.keys(catalog).filter(k=>rules[k]);
+const tenants=[{id:'acme',name:'星河设计',status:'active',role:'admin',version:1},{id:'beta',name:'远山科技',status:'active',role:'admin',version:1}].map(t=>({...t,permissions,platform_rules:rules,enterprise_rules:rules}));
+await page.route('**/*',r=>{const p=new URL(r.request().url()).pathname;if(p==='/')return r.fulfill({contentType:'text/html; charset=utf-8',body:fs.readFileSync('management/frontend/index.html','utf8')});const name=p.split('/').pop(),file=name.startsWith('billing-view.')?'static/'+(name.endsWith('.css')?'css/':'js/')+name:'management/frontend/'+name;return fs.existsSync(file)?r.fulfill({contentType:name.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8',body:fs.readFileSync(file,'utf8')}):r.fulfill({status:404});});
 await page.route('**/api/**',async r=>{const p=new URL(r.request().url()).pathname;let data;
 if(p==='/api/me')data={member:{id:'admin',display_name:'企业管理员'},console_mode:'enterprise',permissions:[],workspaces:[],tenants};
 else if(p==='/api/tenants')data={tenants:tenants.map(t=>({...t,members:1,spaces:1})),can_create:false,delivery_configured:false};
@@ -10,7 +13,7 @@ else if(p.endsWith('/rules'))data={platform_rules:{invite_members:true,create_sp
 else if(p.endsWith('/events'))data={events:[],next:null};
 else if(p.endsWith('/billing'))data={totals:[],accounts:[],entries:[],records:0,page:1,pages:1};
 else if(p==='/api/account/email')data={email:null,delivery_configured:false};
-else if(p.startsWith('/api/tenants/'))data={tenant:tenants.find(t=>p.endsWith(t.id)),members:[{id:'admin',display_name:'企业管理员',username:'admin',status:'active',role:'admin'}],spaces:[{id:'studio',name:'设计空间',status:'active'}],invitations:[],can_suspend:false,rules:{create_spaces:false}};
+else if(p.startsWith('/api/tenants/'))data={tenant:tenants.find(t=>p.endsWith(t.id)),members:[{id:'admin',display_name:'企业管理员',username:'admin',status:'active',role:'admin',admin_permissions:permissions,effective_permissions:permissions,version:1,can_manage_admin:false}],spaces:[{id:'studio',name:'设计空间',status:'active'}],invitations:[],can_suspend:false,rules,permissions,permission_catalog:catalog,delegatable_permissions:permissions,actor_id:'admin'};
 else throw Error('Unexpected platform request '+p);
 await r.fulfill({json:data});});
 await page.goto('http://127.0.0.1:8770/');await page.getByRole('heading',{name:'企业概览',exact:true}).waitFor();
