@@ -46,7 +46,7 @@ test('canvas selection updates summary/actions in both directions without replac
 });
 
 test('virtual geometry follows width even when column count does not change', () => {
-    const context = vm.createContext({getComputedStyle:()=>({gridTemplateColumns:'152px 152px 152px 152px 152px',rowGap:'10px',columnGap:'10px'})});
+    const context = vm.createContext({getComputedStyle:()=>({gridTemplateColumns:'152px 152px 152px 152px 152px',rowGap:'10px',columnGap:'10px',getPropertyValue:()=>'.75'})});
     load(context, ['assetVirtualMetrics', 'assetAnchorScrollTop']);
     const grid = {clientWidth:800,getBoundingClientRect:()=>({top:112})};
     const scroll = {kind:'element',viewportTop:100,top:0};
@@ -54,13 +54,13 @@ test('virtual geometry follows width even when column count does not change', ()
     grid.clientWidth = 820;
     const after = context.assetVirtualMetrics(grid,scroll);
     assert.equal(after.columns,5);
-    assert.equal(after.rowStride-before.rowStride,4);
-    assert.equal(after.cardHeight,204);
+    assert.equal(after.rowStride-before.rowStride,3);
+    assert.equal(after.cardHeight,165);
     const items = Array.from({length:1000},(_,i)=>({id:String(i)}));
     const snapshot = {anchorId:'334',anchorOffset:-20,top:14000};
-    assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+66*214+20);
+    assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+66*175+20);
     items.unshift(...Array.from({length:50},(_,i)=>({id:`new-${i}`})));
-    assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+76*214+20);
+    assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+76*175+20);
     assert.equal(context.assetAnchorScrollTop({...snapshot,anchorId:'removed'},items,after),14000);
 });
 

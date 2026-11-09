@@ -340,7 +340,7 @@ function restoreManagerDescriptor(view){
 }
 function managerScrollContext(element=root.querySelector('.asset-content .content-scroll')){
     if(!element) return null;
-    const usesWindow = getComputedStyle(document.body).overflowY !== 'hidden';
+    const usesWindow = !root.querySelector('#assetInspector') && getComputedStyle(document.body).overflowY !== 'hidden';
     const scrollingElement = document.scrollingElement || document.documentElement;
     return usesWindow
         ? {kind:'window', element, top:window.scrollY || scrollingElement.scrollTop || 0, left:window.scrollX || 0, viewportTop:0, viewportHeight:window.innerHeight}
@@ -414,27 +414,34 @@ const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|jfif|webp|gif|bmp|avif|svg|mp4|webm|mov|m
 const ASSET_BATCH_SIZE = 32;
 const ASSET_VIRTUAL_OVERSCAN_ROWS = 3;
 
-let assetInspectorCollapsed = true;
+const collapsedAssetInspectors = new Set();
 function refreshIcons(){
-    const head=root.querySelector('.asset-detail > .panel-head');
+    const inspector=root.querySelector('#assetInspector');
+    const head=inspector && root.querySelector('.asset-content .content-heading');
     if(head && !head.querySelector('[data-inspector-toggle]')){
+        const tab=activeTab;
         const toggle=document.createElement('button');
         toggle.type='button';toggle.className='asset-btn inspector-toggle';toggle.dataset.inspectorToggle='';
+        toggle.setAttribute('aria-controls',inspector.id);
         const sync=()=>{
-            root.classList.toggle('inspector-collapsed',assetInspectorCollapsed);
-            toggle.textContent=assetInspectorCollapsed?'查看详情':'收起详情';
-            toggle.setAttribute('aria-expanded',String(!assetInspectorCollapsed));
+            const collapsed=collapsedAssetInspectors.has(tab);
+            root.classList.toggle('inspector-collapsed',collapsed);
+            toggle.textContent=collapsed?'查看详情':'收起详情';
+            toggle.setAttribute('aria-expanded',String(!collapsed));
         };
         toggle.addEventListener('click',()=>{
-            assetInspectorCollapsed=!assetInspectorCollapsed;sync();
-            requestAnimationFrame(()=>{scheduleAssetVirtualRender();renderManagerVirtualWindow();});
+            const view=captureManagerView();
+            if(collapsedAssetInspectors.has(tab)) collapsedAssetInspectors.delete(tab);
+            else collapsedAssetInspectors.add(tab);
+            sync();
+            restoreManagerView(view);
         });
         head.append(toggle);sync();
     }
     window.AssetLibraryIcons?.render();
     if(window.lucide) lucide.createIcons();
 }
-function setStatus(text='准备就绪'){ if(statusEl) statusEl.textContent = text || '准备就绪'; }
+function setStatus(text=''){ if(statusEl) statusEl.textContent = text || ''; }
 function assetViewKey(libraryId=activeAssetLibraryId, categoryId=activeAssetCategoryId, query=assetQuery){
     return JSON.stringify([String(libraryId || ''), String(categoryId || ''), String(query || '').trim().toLowerCase()]);
 }
@@ -517,7 +524,9 @@ function assetVirtualMetrics(grid, context){
     const columns = Math.max(1, style.gridTemplateColumns.split(' ').filter(Boolean).length);
     const gap = Number.parseFloat(style.rowGap) || 10;
     const columnGap = Number.parseFloat(style.columnGap) || 10;
-    const cardHeight = (grid.clientWidth - (columns - 1) * columnGap) / columns + 48;
+    const thumbHeightRatio = Number.parseFloat(style.getPropertyValue('--asset-thumb-height-ratio')) || 1;
+    const cardWidth = (grid.clientWidth - (columns - 1) * columnGap) / columns;
+    const cardHeight = cardWidth * thumbHeightRatio + 48;
     return {columns, gap, cardHeight, rowStride:cardHeight + gap,
         gridTop:context.kind === 'window'
             ? grid.getBoundingClientRect().top + context.top
@@ -1032,13 +1041,6 @@ function activeCanvasAssetCanvas(){
 function canvasAssetViewTitle(){
     return activeCanvasAssetCanvas()?.title || activeCanvasAssetCategoryInfo().name || '画布资产';
 }
-function canvasAssetViewSubtitle(items){
-    const count = canvasAssetsData.limit ? Number(canvasAssetsData.total || 0) : items.length;
-    const canvas = activeCanvasAssetCanvas();
-    if(canvas) return `${canvasKindLabel(canvas.kind)} / ${canvasSourceStateLabel(canvas.asset_source_state)} / ${count} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
-    const activeCat = activeCanvasAssetCategoryInfo();
-    return `${Number(activeCat.canvas_count || 0)} 个画布 / ${count} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
-}
 function canvasAssetKindLabel(item){
     const kind = assetKind(item);
     if(kind === 'video') return '视频';
@@ -1048,10 +1050,6 @@ function canvasAssetKindLabel(item){
 }
 function canvasKindLabel(kind){
     return kind === 'smart' ? '智能画布' : '普通画布';
-}
-function canvasAssetSortLabel(){
-    const map = {canvas_asc:'画布名称', updated_desc:'最近更新', updated_asc:'最早更新', name_asc:'名称 A-Z', kind:'类型'};
-    return map[canvasAssetSort] || map.canvas_asc;
 }
 function currentCanvasAssetItems(){
     return cachedManagerItems('canvas-assets',canvasAssetsData,JSON.stringify([activeCanvasAssetCategory,activeCanvasAssetCanvasId,canvasAssetQuery,canvasAssetSort]),computeCanvasAssetItems);
@@ -1089,7 +1087,7 @@ function computeCanvasAssetItems(){
     return list;
 }
 function groupCanvasAssetItems(items){
-    if(canvasAssetSort !== 'canvas_asc') return [{key:'__all__', title:'', subtitle:'', items}];
+    if(activeCanvasAssetCanvasId || canvasAssetSort !== 'canvas_asc') return [{key:'__all__', title:'', subtitle:'', items}];
     const groups = [];
     const map = new Map();
     (items || []).forEach(item => {
@@ -1317,7 +1315,7 @@ async function loadManagerData(tab, {refresh=false, reset=false}={}){
             const data = await apiJson('/api/asset-library');
             applyAssetLibraryData(data, {reset});
         } else if(key === 'canvas-assets') {
-            await loadCanvasAssetPage(0); // /api/canvas-assets, bounded server query
+            await loadCanvasAssetPage(refresh ? canvasAssetsData.offset || 0 : 0);
         } else if(key === 'providers') {
             const data = await apiJson('/api/providers');
             apiProviders = Array.isArray(data.providers) ? data.providers : [];
@@ -1347,7 +1345,7 @@ async function loadInitialAssetManager(){
     await loadManagerData(activeTab);
     if(token!==managerTabSwitchToken) return;
     render();
-    setStatus('准备就绪');
+    setStatus();
     loadManagerData('providers').then(() => {
         if(selectedAssetId) scheduleAssetAvatarStatusRefresh(selectedAssetId);
         resumeAvatarPolls();
@@ -1373,7 +1371,7 @@ async function switchManagerTab(tab){
     try {
         await loadManagerData(nextTab);
         if(token !== managerTabSwitchToken || activeTab !== nextTab) return;
-        render(); setStatus('准备就绪');
+        render(); setStatus();
         if(nextTab==='assets' && !managerDataLoaded.providers) loadManagerData('providers').then(()=>scheduleAssetAvatarStatusRefresh(selectedAssetId)).catch(()=>{});
     } catch(err){
         if(token!==managerTabSwitchToken || activeTab!==nextTab) return;
@@ -1414,6 +1412,7 @@ function render({resetScroll=false}={}){
     const previousAssetView = captureAssetViewState();
     if(previousAssetView) persistAssetViewSession(previousAssetView);
     document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
+    root.classList.toggle('inspector-collapsed',collapsedAssetInspectors.has(activeTab));
     if(activeTab === 'workflows') renderWorkflowManager();
     else if(activeTab === 'canvas-assets') renderCanvasAssetsManager();
     else {
@@ -1436,30 +1435,33 @@ function renderCanvasAssetsManager(){
     const items = currentCanvasAssetItems();
     const groups = groupCanvasAssetItems(items);
     const total = canvasAssetsData.limit ? (canvasAssetsData.categories || []).find(c => c.id === 'all')?.count || 0 : (canvasAssetsData.items || []).length;
+    const resultCount = canvasAssetsData.limit ? Number(canvasAssetsData.total || 0) : items.length;
+    const {offset,limit,has_more:hasMore} = canvasAssetsData;
+    const countLabel = `共 ${resultCount} 个素材`;
     const detail = selectedCanvasAsset();
     root.innerHTML = `
-        <aside class="asset-panel asset-nav">
-            <div class="panel-head"><div class="panel-title"><strong>画布分类</strong><span>从所有画布拉取资产</span></div></div>
+        <aside class="asset-panel asset-nav asset-directory" aria-label="画布目录">
+            <div class="panel-head"><div class="panel-title"><strong>画布目录</strong></div></div>
             <div class="nav-scroll">
                 <div class="nav-tree canvas-asset-tree">
                     ${canvasAssetCategories().map(cat => renderCanvasAssetTreeBranch(cat)).join('')}
                 </div>
-                <div class="nav-hint">共 ${canvasAssetsData.canvases?.length || 0} 个画布，${total} 个可下载资产。</div>
+                <div class="nav-hint">${canvasAssetsData.canvases?.length || 0} 个画布 · ${total} 个素材</div>
             </div>
         </aside>
         <section class="asset-panel asset-content ${canvasAssetManageMode ? 'manage-on' : ''}">
             <div class="content-toolbar">
                 <div class="content-heading">
                     <strong>${escapeHtml(canvasAssetViewTitle())}</strong>
-                    <span>${canvasAssetViewSubtitle(items)}</span>
+                    <span>${resultCount} 个素材</span>
                 </div>
                 <div class="asset-tools">
                     <div class="canvas-source-filters" role="group" aria-label="来源画布状态">
-                        <button type="button" class="asset-btn ${canvasAssetSourceState === 'active' ? 'primary' : ''}" data-canvas-source="active" aria-pressed="${canvasAssetSourceState === 'active'}">使用中的画布</button>
-                        <button type="button" class="asset-btn ${canvasAssetSourceState === 'deleted' ? 'primary' : ''}" data-canvas-source="deleted" aria-pressed="${canvasAssetSourceState === 'deleted'}">已删除画布</button>
-                        <button type="button" class="asset-btn ${canvasAssetSourceState === 'all' ? 'primary' : ''}" data-canvas-source="all" aria-pressed="${canvasAssetSourceState === 'all'}">全部画布</button>
+                        <button type="button" class="asset-btn" data-canvas-source="active" aria-pressed="${canvasAssetSourceState === 'active'}">使用中的画布</button>
+                        <button type="button" class="asset-btn" data-canvas-source="deleted" aria-pressed="${canvasAssetSourceState === 'deleted'}">已删除画布</button>
+                        <button type="button" class="asset-btn" data-canvas-source="all" aria-pressed="${canvasAssetSourceState === 'all'}">全部画布</button>
                     </div>
-                    ${canvasAssetsData.catalog_enabled ? `<button class="asset-btn ${canvasAssetTrashMode ? 'primary' : ''}" type="button" data-catalog-toggle>${canvasAssetTrashMode ? '返回资产' : '回收站 (' + Number(canvasAssetsData.trash_count || 0) + ')'}</button>` : ''}
+                    ${canvasAssetsData.catalog_enabled ? `<button class="asset-btn" type="button" data-catalog-toggle>${canvasAssetTrashMode ? '返回资产' : '回收站 (' + Number(canvasAssetsData.trash_count || 0) + ')'}</button>` : ''}
                     <label class="asset-search-wrap"><i data-lucide="search"></i><input id="canvasAssetSearch" class="asset-search" type="search" value="${escapeAttr(canvasAssetQuery)}" placeholder="搜索画布名称或素材"></label>
                     <select id="canvasAssetSort" class="manage-select canvas-sort-select" title="排序方法">
                         <option value="canvas_asc" ${canvasAssetSort === 'canvas_asc' ? 'selected' : ''}>画布名称</option>
@@ -1468,7 +1470,7 @@ function renderCanvasAssetsManager(){
                         <option value="name_asc" ${canvasAssetSort === 'name_asc' ? 'selected' : ''}>资产名称</option>
                         <option value="kind" ${canvasAssetSort === 'kind' ? 'selected' : ''}>类型</option>
                     </select>
-                    <button class="asset-btn ${canvasAssetManageMode ? 'primary' : ''}" type="button" data-canvas-asset-manage ${total ? '' : 'disabled'}><i data-lucide="list-checks"></i><span>${canvasAssetManageMode ? '完成管理' : '批量管理'}</span></button>
+                    <button class="asset-btn ${canvasAssetManageMode ? 'is-active' : ''}" type="button" data-canvas-asset-manage ${total ? '' : 'disabled'}><i data-lucide="list-checks"></i><span>${canvasAssetManageMode ? '完成管理' : '批量管理'}</span></button>
                 </div>
             </div>
             <div class="manage-tools">
@@ -1483,14 +1485,13 @@ function renderCanvasAssetsManager(){
             <div class="content-scroll">
                 ${items.length ? renderManagerVirtualGrid(groups,renderCanvasAssetCard) : managerEmptyState(canvasAssetQuery,canvasAssetTrashMode ? '当前分类的回收站为空。回收的素材可在这里恢复。' : '当前分类没有可下载的画布资产。可以切换分类，或在画布中生成、导入素材。')}
             </div>
-            ${canvasAssetsData.limit ? `<nav class="content-toolbar" aria-label="素材分页">
-                <button class="asset-btn" data-canvas-page="${Math.max(0,canvasAssetsData.offset-canvasAssetsData.limit)}" ${canvasAssetsData.offset ? '' : 'disabled'}>上一页</button>
-                <span>第 ${Math.floor(canvasAssetsData.offset/canvasAssetsData.limit)+1} / ${Math.max(1,Math.ceil(canvasAssetsData.total/canvasAssetsData.limit))} 页 · 共 ${canvasAssetsData.total} 个</span>
-                <button class="asset-btn" data-canvas-page="${canvasAssetsData.offset+canvasAssetsData.limit}" ${canvasAssetsData.has_more ? '' : 'disabled'}>下一页</button>
-                <button class="asset-btn" data-canvas-page="${canvasAssetsData.offset}">刷新</button>
-            </nav>` : ''}
+            ${limit && (offset || hasMore) ? `<nav class="canvas-asset-footer" aria-label="素材分页">
+                <span>第 ${Math.floor(offset/limit)+1} / ${Math.ceil(resultCount/limit)} 页 · ${countLabel}</span>
+                <button class="asset-btn" type="button" data-canvas-page="${Math.max(0,offset-limit)}" ${offset ? '' : 'disabled'}>上一页</button>
+                <button class="asset-btn" type="button" data-canvas-page="${offset+limit}" ${hasMore ? '' : 'disabled'}>下一页</button>
+            </nav>` : `<div class="canvas-asset-footer">${countLabel}</div>`}
         </section>
-        <aside class="asset-panel asset-detail">
+        <aside id="assetInspector" class="asset-panel asset-detail asset-inspector" aria-label="画布资产详情">
             ${renderCanvasAssetDetail(detail)}
         </aside>
     `;
@@ -1500,7 +1501,7 @@ function renderCanvasAssetTreeBranch(cat){
     const activeParent = cat.id === activeCanvasAssetCategory && !activeCanvasAssetCanvasId;
     const containsActive = cat.id === activeCanvasAssetCategory && !!activeCanvasAssetCanvasId;
     return `<div class="tree-branch ${cat.id === activeCanvasAssetCategory ? 'expanded' : ''}">
-        <button class="tree-row tree-parent ${activeParent ? 'active' : ''} ${containsActive ? 'contains-active' : ''}" type="button" data-canvas-asset-cat="${escapeAttr(cat.id)}">
+        <button class="tree-row tree-parent ${activeParent ? 'active' : ''} ${containsActive ? 'contains-active' : ''}" type="button" data-canvas-asset-cat="${escapeAttr(cat.id)}" ${activeParent ? 'aria-current="true"' : ''}>
             <span class="tree-row-icon"><i data-lucide="${cat.id === 'smart' ? 'sparkles' : cat.id === 'classic' ? 'layout-grid' : 'layout-dashboard'}"></i></span>
             <span class="tree-row-name">${escapeHtml(cat.name || '画布')}</span>
             <span class="tree-row-count">${Number(cat.count || 0)}</span>
@@ -1509,8 +1510,7 @@ function renderCanvasAssetTreeBranch(cat){
             ${canvases.length ? canvases.map(canvas => {
                 const active = canvas.id === activeCanvasAssetCanvasId && cat.id === activeCanvasAssetCategory;
                 const count = canvasAssetCountForCanvas(canvas.id);
-                return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-canvas-asset-canvas="${escapeAttr(canvas.id)}" data-canvas-asset-canvas-cat="${escapeAttr(cat.id)}">
-                    <span class="tree-elbow"></span>
+                return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-canvas-asset-canvas="${escapeAttr(canvas.id)}" data-canvas-asset-canvas-cat="${escapeAttr(cat.id)}" ${active ? 'aria-current="true"' : ''}>
                     <span class="tree-row-icon"><i data-lucide="${canvas.kind === 'smart' ? 'sparkles' : 'layout-dashboard'}"></i></span>
                     <span class="tree-row-name" title="${escapeAttr(canvas.title || '未命名画布')}">${escapeHtml(canvas.title || '未命名画布')}${canvas.asset_source_state && canvas.asset_source_state !== 'active' ? '<small class="canvas-source-status">'+canvasSourceStateLabel(canvas.asset_source_state)+'</small>' : ''}</span>
                     <span class="tree-row-count">${count}</span>
@@ -1535,19 +1535,16 @@ function renderCanvasAssetGroup(group){
     </section>`;
 }
 function renderCanvasAssetCard(item){
+    const videoMark = assetKind(item) === 'video' ? '<span class="canvas-asset-play" role="img" aria-label="视频" title="视频"><i data-lucide="play"></i></span>' : '';
+    const showSource = !activeCanvasAssetCanvasId && canvasAssetSort !== 'canvas_asc';
     return `<article class="asset-card canvas-asset-card ${item.id === selectedCanvasAssetId ? 'active' : ''}" data-canvas-asset-card="${escapeAttr(item.id)}">
         <input class="asset-card-check" type="checkbox" data-canvas-asset-check="${escapeAttr(item.id)}" ${selectedCanvasAssetIds.has(item.id) ? 'checked' : ''}>
-        <div class="asset-thumb canvas-asset-thumb">${assetThumb(item)}${renderCanvasAssetKindBadge(item)}</div>
+        <div class="asset-thumb canvas-asset-thumb">${assetThumb(item)}${videoMark}</div>
         <div class="asset-card-body">
             <div class="asset-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || 'canvas asset')}</div>
-            <div class="asset-card-meta">${escapeHtml(canvasAssetKindLabel(item))} · ${escapeHtml(item.canvas_title || '未命名画布')}</div>
+            ${showSource ? `<div class="asset-card-meta">${escapeHtml(item.canvas_title || '未命名画布')}</div>` : ''}
         </div>
     </article>`;
-}
-function renderCanvasAssetKindBadge(item){
-    const kind = assetKind(item);
-    const icon = kind === 'video' ? 'play' : kind === 'audio' ? 'file-audio' : kind === 'text' ? 'file-text' : 'image';
-    return `<span class="asset-kind-badge ${escapeAttr(kind)}" title="${escapeAttr(canvasAssetKindLabel(item))}"><i data-lucide="${icon}"></i><span>${escapeHtml(canvasAssetKindLabel(item))}</span></span>`;
 }
 let canvasAssetRequest = null;
 let canvasAssetRequestToken = 0;
@@ -1573,6 +1570,9 @@ async function loadCanvasAssetPage(offset=0){
             activeCanvasAssetCanvasId='';
             return loadCanvasAssetPage(0);
         }
+        if(data.limit && offset && !canvasAssetsData.items.length && offset >= data.total){
+            return loadCanvasAssetPage(Math.max(0,Math.ceil(data.total/data.limit)-1)*data.limit);
+        }
         return true;
     } catch(err){
         if(token !== canvasAssetRequestToken || url !== canvasAssetPageUrl(offset)) return false;
@@ -1588,15 +1588,12 @@ async function reloadCanvasCatalog(offset=0){
     setStatus('正在加载画布素材…');
     try {
         if(!await loadCanvasAssetPage(offset)) return;
-        if(canvasAssetsData.offset && !canvasAssetsData.items.length && canvasAssetsData.total){
-            return reloadCanvasCatalog(Math.floor((canvasAssetsData.total-1)/60)*60);
-        }
         if(activeTab !== 'canvas-assets') return;
         const focus = document.activeElement?.id === 'canvasAssetSearch';
         const position = document.activeElement?.selectionStart;
         render({resetScroll:true});
         if(focus){ const input=document.getElementById('canvasAssetSearch');input?.focus();input?.setSelectionRange?.(position,position); }
-        setStatus('准备就绪');
+        setStatus();
     } catch(err){
         if(activeTab !== 'canvas-assets') return;
         canvasAssetsData={...canvasAssetsData,items:[],total:0,offset:0,limit:60,has_more:false};
@@ -1647,21 +1644,20 @@ function renderCanvasAssetDetail(item){
     return `
         <div class="panel-head">
             <div class="panel-title"><strong>画布资产详情</strong><span>${escapeHtml(canvasAssetKindLabel(item))}</span></div>
-            <div class="panel-actions">
-                ${canPreview ? `<button class="asset-icon-btn" type="button" data-canvas-asset-preview="${escapeAttr(item.id)}" title="${kind === 'video' ? '预览视频' : '放大预览'}"><i data-lucide="${kind === 'video' ? 'play' : 'maximize-2'}"></i></button>` : ''}
-                <button class="asset-icon-btn" type="button" data-canvas-asset-open="${escapeAttr(item.id)}" title="打开链接"><i data-lucide="external-link"></i></button>
-                <button class="asset-icon-btn" type="button" data-canvas-asset-copy="${escapeAttr(item.id)}" title="复制链接"><i data-lucide="copy"></i></button>
-                <button class="asset-btn primary" type="button" data-canvas-asset-download="${escapeAttr(item.id)}"><i data-lucide="download"></i><span>下载</span></button>
-            </div>
         </div>
         <div class="detail-scroll">
             ${kind === 'audio' ? assetAudioDetailHtml(item,'canvas-asset') : `<div class="detail-media">
                 ${canPreview
-                    ? `<button class="detail-media-frame detail-media-zoomable" type="button" data-canvas-asset-preview="${escapeAttr(item.id)}" title="${kind === 'video' ? '点击预览视频' : '点击放大预览'}">${assetThumb(item)}</button>`
+                    ? `<button class="detail-media-frame detail-media-zoomable" type="button" data-canvas-asset-preview="${escapeAttr(item.id)}" aria-label="${kind === 'video' ? '预览视频' : '放大预览'}">${assetThumb(item)}</button>`
                     : `<div class="detail-media-frame">${assetThumb(item)}</div>`}
             </div>`}
             <div class="detail-body">
                 <div class="detail-name">${escapeHtml(item.name || '画布资产')}</div>
+                <div class="panel-actions">
+                    <button class="asset-btn primary" type="button" data-canvas-asset-download="${escapeAttr(item.id)}"><i data-lucide="download"></i><span>下载</span></button>
+                    <button class="asset-icon-btn" type="button" data-canvas-asset-open="${escapeAttr(item.id)}" title="打开链接"><i data-lucide="external-link"></i></button>
+                    <button class="asset-icon-btn" type="button" data-canvas-asset-copy="${escapeAttr(item.id)}" title="复制链接"><i data-lucide="copy"></i></button>
+                </div>
                 ${canvasAssetsData.catalog_enabled ? `<div class="catalog-detail-actions">${item.staging_pending ? `<p role="status">${escapeHtml(item.storage_status)}${item.cleanup_failed ? '（上次清理失败，可重试）' : ''}</p>` : ''}<button class="asset-btn" data-catalog-action="references" data-catalog-id="${escapeAttr(item.id)}">查看引用</button>${canvasAssetsData.can_manage ? `<button class="asset-btn" data-catalog-action="edit" ${item.staging_pending ? 'disabled' : ''} data-catalog-id="${escapeAttr(item.id)}">编辑信息</button><button class="asset-btn" data-catalog-action="${item.trashed ? 'restore' : 'trash'}" ${item.staging_pending ? 'disabled' : ''} data-catalog-id="${escapeAttr(item.id)}">${item.trashed ? '恢复素材' : '移入回收站'}</button>${item.trashed ? `<button class="asset-btn" data-catalog-action="purge" data-catalog-id="${escapeAttr(item.id)}">${item.deleting ? '重试彻底删除' : '彻底删除'}</button>` : ''}` : ''}</div><p>${escapeHtml(item.category || '未分类')} · ${escapeHtml((item.tags || []).join('、') || '无标签')}</p>` : ''}
                 <div class="detail-meta-grid">
                     <div class="detail-meta"><span>类型</span><strong>${escapeHtml(canvasAssetKindLabel(item))}</strong></div>
@@ -2029,9 +2025,9 @@ function renderAssetManager(){
     const detail = selectedAsset();
     assetVirtualRangeKey = '';
     root.innerHTML = `
-        <aside class="asset-panel asset-nav">
+        <aside class="asset-panel asset-nav asset-directory" aria-label="图片资产文件夹">
             <div class="panel-head">
-                <div class="panel-title"><strong>资产层级</strong><span>先选库，再选分组</span></div>
+                <div class="panel-title"><strong>文件夹</strong></div>
                 <div class="panel-actions compact-actions">
                     ${assetTreeEdit?.placement === 'head' ? '' : '<button class="asset-icon-btn" type="button" data-asset-lib-new title="新建资产库"><i data-lucide="plus"></i></button>'}
                     ${renderHeadTreeInlineEdit(assetTreeEdit, 'assetTreeEditInput', 'data-asset-tree-edit-save', 'data-asset-tree-edit-cancel')}
@@ -2078,7 +2074,7 @@ function renderAssetManager(){
                 </div>
             </div>
         </section>
-        <aside class="asset-panel asset-detail">
+        <aside id="assetInspector" class="asset-panel asset-detail asset-inspector" aria-label="图片资产详情">
             ${renderAssetDetail(detail)}
         </aside>
     `;
@@ -2091,9 +2087,9 @@ function renderWorkflowManager(){
     const items = currentWorkflowItems();
     const detail = selectedWorkflow();
     root.innerHTML = `
-        <aside class="asset-panel asset-nav">
+        <aside class="asset-panel asset-nav asset-directory" aria-label="工作流文件夹">
             <div class="panel-head">
-                <div class="panel-title"><strong>工作流层级</strong><span>独立管理工作流分组</span></div>
+                <div class="panel-title"><strong>文件夹</strong></div>
                 <div class="panel-actions compact-actions">
                     ${workflowTreeEdit?.placement === 'head' ? '' : '<button class="asset-icon-btn" type="button" data-workflow-cat-new title="新建工作流分组"><i data-lucide="folder-plus"></i></button>'}
                     ${renderHeadTreeInlineEdit(workflowTreeEdit, 'workflowTreeEditInput', 'data-workflow-tree-edit-save', 'data-workflow-tree-edit-cancel')}
@@ -2110,10 +2106,9 @@ function renderWorkflowManager(){
                         <div class="tree-children">
                             ${cats.length ? cats.map(c => {
                                 const active = c.id === activeWorkflowCategoryId && c.__libraryId === activeWorkflowLibraryId;
-                                return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-workflow-cat="${escapeAttr(c.id)}" data-workflow-cat-lib="${escapeAttr(c.__libraryId || '')}">
-                                <span class="tree-elbow"></span>
-                                <span class="tree-row-icon"><i data-lucide="workflow"></i></span>
-                                <span class="tree-row-name">${escapeHtml(c.name || '工作流')}</span>
+                                return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-workflow-cat="${escapeAttr(c.id)}" data-workflow-cat-lib="${escapeAttr(c.__libraryId || '')}" ${active ? 'aria-current="true"' : ''}>
+                                <span class="tree-row-icon"><i data-lucide="folder"></i></span>
+                                <span class="tree-row-name" title="${escapeAttr(c.name || '工作流')}">${escapeHtml(c.name || '工作流')}</span>
                                 <span class="tree-row-count">${(c.items || []).length}</span>
                             </button>${active ? renderWorkflowTreeActionBar() : ''}`;
                             }).join('') : '<div class="tree-empty">暂无工作流分组</div>'}
@@ -2147,7 +2142,7 @@ function renderWorkflowManager(){
                 ${items.length ? '' : managerEmptyState(workflowQuery,'当前分组还没有工作流，可以上传 JSON / ZIP，或从传统画布导出到资产库。')}
             </div>
         </section>
-        <aside class="asset-panel asset-detail">
+        <aside id="assetInspector" class="asset-panel asset-detail asset-inspector workflow-inspector" aria-label="工作流详情">
             ${renderWorkflowDetail(detail)}
         </aside>
     `;
@@ -2195,16 +2190,16 @@ function renderWorkflowDetail(item){
     return `
         <div class="panel-head">
             <div class="panel-title"><strong>工作流详情</strong><span>${escapeHtml(workflowKindLabel(item))}</span></div>
-            <div class="panel-actions">
-                <button class="asset-icon-btn" type="button" data-workflow-download="${escapeAttr(item.id)}" title="导出工作流"><i data-lucide="download"></i></button>
-                <button class="asset-icon-btn" type="button" data-workflow-rename="${escapeAttr(item.id)}" title="重命名"><i data-lucide="pencil"></i></button>
-                <button class="asset-icon-btn danger ${pendingDeleteAssetId === item.id ? 'detail-confirm' : ''}" type="button" data-workflow-delete="${escapeAttr(item.id)}" title="${pendingDeleteAssetId === item.id ? '再次点击确认删除' : '删除'}"><i data-lucide="trash-2"></i></button>
-            </div>
         </div>
         <div class="detail-scroll">
             <div class="detail-media"><div class="detail-media-frame">${workflowThumb(item)}</div></div>
             <div class="detail-body">
                 <input class="detail-name-input" data-workflow-inline-name="${escapeAttr(item.id)}" type="text" value="${escapeAttr(item.name || 'workflow')}" title="直接修改名称">
+                <div class="panel-actions">
+                    <button class="asset-btn primary" type="button" data-workflow-download="${escapeAttr(item.id)}" title="导出工作流"><i data-lucide="download"></i><span>导出</span></button>
+                    <button class="asset-icon-btn" type="button" data-workflow-rename="${escapeAttr(item.id)}" title="重命名"><i data-lucide="pencil"></i></button>
+                    <button class="asset-icon-btn danger ${pendingDeleteAssetId === item.id ? 'detail-confirm' : ''}" type="button" data-workflow-delete="${escapeAttr(item.id)}" title="${pendingDeleteAssetId === item.id ? '再次点击确认删除' : '删除'}"><i data-lucide="trash-2"></i></button>
+                </div>
                 <div class="detail-meta-grid">
                     <div class="detail-meta"><span>类型</span><strong>${escapeHtml(workflowKindLabel(item))}</strong></div>
                     <div class="detail-meta"><span>创建时间</span><strong>${escapeHtml(formatDate(item.created_at))}</strong></div>
@@ -2232,23 +2227,30 @@ function renderAssetClipboardBar(){
 function renderAssetTreeBranch(lib){
     const isActiveLib = lib.id === activeAssetLibraryId;
     const isExpanded = !collapsedAssetLibraryIds.has(lib.id);
+    const libraryName = lib.name || '资产库';
     const cats = (lib.categories || []).filter(cat => (cat.type || 'image') === 'image');
-    const showLibActions = isActiveLib && isExpanded && assetTreeFocus === 'library';
+    const isCurrent = isActiveLib && (assetTreeFocus === 'library' || !isExpanded);
     return `<div class="tree-branch ${isExpanded ? 'expanded' : ''}">
-        <button class="tree-row tree-parent ${isActiveLib ? 'contains-active' : ''} ${showLibActions ? 'active' : ''}" type="button" data-asset-lib="${escapeAttr(lib.id)}" aria-expanded="${isExpanded}">
-            <span class="tree-toggle"><i data-lucide="chevron-right"></i></span>
-            <span class="tree-row-icon"><i data-lucide="${isExpanded ? 'folder-open' : 'folder'}"></i></span>
-            <span class="tree-row-name">${escapeHtml(lib.name || '资产库')}</span>
-            <span class="tree-row-count">${assetCountForLibrary(lib)}</span>
-        </button>
-        ${showLibActions ? renderAssetTreeActionBar('library') : ''}
+        <div class="manager-tree-heading">
+            <button class="manager-tree-toggle" type="button" data-asset-lib-toggle="${escapeAttr(lib.id)}" aria-expanded="${isExpanded}" aria-label="${isExpanded ? '折叠' : '展开'}${escapeAttr(libraryName)}">
+                <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" aria-hidden="true"></i>
+            </button>
+            <button class="tree-row tree-parent ${isActiveLib ? 'contains-active' : ''} ${isCurrent ? 'active' : ''}" type="button" data-asset-lib="${escapeAttr(lib.id)}" ${isCurrent ? 'aria-current="true"' : ''}>
+                <span class="tree-row-icon"><i data-lucide="${isExpanded ? 'folder-open' : 'folder'}"></i></span>
+                <span class="tree-row-name" title="${escapeAttr(libraryName)}">${escapeHtml(libraryName)}</span>
+                <span class="tree-row-count">${assetCountForLibrary(lib)}</span>
+            </button>
+        </div>
+        ${isCurrent && isExpanded ? renderAssetTreeActionBar('library') : ''}
         <div class="tree-children">
-            ${cats.length ? cats.map(cat => `<button class="tree-row tree-child ${isActiveLib && cat.id === activeAssetCategoryId && assetTreeFocus === 'category' ? 'active' : ''}" type="button" data-asset-cat="${escapeAttr(cat.id)}" data-asset-cat-lib="${escapeAttr(lib.id)}">
-                <span class="tree-elbow"></span>
-                <span class="tree-row-icon"><i data-lucide="image"></i></span>
-                <span class="tree-row-name">${escapeHtml(cat.name || '分组')}</span>
+            ${cats.length ? cats.map(cat => {
+                const active = isActiveLib && cat.id === activeAssetCategoryId && assetTreeFocus === 'category';
+                return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-asset-cat="${escapeAttr(cat.id)}" data-asset-cat-lib="${escapeAttr(lib.id)}" ${active ? 'aria-current="true"' : ''}>
+                <span class="tree-row-icon"><i data-lucide="folder"></i></span>
+                <span class="tree-row-name" title="${escapeAttr(cat.name || '分组')}">${escapeHtml(cat.name || '分组')}</span>
                 <span class="tree-row-count">${(cat.items || []).length}</span>
-            </button>${isActiveLib && cat.id === activeAssetCategoryId && assetTreeFocus === 'category' ? renderAssetTreeActionBar('category') : ''}`).join('') : '<div class="tree-empty">暂无分组</div>'}
+            </button>${active ? renderAssetTreeActionBar('category') : ''}`;
+            }).join('') : '<div class="tree-empty">暂无分组</div>'}
         </div>
     </div>`;
 }
@@ -2437,16 +2439,16 @@ function renderAssetDetail(item){
     return `
         <div class="panel-head">
             <div class="panel-title"><strong>素材预览</strong><span>${escapeHtml(assetKindLabel(item))}</span></div>
-            <div class="panel-actions">
-                <button class="asset-icon-btn" type="button" data-asset-download="${escapeAttr(item.id)}" title="下载素材"><i data-lucide="download"></i></button>
-                <button class="asset-icon-btn" type="button" data-asset-edit-start="${escapeAttr(item.id)}" title="编辑"><i data-lucide="pencil"></i></button>
-                <button class="asset-icon-btn danger ${pendingDeleteAssetId === item.id ? 'detail-confirm' : ''}" type="button" data-asset-delete="${escapeAttr(item.id)}" title="${pendingDeleteAssetId === item.id ? '再次点击确认删除' : '删除'}"><i data-lucide="trash-2"></i></button>
-            </div>
         </div>
         <div class="detail-scroll">
             ${assetKind(item) === 'audio' ? assetAudioDetailHtml(item) : `<div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-asset-preview="${escapeAttr(item.id)}" title="点击放大预览">${assetThumb(item)}</button></div>`}
             <div class="detail-body">
                 <input class="detail-name-input" data-asset-inline-name="${escapeAttr(item.id)}" type="text" value="${escapeAttr(item.name || 'asset')}" title="直接修改名称">
+                <div class="panel-actions">
+                    <button class="asset-btn primary" type="button" data-asset-download="${escapeAttr(item.id)}" title="下载素材"><i data-lucide="download"></i><span>下载</span></button>
+                    <button class="asset-icon-btn" type="button" data-asset-edit-start="${escapeAttr(item.id)}" title="编辑"><i data-lucide="pencil"></i></button>
+                    <button class="asset-icon-btn danger ${pendingDeleteAssetId === item.id ? 'detail-confirm' : ''}" type="button" data-asset-delete="${escapeAttr(item.id)}" title="${pendingDeleteAssetId === item.id ? '再次点击确认删除' : '删除'}"><i data-lucide="trash-2"></i></button>
+                </div>
                 <div class="detail-meta-grid">
                     <div class="detail-meta"><span>类型</span><strong>${escapeHtml(assetKindLabel(item))}</strong></div>
                     <div class="detail-meta"><span>创建时间</span><strong>${escapeHtml(formatDate(item.created_at))}</strong></div>
@@ -3325,7 +3327,7 @@ async function handleClick(event){
         assetTreeFocus = 'library';
         assetTreeEdit = {kind:'library-rename', value:activeAssetLibrary()?.name || '', label:'资产库名称'};
         pendingTreeDelete = '';
-        render(); return;
+        render(); focusTreeEditInput('assetTreeEditInput'); return;
     }
     if(target.closest?.('[data-asset-lib-delete]')){
         const row = target.closest('[data-asset-lib]');
@@ -3339,7 +3341,7 @@ async function handleClick(event){
         if(catRow) activeAssetLibraryId = catRow.dataset.assetCatLib || activeAssetLibraryId;
         assetTreeEdit = {kind:'category-new', value:'新分组', label:'分组名称'};
         pendingTreeDelete = '';
-        render(); return;
+        render(); focusTreeEditInput('assetTreeEditInput'); return;
     }
     if(target.closest?.('[data-asset-cat-rename]')){
         const row = target.closest('[data-asset-cat]');
@@ -3347,35 +3349,43 @@ async function handleClick(event){
         assetTreeFocus = 'category';
         assetTreeEdit = {kind:'category-rename', value:activeAssetCategory()?.name || '', label:'分组名称'};
         pendingTreeDelete = '';
-        render(); return;
+        render(); focusTreeEditInput('assetTreeEditInput'); return;
     }
     if(target.closest?.('[data-asset-cat-delete]')){
         const row = target.closest('[data-asset-cat]');
         if(row){ activeAssetLibraryId = row.dataset.assetCatLib || activeAssetLibraryId; activeAssetCategoryId = row.dataset.assetCat || activeAssetCategoryId; }
         await deleteAssetCategory(); return;
     }
+    const libraryToggle = target.closest?.('[data-asset-lib-toggle]');
+    if(libraryToggle){
+        const libraryId = libraryToggle.dataset.assetLibToggle;
+        const library = assetLibraries().find(lib => lib.id === libraryId);
+        if(!library) return;
+        if(collapsedAssetLibraryIds.has(libraryId)) collapsedAssetLibraryIds.delete(libraryId);
+        else collapsedAssetLibraryIds.add(libraryId);
+        saveCollapsedAssetLibraryIds();
+        const branch = libraryToggle.closest('.tree-branch');
+        branch.outerHTML = renderAssetTreeBranch(library);
+        refreshIcons();
+        root.querySelector(`[data-asset-lib-toggle="${CSS.escape(libraryId)}"]`)?.focus();
+        scheduleAssetViewSave();
+        return;
+    }
     const assetLib = target.closest?.('[data-asset-lib]');
     if(assetLib){
         const libraryId = assetLib.dataset.assetLib || '';
-        if(libraryId === activeAssetLibraryId){
-            if(collapsedAssetLibraryIds.has(libraryId)) collapsedAssetLibraryIds.delete(libraryId); else collapsedAssetLibraryIds.add(libraryId);
-            saveCollapsedAssetLibraryIds();
-            assetTreeFocus='library';
-            const tree=root.querySelector('.asset-library-tree');
-            if(tree){ tree.innerHTML=assetLibraries().map(renderAssetTreeBranch).join(''); refreshIcons(); }
-            scheduleAssetViewSave();
-            return;
-        } else {
+        if(libraryId !== activeAssetLibraryId){
             activeAssetLibraryId = libraryId;
-            collapsedAssetLibraryIds.delete(libraryId);
             const remembered=managerViews.libraries[JSON.stringify(['assets',libraryId])];
             activeAssetCategoryId = assetCategories().some(cat=>cat.id===remembered) ? remembered : assetCategories()[0]?.id || '';
             selectedAssetId = '';
             selectedAssetIds.clear();
         }
+        collapsedAssetLibraryIds.delete(libraryId);
         saveCollapsedAssetLibraryIds();
         assetTreeFocus = 'library';
         renderPreservingScroll();
+        root.querySelector(`[data-asset-lib="${CSS.escape(libraryId)}"]`)?.focus();
         return;
     }
     const assetCat = target.closest?.('[data-asset-cat]');

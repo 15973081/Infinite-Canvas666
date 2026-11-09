@@ -20,8 +20,8 @@ test('studio pages render local Tabler geometry, including dynamic library and c
   if(name==='asset-manager'){
    await page.getByRole('button',{name:'画布资产',exact:true}).click();
    await page.getByText('智能开始',{exact:true}).waitFor();
-   assert.ok(await page.locator('.tree-row-icon [data-tabler="sparkles"]').count()>0);
-   assert.ok(await page.locator('.tree-row-icon [data-tabler="layout-grid"]').count()>0);
+   assert.ok(await page.locator('.tree-row-icon [data-asset-symbol="sparkles"] path').count()>0);
+   assert.ok(await page.locator('.tree-row-icon [data-asset-symbol="layout-grid"] path').count()>0);
    const fold=page.getByRole('button',{name:'折叠智能画布 0',exact:true});
    assert.equal(await fold.locator('[data-tabler="chevron-down"]').count(),1);
    await fold.click();

@@ -66,7 +66,7 @@ test('Library audio detail loads on demand, supports playback, and releases audi
     await page.locator('[data-asset-card=file]').click();
     await page.locator('[data-asset-card=audio]').click();
     assert.equal((await viewport.boundingBox()).height,initialHeight);
-    await page.getByRole('button',{name:'查看详情',exact:true}).click();
+    assert.equal(await page.getByRole('complementary',{name:'图片资产详情'}).isVisible(),true);
     const requests=[];page.on('request',r=>requests.push(new URL(r.url()).pathname));
     // A valid PCM sample exercises native playback without external services.
     const wav=Buffer.alloc(44+16000);
@@ -93,5 +93,181 @@ test('Library audio detail loads on demand, supports playback, and releases audi
     }
     assert.ok(requests.includes('/assets/sound.wav'));
     assert.equal(writes.length,0);
+    assert.deepEqual(errors,[]);
+});
+
+test('image and workflow inspectors open on the right and keep separate collapse states',async t=>{
+    const {page,errors}=await fixture(t,'classic',false);
+    const image=items.find(item=>item.id==='image');
+    const workflow={id:'workflow',name:'分镜流程',kind:'workflow',format:'json',url:'/fixtures/storyboard.json'};
+    await page.route('**/api/asset-library',route=>route.fulfill({json:{library:{libraries:[{
+        id:'default',name:'默认资产库',categories:[
+            {id:'images',name:'分镜',type:'image',items:[image]},
+            {id:'workflows',name:'创作流程',type:'workflow',items:[workflow]},
+        ],
+    }]}}}));
+    await page.route('**/fixtures/storyboard.json',route=>route.fulfill({json:{nodes:[]}}));
+    await page.goto(origin+'/static/asset-manager.html');
+
+    const inspector=page.locator('#assetInspector');
+    const toggle=page.locator('[data-inspector-toggle]');
+    const libraryToggle=page.getByRole('button',{name:'折叠默认资产库',exact:true});
+    const folder=page.locator('[data-asset-cat=images]');
+    await folder.waitFor();
+    await libraryToggle.press('Enter');
+    const closedLibrary=page.getByRole('button',{name:'展开默认资产库',exact:true});
+    assert.equal(await closedLibrary.getAttribute('aria-expanded'),'false');
+    assert.equal(await closedLibrary.evaluate(el=>document.activeElement===el),true);
+    assert.equal(await folder.isVisible(),false);
+    assert.equal(await inspector.getByRole('textbox',{name:'直接修改名称'}).inputValue(),image.name);
+    await closedLibrary.press('Enter');
+    assert.equal(await folder.isVisible(),true);
+    assert.equal(await folder.getAttribute('aria-current'),'true');
+    await page.locator('[data-asset-lib=default]').press('Enter');
+    assert.equal(await libraryToggle.getAttribute('aria-expanded'),'true');
+    await folder.click();
+    await page.locator('[data-asset-cat-rename]').click();
+    await page.waitForFunction(()=>document.activeElement?.id==='assetTreeEditInput');
+    await page.keyboard.press('Escape');
+
+    const assertAlignedActions=async()=>{
+        const name=await page.locator('.asset-directory [aria-current="true"] .tree-row-name').boundingBox();
+        const action=await page.locator('.asset-directory .tree-action-bar button span').first().boundingBox();
+        assert.ok(Math.abs(name.x-action.x)<1,`Directory name at ${name.x}, actions at ${action.x}`);
+        const rows=await page.locator('.asset-directory .tree-action-bar button').evaluateAll(
+            buttons=>new Set(buttons.map(button=>button.getBoundingClientRect().top)).size
+        );
+        assert.equal(rows,1);
+    };
+    for(const [tab,title] of [['图片资产','图片资产详情'],['工作流管理','工作流详情']]){
+        await page.getByRole('button',{name:tab,exact:true}).click();
+        await page.getByRole('complementary',{name:title}).waitFor();
+        assert.equal(await toggle.getAttribute('aria-expanded'),'true');
+        for(const width of [1024,1440,1920]){
+            await page.setViewportSize({width,height:900});
+            if(tab==='图片资产'){
+                await page.locator('[data-asset-lib=default]').press('Enter');
+                await assertAlignedActions();
+                await folder.click();
+            }
+            const grid=await page.locator('.asset-content').boundingBox();
+            const side=await inspector.boundingBox();
+            assert.ok(side.x>=grid.x+grid.width && side.y===grid.y && side.height===grid.height);
+            assert.ok(side.x+side.width<=width);
+            assert.equal(await inspector.locator('.detail-scroll').evaluate(el=>el.scrollWidth>el.clientWidth),false);
+            const card=page.locator('.asset-grid .asset-card').first();
+            const thumb=await card.locator('.asset-thumb').evaluate(el=>{
+                const {width,height}=el.getBoundingClientRect();
+                return {width,height};
+            });
+            assert.ok(thumb.width<=185 && Math.abs(thumb.height-thumb.width*0.75)<1);
+            await assertAlignedActions();
+        }
+        if(tab==='图片资产'){
+            assert.equal(await inspector.getByRole('textbox',{name:'直接修改名称'}).inputValue(),image.name);
+            await toggle.press('Enter');
+            assert.equal(await inspector.isVisible(),false);
+        }
+    }
+    assert.equal(await inspector.getByRole('textbox',{name:'直接修改名称'}).inputValue(),workflow.name);
+    const download=page.waitForEvent('download');
+    await inspector.getByRole('button',{name:'导出',exact:true}).click();
+    assert.equal((await download).suggestedFilename(),'分镜流程.json');
+    await page.getByRole('button',{name:'图片资产',exact:true}).click();
+    await page.getByRole('button',{name:'查看详情',exact:true}).waitFor();
+    assert.equal(await inspector.isVisible(),false);
+    await toggle.press('Enter');
+    await page.getByRole('complementary',{name:'图片资产详情'}).waitFor();
+    assert.deepEqual(errors,[]);
+});
+
+test('canvas asset browsing keeps one refresh entry and returns to a valid page when results shrink',async t=>{
+    const {page,errors}=await fixture(t,'smart');
+    const canvas={id:'depth',title:'深度视频',kind:'smart',asset_source_state:'active'};
+    const items=Array.from({length:64},(_,index)=>({
+        id:'asset-'+index,
+        name:index===0?'depth-video.mp4':'frame-'+index+'.png',
+        kind:index===0?'video':'image',
+        url:index===0?'/assets/depth-video.mp4':'/test-image.svg?frame='+index,
+        canvas_id:canvas.id,canvas_title:canvas.title,canvas_kind:canvas.kind,
+    }));
+    let total=items.length;
+    const offsets=[];
+    await page.route('**/api/canvas-assets?**',route=>{
+        const offset=Number(new URL(route.request().url()).searchParams.get('offset'));
+        offsets.push(offset);
+        return route.fulfill({json:{
+            canvases:[{...canvas,asset_count:total}],
+            categories:[{id:'all',count:total},{id:'smart',name:'智能画布',count:total,canvas_count:1}],
+            limit:60,offset,total,has_more:offset+60<total,catalog_enabled:true,can_manage:true,
+            items:items.slice(0,total).slice(offset,offset+60),
+        }});
+    });
+    await page.goto(origin+'/static/asset-manager.html');
+    await page.getByRole('button',{name:'画布资产',exact:true}).click();
+    await page.locator('[data-canvas-asset-canvas=depth]').click();
+    await page.locator('.content-heading').getByText('深度视频',{exact:true}).waitFor();
+    await page.locator('.content-heading').getByText('64 个素材',{exact:true}).waitFor();
+    await page.locator('.canvas-asset-card').first().getByRole('img',{name:'视频',exact:true}).waitFor();
+    assert.equal(await page.locator('.manager-group-heading').count(),0);
+    assert.equal(await page.locator('.canvas-asset-card .asset-card-meta').count(),0);
+
+    const inspector=page.locator('#assetInspector');
+    const toggle=page.locator('[data-inspector-toggle]');
+    await inspector.waitFor();
+    assert.equal(await toggle.getAttribute('aria-controls'),'assetInspector');
+    assert.equal(await toggle.getAttribute('aria-expanded'),'true');
+    for(const width of [1024,1440,1920]){
+        await page.setViewportSize({width,height:900});
+        const grid=await page.locator('.asset-content').boundingBox();
+        const side=await inspector.boundingBox();
+        assert.ok(side.x>=grid.x+grid.width && side.y===grid.y && side.height===grid.height);
+        assert.ok(side.x+side.width<=width);
+    }
+    await page.locator('[data-canvas-asset-card=asset-1]').click();
+    await inspector.getByText('frame-1.png',{exact:true}).waitFor();
+    assert.ok(await inspector.getByRole('button',{name:'下载',exact:true}).isVisible());
+    assert.ok(await inspector.getByRole('button',{name:'查看引用',exact:true}).isVisible());
+    await inspector.getByRole('button',{name:'放大预览',exact:true}).press('Enter');
+    const preview=page.getByRole('dialog',{name:'图片预览'});
+    await preview.waitFor();
+    await page.keyboard.press('Escape');
+    await preview.waitFor({state:'hidden'});
+    await toggle.press('Enter');
+    assert.equal(await inspector.isVisible(),false);
+    assert.equal(await toggle.getAttribute('aria-expanded'),'false');
+    assert.equal(await toggle.evaluate(el=>document.activeElement===el),true);
+
+    await page.setViewportSize({width:1024,height:768});
+    const viewport=page.locator('.asset-content .content-scroll');
+    const anchor=await viewport.evaluate(async el=>{
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        el.scrollTop=530;
+        const top=el.getBoundingClientRect().top;
+        const card=[...el.querySelectorAll('[data-canvas-asset-card]')].find(item=>item.getBoundingClientRect().bottom>top+1);
+        return {id:card.dataset.canvasAssetCard,offset:card.getBoundingClientRect().top-top};
+    });
+    await toggle.press('Enter');
+    await page.waitForFunction(({id,offset})=>{
+        const viewport=document.querySelector('.asset-content .content-scroll');
+        const card=viewport.querySelector('[data-canvas-asset-card="'+id+'"]');
+        return card && Math.abs(card.getBoundingClientRect().top-viewport.getBoundingClientRect().top-offset)<2;
+    },anchor);
+
+    await page.getByRole('button',{name:'下一页',exact:true}).click();
+    await page.getByText('第 2 / 2 页 · 共 64 个素材',{exact:true}).waitFor();
+    const refresh=page.getByRole('button',{name:'刷新',exact:true});
+    assert.equal(await refresh.count(),1);
+    await refresh.click();
+    await page.locator('#assetStatus').filter({hasText:'画布资产已刷新'}).waitFor();
+    assert.equal(offsets.at(-1),60);
+    assert.equal(await page.getByRole('navigation',{name:'素材分页'}).isVisible(),true);
+
+    total=3;
+    await refresh.click();
+    await page.locator('#assetStatus').filter({hasText:'画布资产已刷新'}).waitFor();
+    assert.deepEqual(offsets.slice(-2),[60,0]);
+    assert.equal(await page.getByRole('navigation',{name:'素材分页'}).count(),0);
+    assert.equal(await page.locator('.canvas-asset-footer').innerText(),'共 3 个素材');
     assert.deepEqual(errors,[]);
 });
