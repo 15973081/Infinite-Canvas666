@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const {functionSource}=require('./helpers/canvas-source.cjs');
-const source=fs.readFileSync('static/js/canvas/smart/smart-workspace.js','utf8');
+const source=fs.readFileSync('static/js/canvas/smart/smart-workspace.js','utf8').replace(/\r\n/g,'\n');
 const plain=v=>JSON.parse(JSON.stringify(v));
 function fixture(){
  const calls=[],timers=new Map(),listeners=new Map();let timerId=0;
@@ -26,10 +26,23 @@ test('Smart selection is lazy, deeply frozen, stable between commands and owns n
  const incoming={selectedId:'a',selectedIds:['a'],selectedImage:{nodeId:'a',index:2}};owner.restoreDocument(incoming);incoming.selectedIds.push('b');incoming.selectedImage.index=0;
  assert.deepEqual(plain(owner.state),{selectedId:'a',selectedIds:['a'],selectedImage:{nodeId:'a',index:2}});
 });
+test('recent layers survive clearing selection and reference previews, scoped to the canvas',()=>{
+ const f=fixture(),saved=new Map();
+ f.c.smartScopedStorageKey=key=>'member:workspace:'+key;
+ f.c.localStorage={getItem:key=>saved.get(key)||null,setItem:(key,value)=>saved.set(key,value)};
+ f.owner.createdNode('g');f.owner.createdNode('a');f.owner.clear();
+ assert.ok(f.owner.layer('a')>f.owner.layer('g'));
+ f.owner.withReferencePreview(()=>f.owner.previewTarget('g',0));
+ assert.ok(f.owner.layer('a')>f.owner.layer('g'));
+ const restored=f.c.createSmartSelection();assert.ok(restored.layer('a')>restored.layer('g'));
+ f.c.canvas={id:'other'};assert.equal(restored.layer('a'),0);
+ f.c.canvas={id:'canvas'};assert.ok(restored.layer('a')>restored.layer('g'));
+});
+
 test('Smart entry and callers have no writable selection aliases; undo retains its JSON keys',()=>{
  const owner=functionSource(source,'createSmartSelection');
  for(const file of ['static/js/smart-canvas.js',...['workspace','document','execution','results','media-editor','library','session'].map(n=>'static/js/canvas/smart/smart-'+n+'.js')]){
-  let text=fs.readFileSync(file,'utf8').replace(owner,'');
+  let text=fs.readFileSync(file,'utf8').replace(/\r\n/g,'\n').replace(owner,'');
   assert.doesNotMatch(text,/(?<![.\w])(?:selectedId|selectedIds|selectedImage|imageClickTimer)\b(?!\s*:)/,file);
   assert.doesNotMatch(text,/\b(?:let|var)\s+(?:selectedId|selectedIds|selectedImage|imageClickTimer)\b/,file);
   assert.doesNotMatch(text,/\bsmartSelection\.(?:nodeId|ids|image|state)\s*=(?!=)/,file);

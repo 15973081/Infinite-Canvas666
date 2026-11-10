@@ -193,6 +193,27 @@ function createSmartSelection(){
     const emptyIds = Object.freeze([]);
     let snapshot = Object.freeze({selectedId:'', selectedIds:emptyIds, selectedImage:emptyImage});
     let imageClickTimer=null, generation=0, paused=false, destroyed=false;
+    let layerKey='', layerOrder=new Map(), referencePreviewDepth=0;
+    function loadLayers(){
+        if(typeof canvas==='undefined'||!canvas?.id)return;
+        let key;
+        try{key=smartScopedStorageKey('smart_node_layers:'+canvas.id);}catch{return;}
+        if(key===layerKey)return;
+        layerKey=key;layerOrder=new Map();
+        try{
+            const saved=JSON.parse(localStorage.getItem(key)||'[]');
+            if(Array.isArray(saved))for(const id of saved)if(typeof id==='string')layerOrder.set(id,layerOrder.size+1);
+        }catch{}
+    }
+    function raiseLayer(id){
+        if(referencePreviewDepth)return;
+        loadLayers();
+        if(!id||layerOrder.get(id)===layerOrder.size)return;
+        const live=typeof nodes!=='undefined'?new Set(nodes.map(node=>node.id)):null;
+        const order=[...layerOrder.keys()].filter(key=>key!==id&&(!live||live.has(key)));
+        order.push(id);layerOrder=new Map(order.map((key,index)=>[key,index+1]));
+        try{if(layerKey)localStorage.setItem(layerKey,JSON.stringify(order));}catch{}
+    }
     const listeners=[];
     function cancelImageClick(){
         generation++;
@@ -202,12 +223,19 @@ function createSmartSelection(){
     function commit(id, ids, image){
         if(destroyed)return;
         cancelImageClick();
+        if(id)raiseLayer(id);
         snapshot=Object.freeze({selectedId:id,
             selectedIds:Object.isFrozen(ids)?ids:Object.freeze([...ids]),
             selectedImage:Object.isFrozen(image)?image:Object.freeze({...image})});
     }
     function nodeTarget(id){commit(id,emptyIds,emptyImage);}
     function imageTarget(id,index){commit(id,emptyIds,{nodeId:id,index});}
+    function activateNode(id){
+        if(paused||destroyed||snapshot.selectedId===id||!nodes.some(node=>node.id===id))return;
+        commit(id,snapshot.selectedIds.includes(id)?snapshot.selectedIds:emptyIds,
+            snapshot.selectedImage.nodeId===id?snapshot.selectedImage:emptyImage);
+        syncSelectionUi();updateComposer();
+    }
     function clear(){if(paused || destroyed)return;savePromptDraftForCurrent();nodeTarget('');}
     function clickNode(id,element){
         if(paused || destroyed)return;
@@ -266,7 +294,8 @@ function createSmartSelection(){
     function withReferencePreview(action){
         if(paused || destroyed)return;
         const previous=snapshot;
-        try{return action();}finally{if(!destroyed)snapshot=previous;}
+        referencePreviewDepth++;
+        try{return action();}finally{referencePreviewDepth--;if(!destroyed)snapshot=previous;}
     }
     function withLogPreview(action){
         if(paused || destroyed)return;
@@ -294,7 +323,8 @@ function createSmartSelection(){
     return Object.freeze({
         get state(){return snapshot;},get nodeId(){return snapshot.selectedId;},
         get ids(){return snapshot.selectedIds;},get image(){return snapshot.selectedImage;},
-        bind,pause,resume,destroy,cancelImageClick,clear,clickNode,uploadTarget,deferImageClick,audioTarget,
+        layer(id){loadLayers();return layerOrder.get(id)||0;},
+        bind,pause,resume,destroy,cancelImageClick,clear,clickNode,activateNode,uploadTarget,deferImageClick,audioTarget,
         documentReplacing,documentRestoring,restoreDocument,insertedNodes,boxSelection,nodesRemoved,mediaCleared,imagesChanged,
         withReferencePreview,withLogPreview,taskSource,taskOutput,taskFinished,
         createdNode:id=>commit(id,snapshot.selectedIds,snapshot.selectedImage),
@@ -316,6 +346,8 @@ function syncSelectionUi(){
     world.querySelectorAll('.image-node').forEach(el => {
         const id = el.dataset.id || '';
         el.classList.toggle('selected', isNodeSelected(id));
+        el.classList.toggle('active-node', smartSelection.nodeId === id);
+        el.style.setProperty('--node-layer',smartSelection.layer(id));
         el.querySelectorAll('.thumb-item,.image-wrap').forEach(item => {
             const index = Number(item.dataset.imageIndex || 0);
             item.classList.toggle('image-selected', smartSelection.image.nodeId === id && smartSelection.image.index === index);
@@ -658,7 +690,7 @@ function renderSmartNodeHtml(node){
     const isPending = ((pendingCount || isQueued) && imgs.length === 0);
     const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : isSmartVideoAssetNode(node)?'video':'';
     const body = nodeBodyHtml(node, layout);
-    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${smartSelection.nodeId===node.id?'active-node':''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="--node-layer:${smartSelection.layer(node.id)};left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         ${!isPrompt ? pixmaxNodeCaption(node,singleMediaKind==='audio'?'audio':generationKind==='video'||singleMediaKind==='video'?'video':'image',node.localDepth?'视频生成节点-深度':generationKind?generationTitle:singleMediaKind==='video'?'视频节点':singleMediaKind==='audio'?'音频节点':'图像节点') : ''}
         ${isPrompt ? pixmaxNodeCaption(node,'text','文本生成节点') : ''}
         ${smartNodeToolbarHtml(node)}
@@ -2519,6 +2551,7 @@ function bindNodeEvents(elements=null){
         if(!isSmartStudioNode(nodeForControls))bindPixmaxNodeName(el,nodeForControls);
         if(isSmartStudioNode(nodeForControls)) bindSmartStudioNode(el,nodeForControls);
         if(nodeForControls?.type === 'smart-prompt') bindPromptNodeControls(el, nodeForControls);
+        el.addEventListener('focusin', () => smartSelection.activateNode(id));
         el.onclick = e => {
             e.stopPropagation();
             if(Date.now() < suppressNodeClickUntil) return;
@@ -2750,6 +2783,7 @@ function bindNodeEvents(elements=null){
             }).filter(Boolean);
             dragState = {id:node.id, startX:e.clientX, startY:e.clientY, ox:node.x || 0, oy:node.y || 0, group, groupIds:group.map(item => item.id), ctrlGroup:Boolean(e.ctrlKey)};
             window.PixmaxCanvasFrames?.prepareDrag(dragState);
+            smartSelection.activateNode(node.id);
             document.body.classList.add('smart-node-drag');
             capturePendingUndo();
         };
@@ -4119,7 +4153,7 @@ function bindSmartComposerInputEvents(){
 function renderSmartNodePlaceholderHtml(node){
     if(window.PixmaxCanvasFrames?.isFrame(node))return window.PixmaxCanvasFrames.render(node);
     const layout = imageLayout(node.images || [], nodeScale(node), node);
-    return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+    return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="--node-layer:${smartSelection.layer(node.id)};left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         <div class="node-port port-in" data-port="in" title="input"></div>
         <div class="node-port port-out" data-port="out" title="output"></div>
     </div>`;

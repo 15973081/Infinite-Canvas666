@@ -51,7 +51,10 @@ test('real audio plays inline and retains its player and position through full a
 test('playing audio survives viewport recycling while a paused card can be released and restored',async t=>{
     const {page,errors}=await setup(t);await card(page).getByRole('button',{name:'播放音频',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.pixmax-audio-mount').dataset.playing==='true');
     await page.evaluate(()=>{window.originalAudioMount=document.querySelector('.pixmax-audio-mount');viewport.x=-10000;applyViewport();renderSmartOffscreenPlaceholders();render();refreshSmartNodes([uploadedAudio.id]);});assert.equal(await page.evaluate(()=>originalAudioMount.isConnected),true);
-    await page.evaluate(()=>nativeAudioElements[0].pause());await page.waitForFunction(()=>originalAudioMount.dataset.playing==='false');await page.evaluate(()=>{document.activeElement.blur();renderSmartOffscreenPlaceholders();});
+    await page.evaluate(()=>nativeAudioElements[0].pause());await page.waitForFunction(()=>originalAudioMount.dataset.playing==='false');
+    await page.evaluate(()=>{document.activeElement.blur();renderSmartOffscreenPlaceholders();});
+    assert.equal(await page.evaluate(()=>originalAudioMount.isConnected),true,'the active card remains mounted');
+    await page.evaluate(()=>{clearSelection();renderSmartOffscreenPlaceholders();});
     await page.waitForFunction(()=>!originalAudioMount.isConnected);assert.equal(await page.evaluate(()=>nativeAudioElements[0].getAttribute('src')),null);
     await page.evaluate(()=>{viewport.x=0;applyViewport();renderSmartOffscreenPlaceholders();});await page.waitForFunction(()=>document.querySelectorAll('.pixmax-audio-mount[data-audio-ready=true]').length===2);assert.deepEqual(errors,[]);
 });

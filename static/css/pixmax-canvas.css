@@ -947,6 +947,7 @@ body:has(.pixmax-generation-controls) [data-combo-selector-panel]{z-index:100150
 .image-node {
   position: absolute;
   isolation: isolate;
+  z-index: var(--node-layer, 0);
   min-width: 0;
   min-height: 0;
   overflow: visible;
@@ -962,8 +963,9 @@ body:has(.pixmax-generation-controls) [data-combo-selector-panel]{z-index:100150
   cursor: grabbing;
 }
 
-.image-node.selected:not(.pixmax-frame-node) { z-index: 1; }
-.image-node.dragging:not(.pixmax-frame-node) { z-index: 2; }
+.image-node.active-node:not(.pixmax-frame-node) > .node-body {
+  box-shadow: 0 0 0 1px var(--studio-focus, #aeb6c5), 0 8px 20px #0004;
+}
 
 .image-node .node-body {
   position: relative;

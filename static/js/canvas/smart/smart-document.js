@@ -787,8 +787,8 @@ function pasteNodes({includeConnections=true}={}){
 }
 
 function duplicateForAltDrag(node){
-    const selectedIds = (isNodeSelected(node.id) ? selectedNodeIds() : [node.id]);
-    const expanded = window.PixmaxCanvasFrames?.expand(selectedIds)||selectedIds;
+    const duplicateIds = (isNodeSelected(node.id) ? selectedNodeIds() : [node.id]);
+    const expanded = window.PixmaxCanvasFrames?.expand(duplicateIds)||duplicateIds;
     const ids = window.PixmaxReshootReferences?.expandHidden(expanded)||expanded;
     const sourceNodes = ids.map(id => nodes.find(n => n.id === id)).filter(Boolean);
     if(!sourceNodes.length) return node;
