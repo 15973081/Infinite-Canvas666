@@ -22,7 +22,7 @@ async function setup(t,{configured=true,ambiguous=false,missing=false,deliverTex
  await f.page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});
  await f.page.evaluate(configured=>{
   MemberCanvasEdit.canSave=true;
-  apiProviders=configured?[{id:'media',name:'火山 MediaKit',enabled:true,has_key:true,mediakit_tools:['enhance-video','erase-video-subtitle','video-understand-router']}]:[];
+  apiProviders=configured?[{id:'media',name:'火山 MediaKit',enabled:true,has_key:true,mediakit_tools:['enhance-video','erase-video-subtitle','erase-video-subtitle-pro','video-understand-router']}]:[];
   const source=createNode(400,250,[{url:'/tests/fixtures/pixmax-audio-source.mp4',kind:'video',name:'视频.mp4'}],{select:true});
   window.mediaSource=source;render();
   const original=saveCanvas;
@@ -37,9 +37,13 @@ for(const [action,label] of [['upscale','视频超分'],['erase','字幕擦除']
  const dialog=page.getByRole('dialog',{name:label});await dialog.waitFor();
  assert.equal(await dialog.getByLabel('MediaKit 厂商').inputValue(),'media');
  if(action==='upscale')await dialog.getByLabel('超分分辨率').selectOption('4k');
- if(action==='understand'){await dialog.getByLabel('视频理解要求').fill('描述主要动作');await dialog.getByLabel('分析档位').selectOption('Quality');}
+ if(action==='understand'){
+  await dialog.getByLabel('视频理解要求').fill('描述主要动作');
+  await dialog.getByLabel('分析档位').click();
+  await dialog.getByRole('option',{name:'高质量',exact:true}).click();
+ }
  await dialog.getByRole('button',{name:'开始'+label,exact:true}).click();
- await dialog.getByRole('button',{name:'已完成',exact:true}).waitFor().catch(async error=>{throw Error(error.message+'; dialog: '+await dialog.innerText()+'; errors: '+errors.join('; '));});
+ await dialog.getByRole('button',{name:/^再次/,exact:true}).waitFor().catch(async error=>{throw Error(error.message+'; dialog: '+await dialog.innerText()+'; errors: '+errors.join('; '));});
  assert.equal(calls.length,1);const body=calls[0];
  assert.equal(body.provider_id,'media');assert.equal(body.videos[0],'/tests/fixtures/pixmax-audio-source.mp4');
  assert.match(body.canvas_target.input_sha256,/^[a-f0-9]{64}$/);
@@ -62,18 +66,76 @@ test('MediaKit missing configuration and lost edit permission cannot submit',asy
 });
 
 test('MediaKit uncertain POST reopens by querying the original task without another submission',async t=>{
- const {page,calls,errors}=await setup(t,{ambiguous:true});
+ const {page,calls,errors,control}=await setup(t,{ambiguous:true,hold:true});
  await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'upscale'));
  let dialog=page.getByRole('dialog',{name:'视频超分'});
  await dialog.getByRole('button',{name:'开始视频超分'}).click();
  await dialog.getByRole('button',{name:'查询原任务'}).waitFor();
  const before=await page.evaluate(()=>nodes.length);
  await dialog.getByRole('button',{name:'关闭视频超分'}).click();
+ control.hold=false;
  await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'upscale'));
  dialog=page.getByRole('dialog',{name:'视频超分'});
- await dialog.getByRole('button',{name:'查询原任务'}).click();
- await dialog.getByRole('button',{name:'已完成'}).waitFor();
+ await dialog.getByRole('button',{name:/^再次/}).waitFor();
  assert.equal(calls.length,1);assert.equal(await page.evaluate(()=>nodes.length),before);assert.deepEqual(errors,[]);
+});
+
+test('MediaKit completed background task restores editable analysis level and starts a distinct task',async t=>{
+ const {page,calls,control,errors}=await setup(t,{hold:true});
+ await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'understand'));
+ let dialog=page.getByRole('dialog',{name:'视频理解'});
+ await dialog.getByLabel('分析档位').selectOption('Quality');
+ await dialog.getByLabel('视频理解要求').fill('描述动作与镜头');
+ await dialog.getByRole('button',{name:'开始视频理解',exact:true}).click();
+ await page.waitForFunction(()=>mediaSource.mediakitJobs?.understand?.settings?.level==='Quality');
+ assert.equal(await dialog.getByLabel('分析档位').isDisabled(),true);
+ await dialog.getByRole('button',{name:'关闭视频理解'}).click();
+ await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'understand'));
+ dialog=page.getByRole('dialog',{name:'视频理解'});
+ await page.waitForFunction(()=>document.querySelector('.pixmax-creation-status')?.textContent.includes('原任务仍在处理中'));
+ assert.equal(await dialog.getByLabel('分析档位').inputValue(),'Quality');
+ assert.equal(await dialog.getByLabel('分析档位').isDisabled(),true);
+ await dialog.getByRole('button',{name:'关闭视频理解'}).click();
+ control.hold=false;
+ await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'understand'));
+ dialog=page.getByRole('dialog',{name:'视频理解'});
+ await dialog.getByRole('button',{name:'再次视频理解',exact:true}).waitFor();
+ assert.equal(await dialog.getByLabel('分析档位').isEnabled(),true);
+ assert.equal(await dialog.getByLabel('视频理解要求').inputValue(),'描述动作与镜头');
+ await dialog.getByLabel('分析档位').selectOption('Balanced');
+ await dialog.getByRole('button',{name:'再次视频理解',exact:true}).click();
+ await page.waitForFunction(()=>mediaSource.mediakitJobs?.understand?.status==='succeeded');
+ assert.equal(calls.length,2);assert.equal(calls[1].level,'Balanced');
+ assert.notEqual(calls[0].client_task_id,calls[1].client_task_id);
+ assert.deepEqual(errors,[]);
+});
+
+test('MediaKit erasure tiers select their actual endpoints and remain editable after completion',async t=>{
+ const {page,calls,errors}=await setup(t);
+ await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'erase'));
+ const dialog=page.getByRole('dialog',{name:'字幕擦除'});
+ await dialog.getByLabel('擦除档位').click();
+ await dialog.getByRole('option',{name:'精细化版',exact:true}).click();
+ await dialog.getByRole('button',{name:'开始字幕擦除',exact:true}).click();
+ await dialog.getByRole('button',{name:'再次字幕擦除',exact:true}).waitFor();
+ assert.equal(calls[0].model,'erase-video-subtitle-pro');
+ assert.equal(await dialog.getByLabel('擦除档位').isEnabled(),true);
+ await dialog.getByLabel('擦除档位').selectOption('erase-video-subtitle');
+ await dialog.getByRole('button',{name:'再次字幕擦除',exact:true}).click();
+ await page.waitForFunction(()=>mediaSource.mediakitJobs?.erase?.status==='succeeded');
+ assert.equal(calls.length,2);assert.equal(calls[1].model,'erase-video-subtitle');
+ assert.notEqual(calls[0].client_task_id,calls[1].client_task_id);
+ assert.deepEqual(errors,[]);
+});
+
+test('MediaKit erasure only enables tiers assigned to the selected provider',async t=>{
+ const {page,calls}=await setup(t);
+ await page.evaluate(()=>{apiProviders[0].mediakit_tools=['erase-video-subtitle-pro'];PixmaxMediaKit.open(mediaSource.id,0,'erase');});
+ const dialog=page.getByRole('dialog',{name:'字幕擦除'});
+ assert.equal(await dialog.getByLabel('擦除档位').inputValue(),'erase-video-subtitle-pro');
+ assert.equal(await dialog.locator('option[value="erase-video-subtitle"]').evaluate(option=>option.disabled),true);
+ assert.match(await dialog.innerText(),/管理平台/);
+ assert.equal(calls.length,0);
 });
 
 test('MediaKit missing task unlocks explicit retry using the same ID and output node',async t=>{
@@ -91,7 +153,7 @@ test('MediaKit missing task unlocks explicit retry using the same ID and output 
  await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'upscale'));
  dialog=page.getByRole('dialog',{name:'视频超分'});
  await dialog.getByRole('button',{name:'重新提交'}).click();
- await dialog.getByRole('button',{name:'已完成'}).waitFor();
+ await dialog.getByRole('button',{name:/^再次/}).waitFor();
  assert.equal(calls.length,2);
  assert.equal(calls[1].client_task_id,calls[0].client_task_id);
  assert.equal(calls[1].canvas_target.target_node_id,calls[0].canvas_target.target_node_id);
@@ -104,7 +166,7 @@ test('MediaKit view result selects and centers the delivered text, also after re
  await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'understand'));
  let dialog=page.getByRole('dialog',{name:'视频理解'});
  await dialog.getByRole('button',{name:'开始视频理解'}).click();
- await dialog.getByRole('button',{name:'已完成'}).waitFor();
+ await dialog.getByRole('button',{name:/^再次/}).waitFor();
  await dialog.getByRole('button',{name:'查看结果',exact:true}).click();
  assert.equal(await dialog.count(),0);
  const targetId=calls[0].canvas_target.target_node_id;
@@ -130,7 +192,7 @@ test('MediaKit creates a connected nearby text placeholder, polls after closing 
  const dialog=page.getByRole('dialog',{name:'视频理解'});
  await dialog.getByRole('button',{name:'开始视频理解'}).click();
  await page.waitForFunction(()=>nodes.some(node=>node.mediakitTaskId&&node.type==='smart-prompt'));
- await page.waitForFunction(()=>document.querySelector('.prompt-smart-node [role=status]')?.textContent.includes('云端分析中'));
+ await page.waitForFunction(()=>document.querySelector('.prompt-smart-node [role=status]')?.textContent.includes('正在理解视频'));
  const targetId=calls[0].canvas_target.target_node_id;
  const before=await page.evaluate(id=>{const node=nodes.find(n=>n.id===id);return {x:node.x,y:node.y,expectedX:sourceRect.x+sourceRect.width+60,expectedY:sourceRect.y,connected:canvas.connections.some(e=>e.from===mediaSource.id&&e.to===id),count:nodes.length};},targetId);
  assert.equal(before.x,before.expectedX);assert.equal(before.y,before.expectedY);assert.equal(before.connected,true);
@@ -138,7 +200,7 @@ test('MediaKit creates a connected nearby text placeholder, polls after closing 
  await page.evaluate(id=>{const node=nodes.find(n=>n.id===id);node.x+=20;node.y+=30;render();},targetId);
  await page.evaluate(()=>saveCanvas({force:true}));
  await page.reload();
- await page.waitForFunction(()=>document.querySelector('.prompt-smart-node [role=status]')?.textContent.includes('云端分析中'));
+ await page.waitForFunction(()=>document.querySelector('.prompt-smart-node [role=status]')?.textContent.includes('正在理解视频'));
  control.hold=false;
  await page.waitForFunction(id=>nodes.find(node=>node.id===id)?.text==='人物沿街行走',targetId);
  const after=await page.evaluate(id=>{const n=nodes.find(n=>n.id===id);return {x:n.x,y:n.y,pending:n.pendingTasks.length,count:nodes.length};},targetId);
@@ -151,7 +213,7 @@ test('MediaKit video output and legacy placeholders are video assets with no com
  await page.evaluate(()=>PixmaxMediaKit.open(mediaSource.id,0,'upscale'));
  const dialog=page.getByRole('dialog',{name:'视频超分'});
  await dialog.getByRole('button',{name:'开始视频超分'}).click();
- await dialog.getByRole('button',{name:'已完成'}).waitFor();
+ await dialog.getByRole('button',{name:/^再次/}).waitFor();
  await dialog.getByRole('button',{name:'关闭视频超分'}).click();
  const id=calls[0].canvas_target.target_node_id;
  for(const legacy of [false,true]){
@@ -162,7 +224,7 @@ test('MediaKit video output and legacy placeholders are video assets with no com
    const root=world.querySelector(`[data-id="${id}"]`);
    return {kind:pixmaxNativeNodeType(target),composer:composer.classList.contains('open'),upload:root.querySelector('.node-drop')?.getAttribute('aria-label'),icon:root.querySelector('.generation-node-caption')?.innerHTML.includes(pixmaxSvg('video'))};
   },{id,legacy});
-  assert.deepEqual(state,{kind:'BaseVideo',composer:false,upload:'上传视频',icon:true});
+  assert.deepEqual(state,{kind:'BaseVideo',composer:false,upload:undefined,icon:true});
  }
  await page.evaluate(id=>{
   const target=nodes.find(node=>node.id===id);target.images=[{url:'/tests/fixtures/pixmax-audio-source.mp4',kind:'video'}];render();

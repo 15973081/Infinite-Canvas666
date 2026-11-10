@@ -163,9 +163,11 @@ function pasteAssetsFromInbox(){
 }
 
 function pickMediaForSmartNode(nodeId){
+    const node = nodes.find(node => node.id === nodeId);
+    if(node?.mediakitTaskId && smartPendingTasks(node).some(task=>task.kind==='mediakit'))return;
     const input = document.createElement('input');
     input.type = 'file';
-    const kind = smartGenerationKind(nodes.find(node => node.id === nodeId));
+    const kind = smartGenerationKind(node);
     input.accept = kind ? `${kind}/*` : 'image/*,video/*,audio/*';
     input.multiple = true;
     input.onchange = () => {

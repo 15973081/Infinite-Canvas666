@@ -39,7 +39,7 @@
         "protocol": "mediakit",
         "enabled": true,
         "image_models": [],
-        "video_models": ["enhance-video", "erase-video-subtitle"],
+        "video_models": ["enhance-video", "erase-video-subtitle", "erase-video-subtitle-pro"],
         "chat_models": ["video-understand-router"]
       }
     },

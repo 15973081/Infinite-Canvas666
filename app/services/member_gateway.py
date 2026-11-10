@@ -279,7 +279,7 @@ def public_provider_config():
         provider['video_capabilities'] = {'native_roles': is_volcengine_provider(source) and not bool(urlparse(video_api_root(source)).path.rstrip('/'))}
         if source.get('protocol') == 'mediakit':
             provider['mediakit_tools'] = [model for model in provider.get('video_models', []) + provider.get('chat_models', [])
-                                          if model in {'enhance-video', 'erase-video-subtitle', 'video-understand-router'}]
+                                          if model in {'enhance-video', 'erase-video-subtitle', 'erase-video-subtitle-pro', 'video-understand-router'}]
             # Processing tools belong to the video toolbar, not generation selectors.
             provider['video_models'] = []
             provider['chat_models'] = []

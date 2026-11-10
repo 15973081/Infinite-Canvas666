@@ -249,7 +249,7 @@ class CanvasMediaKitTaskRequest(BaseModel):
     client_task_id: str = Field(pattern=r'^canvas_mediakit_[A-Za-z0-9_-]{8,64}$')
     canvas_target: CanvasTaskTarget
     provider_id: str = Field(min_length=1, max_length=96)
-    model: Literal['enhance-video', 'erase-video-subtitle', 'video-understand-router']
+    model: Literal['enhance-video', 'erase-video-subtitle', 'erase-video-subtitle-pro', 'video-understand-router']
     videos: List[str] = Field(min_length=1, max_length=1)
     prompt: str = Field(default='', max_length=10000)
     resolution: Literal['', '720p', '1080p', '2k', '4k', '8k'] = ''

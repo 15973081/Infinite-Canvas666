@@ -20,11 +20,14 @@
 |超分|`POST /api/v1/tools/enhance-video`|`video_url: file_id`、`resolution`、`tool_version`|
 |视频理解|`POST /api/v1/tools/video-understand-router`|`video_urls: [file_id]`、`prompt`、`level`|
 |字幕擦除|`POST /api/v1/tools/erase-video-subtitle`|`video_url: file_id`|
+|字幕擦除（精细化版）|`POST /api/v1/tools/erase-video-subtitle-pro`|`video_url: file_id`|
 |查任务|`GET /api/v1/tasks/{task_id}`|使用原始任务 ID|
 
 API 请求使用 `Authorization: Bearer <API Key>`。上传存储地址不携带此密钥。密钥复用平台已有的加密供应商存储，不进入浏览器或任务结果。
 
-超分支持标准版/专业版，以及 1080P、2K、4K、8K 输出。输入最高 2K；字幕擦除输入最高 2K、输出最高 1080P。理解可选 Economy / Balanced / Quality。具体限制和收费以供应商开通能力为准。
+超分支持标准版/专业版，以及 1080P、2K、4K、8K 输出。输入最高 2K；字幕擦除可选标准版/精细化版，输入最高 2K、输出最高 1080P，精细化版使用供应商默认算法。理解可选 Economy / Balanced / Quality。具体限制和收费以供应商开通能力为准。已有供应商需在管理平台的视频模型中启用 `erase-video-subtitle-pro`，分配到工作空间后即可选择精细化版；未启用的档位显示为不可用。
+
+工具弹窗保留上次提交的厂商和参数。任务处理中显示当前状态并锁定参数；重新打开会查询原任务，完成或明确失败后恢复参数编辑，可点击“再次运行”对应工具提交新任务。查询和查看结果不会重新提交。
 
 任务沿用成员权限、工作空间隔离、编辑租约、持久化队列、结果入库和服务端画布交付。拿到上游 ID 后只轮询原任务；不确定的提交进入待核对，不自动重发。关闭弹窗不取消后台任务，再次打开可查询原任务。如果后台没有该任务，弹窗允许用户点击“重新提交”，复用原任务编号及空结果节点，由服务端幂等检查防止延迟请求重复创建任务。供应商视频链接可能过期，因此成功视频立即保存到本平台素材库。
 

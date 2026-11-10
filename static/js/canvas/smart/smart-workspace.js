@@ -647,7 +647,8 @@ function renderSmartNodeHtml(node){
     const generationKind = smartGenerationKind(node);
     const generationTitle = generationKind === 'video' ? '视频生成节点' : '图像生成节点';
     const pendingCount = smartNodePendingCount(node);
-    const recoveryOnly = Boolean(isImageNode && imgs.length === 0 && window.CanvasSession?.enabled && smartPendingTasks(node).length);
+    const mediaKitPending = smartPendingTasks(node).some(task=>task.kind==='mediakit'&&task.taskId===node.mediakitTaskId);
+    const recoveryOnly = Boolean(isImageNode && imgs.length === 0 && !mediaKitPending && window.CanvasSession?.enabled && smartPendingTasks(node).length);
     const isQueued = Boolean(node.queued && imgs.length === 0 && !pendingCount);
     const isEmpty = isImageNode && imgs.length === 0 && !pendingCount && !isQueued && !recoveryOnly && !node.localDepth && !reshootPreview;
     const isHistory = isHistoryGroupNode(node);
@@ -2073,7 +2074,6 @@ function restoreMediaPlaybackStates(states){
 }
 
 function promptNodeBodyHtml(node){
-    const mediaTask=window.PixmaxMediaKit?.body(node);if(mediaTask)return mediaTask;
     const task=window.PixmaxTextGeneration?.body(node);if(task)return task;
     return `<div class="prompt-node-card">
         <div class="pixmax-text-view ${node.text?.trim()?'':'empty'}" role="presentation">${escapeHtml(node.text || '双击开始输入...')}</div>
@@ -2082,6 +2082,7 @@ function promptNodeBodyHtml(node){
 }
 
 function nodeBodyHtml(node, layout){
+    const mediaTask=window.PixmaxMediaKit?.body(node);if(mediaTask)return mediaTask;
     if(node.localDepth && !(node.images || []).length)return smartLocalDepthBodyHtml(node);
     const tasks=window.CanvasSession?.enabled ? smartPendingTasks(node) : [];
     const body=window.PixmaxSegmentReshoot?.previewBody(node,layout)||smartNodeMediaBodyHtml(node,layout);
@@ -2560,6 +2561,10 @@ function bindNodeEvents(elements=null){
         el.querySelectorAll('[data-local-depth-action]').forEach(btn=>{
             btn.addEventListener('mousedown',event=>{event.preventDefault();event.stopPropagation();},true);
             btn.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();runSmartLocalDepthAction(id,btn.dataset.localDepthAction);});
+        });
+        el.querySelectorAll('[data-mediakit-query]').forEach(btn=>{
+            btn.addEventListener('mousedown',event=>{event.preventDefault();event.stopPropagation();},true);
+            btn.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();window.PixmaxMediaKit?.refresh(btn.dataset.mediakitQuery);});
         });
         el.querySelectorAll('[data-smart-node-action]').forEach(btn => {
             btn.addEventListener('mousedown', e => {

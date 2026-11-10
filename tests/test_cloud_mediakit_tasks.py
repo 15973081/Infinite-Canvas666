@@ -23,7 +23,7 @@ def prepare(world, platform, model):
     pid = 'mediakit-' + uuid.uuid4().hex[:16]
     response = platform['client'].put('/api/providers/' + pid, json={
         'config': {'name': 'MediaKit 验收', 'protocol': 'mediakit', 'enabled': True,
-                   'base_url': 'https://mediakit.test', 'video_models': ['enhance-video', 'erase-video-subtitle'],
+                   'base_url': 'https://mediakit.test', 'video_models': ['enhance-video', 'erase-video-subtitle', 'erase-video-subtitle-pro'],
                    'chat_models': ['video-understand-router']},
         'expected_version': 0, 'secrets': {'api_key': KEY}, 'reason': '隔离验收'})
     assert response.status_code == 200, response.text
@@ -107,12 +107,12 @@ class Supplier:
         return stack
 
 
-@pytest.mark.parametrize('model', ['enhance-video', 'erase-video-subtitle', 'video-understand-router'])
+@pytest.mark.parametrize('model', ['enhance-video', 'erase-video-subtitle', 'erase-video-subtitle-pro', 'video-understand-router'])
 def test_mediakit_contract_owned_results_and_polling_recovery(world, platform, model):
     path, lease, body = prepare(world, platform, model)
     public = world['editor'].get('/api/config', headers=headers(world['a'])).json()
     provider = next(item for item in public['api_providers'] if item['id'] == body['provider_id'])
-    assert set(provider['mediakit_tools']) == {'enhance-video', 'erase-video-subtitle', 'video-understand-router'}
+    assert set(provider['mediakit_tools']) == {'enhance-video', 'erase-video-subtitle', 'erase-video-subtitle-pro', 'video-understand-router'}
     assert provider['video_models'] == provider['chat_models'] == [] and KEY not in str(public)
     receipt = submit(world, lease, body)
     assert receipt.status_code == 200, receipt.text
