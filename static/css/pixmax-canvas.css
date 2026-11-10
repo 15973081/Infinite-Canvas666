@@ -946,6 +946,7 @@ body:has(.pixmax-generation-controls) [data-combo-selector-panel]{z-index:100150
 
 .image-node {
   position: absolute;
+  isolation: isolate;
   min-width: 0;
   min-height: 0;
   overflow: visible;
@@ -960,6 +961,9 @@ body:has(.pixmax-generation-controls) [data-combo-selector-panel]{z-index:100150
 .image-node.dragging {
   cursor: grabbing;
 }
+
+.image-node.selected:not(.pixmax-frame-node) { z-index: 1; }
+.image-node.dragging:not(.pixmax-frame-node) { z-index: 2; }
 
 .image-node .node-body {
   position: relative;

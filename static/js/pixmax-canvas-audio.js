@@ -20,7 +20,14 @@ async function reconcile(){
             if(disposed||!target.isConnected||scope()!==origin){remove(target,entry);continue;}
             // Captured Svelte handlers delegate to the mount. Register after
             // its listeners so controls run before the canvas gesture barrier.
-            entry.stop=event=>event.stopPropagation();
+            entry.stop=event=>{
+                event.stopPropagation();
+                const control=event.composedPath().some(element=>element instanceof Element&&element.matches('button,input,[role=slider]'));
+                if(control)return;
+                const owner=target.closest('.image-node');
+                if(event.type==='mousedown')owner?.onmousedown?.(event);
+                else if(event.type==='click')owner?.onclick?.(event);
+            };
             for(const type of ['mousedown','click','dblclick','wheel'])target.addEventListener(type,entry.stop);
             entry.unsubscribe=player.controller.subscribe(state=>{target.dataset.playing=String(!state.paused);target.dataset.currentTime=String(state.currentTime);target.dataset.duration=String(state.duration);});
             target.dataset.audioReady='true';target.setAttribute('role','group');target.setAttribute('aria-label',target.dataset.audioName);

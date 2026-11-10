@@ -12,6 +12,25 @@ async function setup(t){
     await f.page.waitForFunction(()=>document.querySelectorAll('.pixmax-audio-mount[data-audio-ready=true]').length===2);return f;
 }
 const card=(page,kind='uploadedAudio')=>page.locator('.image-node').filter({has:page.locator('.pixmax-audio-mount')}).nth(kind==='uploadedAudio'?0:1);
+for(const kind of ['uploadedAudio','generatedAudio'])test(kind+' drags from waveform and player whitespace while playback remains a control',async t=>{
+    const {page,errors}=await setup(t);
+    for(const area of ['waveform','whitespace']){
+        const before=await page.evaluate(kind=>({x:window[kind].x,y:window[kind].y}),kind);
+        const point=await card(page,kind).locator('.pixmax-audio-mount').evaluate((element,area)=>{
+            const rect=(area==='waveform'?element.querySelector('canvas'):element).getBoundingClientRect();
+            return {x:rect.left+15,y:area==='waveform'?rect.top+rect.height/2:rect.bottom-8};
+        },area);
+        await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(point.x+60,point.y+35,{steps:8});await page.mouse.up();
+        const after=await page.evaluate(kind=>({x:window[kind].x,y:window[kind].y}),kind);
+        assert.ok(after.x-before.x>50&&after.y-before.y>25,area+' must move the audio node');
+        assert.equal(await page.locator('#smartAudioLightbox.open').count(),0);
+    }
+    const before=await page.evaluate(kind=>({x:window[kind].x,y:window[kind].y}),kind);
+    await card(page,kind).getByRole('button',{name:'播放音频',exact:true}).click();
+    await page.waitForFunction(kind=>document.querySelector(`[data-id="${window[kind].id}"] .pixmax-audio-mount`)?.dataset.playing==='true',kind);
+    assert.deepEqual(await page.evaluate(kind=>({x:window[kind].x,y:window[kind].y}),kind),before);
+    assert.deepEqual(errors,[]);
+});
 test('uploaded and generated audio mount the same captured waveform controls and native dimensions',async t=>{
     const {page,errors}=await setup(t);
     assert.equal(await page.locator('.pixmax-audio-result,[data-studio-audio-play]').count(),0);

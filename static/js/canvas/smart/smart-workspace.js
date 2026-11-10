@@ -1961,7 +1961,7 @@ function isPixmaxPlayerControlEvent(event){
     // The original player's play/pause icon changes during its click handler.
     // composedPath retains the button ancestry even when that SVG is removed.
     return event.composedPath().some(element=>element instanceof Element &&
-        element.matches('button,[role=slider]') && element.closest('.pixmax-player-mount'));
+        (element.matches('.pixmax-audio-mount') || element.matches('button,[role=slider]') && element.closest('.pixmax-player-mount')));
 }
 
 function mediaSignaturePartFromElement(itemEl){
