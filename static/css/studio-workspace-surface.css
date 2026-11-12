@@ -1,0 +1,149 @@
+/* Shared surfaces for the resource, conversation and image workspaces. */
+:root,html body.studio-skin {
+    --studio-page:#09090b;--studio-nav:#09090b;--studio-panel:#121215;--studio-surface:#121215;
+    --studio-surface-soft:#18181c;--studio-surface-muted:#1c1c22;
+    --studio-border:rgb(255 255 255 / .07);--studio-border-strong:rgb(255 255 255 / .16);
+    --studio-text:#e4e4e7;--studio-text-muted:#a1a1aa;--studio-text-faint:#71717a;
+    --studio-accent:#e4e4e7;--studio-accent-text:#09090b;--studio-accent-label:#d4d4d8;
+    --studio-selected:#27272a;--studio-focus:#a1a1aa;--studio-grid:transparent;--studio-glow:transparent;--studio-success:#a1a1aa;
+    --studio-strong:#e4e4e7;--studio-strong-text:#09090b;--studio-overlay:rgb(0 0 0 / .5);
+    --studio-radius-control:8px;--studio-radius-card:12px;--studio-radius-dialog:12px;
+    --workspace-glow:radial-gradient(circle at 50% 50%,rgb(255 255 255 / .03) 0%,transparent 70%);
+    --workspace-empty-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpath d='m21 15-5-5L5 21'/%3E%3C/svg%3E");
+    --workspace-skill-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7' rx='1'/%3E%3Crect x='14' y='3' width='7' height='7' rx='1'/%3E%3Crect x='3' y='14' width='7' height='7' rx='1'/%3E%3Cpath d='M14 17.5h7m-3.5-3.5v7'/%3E%3C/svg%3E");
+    background:#09090b;background-image:none;color:var(--studio-text);
+}
+body.studio-skin :is(.skill-empty,.empty-state,.skill-dropzone,.inbox-empty) {
+    background:var(--workspace-glow),#121215;border:1px solid rgb(255 255 255 / .07);
+    border-radius:12px;color:#a1a1aa;font-size:12px;font-weight:400;
+}
+body.studio-skin :is(.skill-empty,.empty-state,.inbox-empty) {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;line-height:1.8}
+body.studio-skin :is(.skill-empty,.empty-state,.inbox-empty)::before,body.studio-online #placeholder::before {
+    content:'';display:block;flex:none;width:40px;height:40px;box-sizing:border-box;margin:0 auto;
+    border:1px solid rgb(255 255 255 / .06);border-radius:12px;
+    background:var(--workspace-empty-icon) center/18px 18px no-repeat,rgb(255 255 255 / .03);
+    box-shadow:inset 0 2px 4px rgb(0 0 0 / .05);
+}
+body.studio-skin :is(.detail-empty>svg,.skill-drop-icon) {
+    box-sizing:border-box;flex:none;width:40px;height:40px;padding:10px;border-radius:12px;
+    border:1px solid rgb(255 255 255 / .06);background:rgb(255 255 255 / .03);color:#71717a;
+}
+body.studio-skin details>summary {list-style:none}
+body.studio-skin details>summary::-webkit-details-marker {display:none}
+body.studio-skin details>summary::marker {content:''}
+body.studio-skin details>summary::before {
+    content:'';display:inline-block;vertical-align:-3px;width:16px;height:16px;margin-right:8px;
+    background:currentColor;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center/contain no-repeat;
+    transition:transform .2s;
+}
+body.studio-skin details[open]>summary::before {transform:rotate(90deg)}
+body.studio-skin :is(details.skill-notice,.image-records) {border:1px solid rgb(255 255 255 / .06);background:#121215;border-radius:8px;overflow:hidden}
+body.studio-skin :is(details.skill-notice,.image-records)>summary {padding:10px 16px;color:#a1a1aa;font-size:12px;font-weight:400;background:transparent;cursor:pointer}
+body.studio-skin :is(details.skill-notice,.image-records)>summary:hover {color:#e4e4e7}
+body.studio-skin details.skill-notice>p {margin:10px 16px 16px;font-size:12px}
+
+/* Neutral segmented controls leave the primary actions as the only lime surfaces. */
+.skill-toolbar {padding:0;border:0;background:#09090b;align-items:center;gap:16px}
+.skill-toolbar nav,body.studio-library .asset-tabs {
+    display:flex;flex-wrap:wrap;align-items:center;gap:4px;width:fit-content;max-width:100%;
+    align-self:flex-start;padding:4px;border:1px solid rgb(255 255 255 / .06);border-radius:8px;background:#121215;
+}
+.skill-toolbar nav button,body.studio-library .asset-tabs button {border:0;border-radius:6px;padding:6px 12px;color:#a1a1aa;background:transparent;font-size:12px;min-height:30px}
+.skill-toolbar nav button:hover,body.studio-library .asset-tabs button:hover {color:#e4e4e7;background:transparent}
+.skill-toolbar nav button[aria-pressed=true],body.studio-library .asset-tabs button.active {color:#f4f4f5;background:#27272a;box-shadow:0 1px 2px rgb(0 0 0 / .05)}
+body.studio-library .asset-tabs {gap:6px}
+body.studio-library .asset-tabs button>span {font-size:12px;font-weight:500}
+.skill-toolbar input[type=search] {height:36px;min-height:36px;font-size:12px;background:#121215;border:1px solid rgb(255 255 255 / .08);border-radius:8px}
+.skill-head {border:0;padding-bottom:0}
+.skill-head p {font-size:12px;color:#71717a}
+.skill-empty {min-height:350px}
+.skill-empty::before {background-image:var(--workspace-skill-icon)!important}
+.skill-card {border-radius:12px;border-color:rgb(255 255 255 / .07)}
+.skill-card:hover {border-color:rgb(255 255 255 / .16);background:#16161a}
+.skill-dialog,.skill-file-summary {border-radius:12px}
+html body.studio-skin :is(#skillImport,.skill-dialog .skill-primary,#genBtn,.send-btn):not(:disabled) {background:#d4ff33;border-color:#d4ff33;color:#09090b}
+html body.studio-skin :is(#skillImport,.skill-dialog .skill-primary,#genBtn,.send-btn):not(:disabled):hover {background:#bce622;border-color:#bce622;color:#09090b}
+
+/* Asset browser: keep the upload control and its existing event binding in the empty shelf. */
+body.studio-library .asset-manager-root :is(.asset-panel,.asset-card) {border:1px solid rgb(255 255 255 / .07);border-radius:12px;background:#121215}
+body.studio-library .asset-nav {padding-right:0}
+body.studio-library .asset-nav>.panel-head {padding:12px;border-bottom:1px solid rgb(255 255 255 / .06)}
+body.studio-library :is(.asset-btn,.asset-icon-btn,.asset-search-wrap,.canvas-sort-select) {border-radius:8px}
+body.studio-library .asset-card:hover {border-color:rgb(255 255 255 / .16);background:#16161a}
+body.studio-library .detail-scroll:has(>.detail-empty) {flex:1;align-items:stretch}
+body.studio-library .detail-empty {flex:1;flex-direction:column;justify-content:center;background:var(--workspace-glow);border-radius:12px;color:#71717a;font-weight:400}
+body.studio-library .upload-grid-card {background:#16161a;border:1px dashed rgb(255 255 255 / .12);border-radius:12px}
+body.studio-library .upload-grid-card:hover {border-color:rgb(255 255 255 / .25);background:#1c1c22}
+body.studio-library .content-scroll:has(.empty-state):has(.upload-grid-card) {display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(320px,1fr)}
+body.studio-library .content-scroll:has(.empty-state):has(.upload-grid-card) .asset-grid {display:contents}
+body.studio-library .content-scroll:has(.upload-grid-card) .empty-state {grid-area:1/1;align-self:stretch;min-height:320px;margin:0;padding:30px 24px 100px}
+body.studio-library .content-scroll:has(#workflowDrop) .empty-state {--workspace-empty-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12'/%3E%3C/svg%3E")}
+body.studio-library .content-scroll:has(.empty-state) .upload-grid-card {
+    grid-area:1/1;align-self:center;justify-self:center;z-index:1;transform:translateY(55px);
+    height:auto;min-height:36px;width:auto;max-width:calc(100% - 48px);display:flex;flex-direction:row;align-items:center;gap:8px;
+    border:1px solid rgb(255 255 255 / .1);border-radius:8px;padding:8px 16px;background:rgb(255 255 255 / .06);color:#e4e4e7;
+}
+body.studio-library .content-scroll:has(.empty-state) .upload-grid-card:hover {background:rgb(255 255 255 / .1)}
+body.studio-library .content-scroll:has(.empty-state) .upload-thumb {height:16px;width:16px;aspect-ratio:1;background:none;border:0;padding:0}
+body.studio-library .content-scroll:has(.empty-state) .upload-thumb svg {width:16px;height:16px}
+body.studio-library .content-scroll:has(.empty-state) .upload-body {padding:0;min-height:0}
+body.studio-library .content-scroll:has(.empty-state) .upload-body strong {font-size:12px;font-weight:500}
+body.studio-library .content-scroll:has(.empty-state) .upload-body small {display:none}
+body.studio-library .asset-directory :is(.tree-row,.manager-tree-heading):has(+.tree-action-bar) {padding-right:76px}
+body.studio-library .asset-directory .tree-action-bar {
+    position:relative;z-index:1;align-self:flex-end;flex:none;flex-wrap:nowrap;height:32px;
+    margin:-34px 4px 0 auto;gap:2px;padding:0;background:#121215;border:0;opacity:0;pointer-events:none;
+}
+body.studio-library .asset-directory .tree-action-bar:is(.child-actions,.library-actions) {margin-inline-start:auto}
+body.studio-library .asset-directory :is(.tree-row,.manager-tree-heading):hover+.tree-action-bar,
+body.studio-library .asset-directory .tree-action-bar:is(:hover,:focus-within,:has(.detail-confirm)) {opacity:1;pointer-events:auto}
+body.studio-library .asset-directory .tree-action-bar button {height:28px;width:22px;padding:4px;border-radius:6px;font-size:12px}
+body.studio-library .asset-directory .tree-action-bar button svg {display:block;width:14px;height:14px}
+body.studio-library .asset-directory .tree-action-bar button:not(.detail-confirm)>span {position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+body.studio-library .asset-directory .tree-action-bar button.detail-confirm {width:auto;padding-inline:6px;background:#27272a}
+
+/* The welcome mark exists only while the conversation has no messages. */
+body.studio-chat .messages:empty+.composer-wrap::before {
+    content:'有什么可以帮你的？';display:block;text-align:center;box-sizing:border-box;padding-top:56px;
+    margin:0 auto 28px;min-height:84px;color:#e4e4e7;font-size:20px;line-height:28px;font-weight:500;letter-spacing:-.5px;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Crect x='.5' y='.5' width='39' height='39' rx='11.5' fill='white' fill-opacity='.03' stroke='white' stroke-opacity='.06'/%3E%3Cpath d='M20 20c-3-5-5-5-7-5-6 0-6 10 0 10 2 0 4-2 7-5 3-5 5-5 7-5 6 0 6 10 0 10-2 0-4-2-7-5Z' fill='none' stroke='%23A1A1AA' stroke-width='1.5'/%3E%3C/svg%3E") top center/40px 40px no-repeat,radial-gradient(ellipse 40px 30px at 50% 20px,rgb(255 255 255 / .035),transparent);
+}
+html body.studio-chat .composer {background:#141418;border:1px solid rgb(255 255 255 / .09);border-radius:16px;padding:16px;box-shadow:0 16px 40px rgb(0 0 0 / .45);transition:border-color .2s,box-shadow .2s}
+html body.studio-chat .composer:focus-within,html body.studio-chat .composer:has(#messageInput:focus) {border-color:rgb(255 255 255 / .18)}
+html body.studio-chat .composer :is(.upload-btn,.model-picker-button) {background:#1c1c22;border:1px solid rgb(255 255 255 / .07);border-radius:8px;padding:4px 10px;height:32px;min-height:32px;color:#d4d4d8;font-size:12px}
+html body.studio-chat .composer :is(.upload-btn,.model-picker-button):hover {background:#24242c}
+body.studio-chat :is(.model-picker-provider,.model-picker-model) {font-size:12px;font-weight:500}
+html body.studio-chat .send-btn {width:40px;height:40px;border-radius:12px}
+body.studio-chat .chat-compose-meta {margin-top:16px!important}
+body.studio-chat .chat-starters {gap:8px}
+body.studio-chat .chat-starters button {background:#121215;border:1px solid rgb(255 255 255 / .07);border-radius:999px;padding:6px 12px;font-size:12px;color:#a1a1aa;transition:background .2s,border-color .2s,color .2s}
+body.studio-chat .chat-starters button:hover {background:#18181c;border-color:rgb(255 255 255 / .15);color:#e4e4e7}
+
+/* Image generation controls and preview share a single stretched grid row. */
+body.studio-online .container-box>.image-workspace-layout {gap:20px;border:0;border-radius:0;overflow:visible;align-items:stretch}
+body.studio-online :is(.image-workspace-controls,.image-workspace-preview) {border:1px solid rgb(255 255 255 / .07);border-radius:12px;background:#121215}
+body.studio-online .image-workspace-controls {padding:18px}
+body.studio-online .image-workspace-preview:has(#placeholder:not(.hidden)) {align-self:stretch;height:auto}
+body.studio-online .image-settings-heading {border:0;padding:0}
+body.studio-online .image-settings-heading>span {background:rgb(255 255 255 / .06);color:#a1a1aa;border-radius:4px;font-size:11px;padding:2px 8px}
+body.studio-online .image-workspace-controls>:is(section,.tool-panel) {border-top:1px solid rgb(255 255 255 / .06);padding-top:16px;margin-top:16px!important}
+html body.studio-online .image-workspace-controls .tool-panel {background:#121215}
+html body.studio-online .image-workspace-controls .nano-input {background:#18181c;border:1px solid rgb(255 255 255 / .08);border-radius:8px;padding:12px;font-size:12px}
+html body.studio-online .image-workspace-controls .nano-input:focus {border-color:rgb(255 255 255 / .2);box-shadow:none}
+body.studio-online .image-workspace-controls .upload-item {height:auto;aspect-ratio:1;border-radius:8px;background:#16161a;border:1px dashed rgb(255 255 255 / .12);transition:background .2s,border-color .2s}
+body.studio-online .image-workspace-controls .upload-item:hover {background:#1c1c22;border-color:rgb(255 255 255 / .25)}
+body.studio-online .reference-add {color:#71717a}
+body.studio-online .reference-add:hover {color:#d4d4d8}
+html body.studio-online .image-workspace-controls :is(.size-select,.size-custom,.studio-select-trigger) {height:36px;min-height:36px;background:#16161a;border:1px solid rgb(255 255 255 / .08);border-radius:8px;font-size:12px}
+html body.studio-online .image-workspace-controls #genBtn {border-radius:8px}
+body.studio-online #genBtn svg {color:inherit}
+html body.studio-online .image-workspace-preview #resultBox {flex:1;background:var(--workspace-glow),#121215}
+body.studio-online #placeholder::before {margin-bottom:16px}
+body.studio-online .image-preview-heading {background:#121215;border-color:rgb(255 255 255 / .06)}
+body.studio-online #placeholder strong {font-size:14px;font-weight:500}
+body.studio-online .image-records>summary span {font-size:11px;color:#71717a}
+
+@media(max-width:650px) {.skill-toolbar {align-items:stretch}.skill-toolbar nav {width:fit-content}.skill-toolbar input[type=search] {width:100%}}
+@media(max-width:640px) {html body.studio-chat .composer {padding:14px}body.studio-chat .messages:empty+.composer-wrap::before {margin-bottom:28px}html body.studio-chat .model-picker-button {max-width:100%}}
+@media(pointer:coarse) {body.studio-library .asset-directory .tree-action-bar {opacity:1;pointer-events:auto}}
+@media(prefers-reduced-motion:reduce) {body.studio-skin details>summary::before,html body.studio-chat .composer,body.studio-chat .chat-starters button,body.studio-online .image-workspace-controls .upload-item {transition:none}}

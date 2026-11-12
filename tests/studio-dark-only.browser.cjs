@@ -51,7 +51,7 @@ test('home, settings and lazy pages remain dark with old light preferences and i
         const state = await appearance(child);
         assert.equal(state.dark, true, id);
         assert.equal(state.scheme, 'dark', id);
-        assert.equal(state.palette, '#090b09', id);
+        assert.equal(state.palette, '#09090b', id);
         assert.equal(state.themeApi, 'undefined', id);
     }
     assert.equal((await appearance(page)).dark, true);

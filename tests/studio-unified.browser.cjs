@@ -26,7 +26,7 @@ test('history preview uses dark surfaces and fits the viewport without losing im
    }
    assert.equal(geometry.overflow,false,'all preview controls fit inside the panel');
    assert.ok(geometry.frame.height>100,'preview retains usable image space');
-   assert.equal(geometry.fill,'rgb(9, 11, 9)');
+   assert.equal(geometry.fill,'rgb(9, 9, 11)');
    assert.equal(await page.locator('#lightboxClose').evaluate(el=>el===document.activeElement),true);
    await page.locator('#lightboxClose').press('Shift+Tab');
    assert.equal(await page.locator('#lightboxCard [data-online-import="library"]').evaluate(el=>el===document.activeElement),true,'focus stays inside preview');

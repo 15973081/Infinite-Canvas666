@@ -131,9 +131,12 @@ test('image and workflow inspectors open on the right and keep separate collapse
     await page.keyboard.press('Escape');
 
     const assertAlignedActions=async()=>{
-        const name=await page.locator('.asset-directory [aria-current="true"] .tree-row-name').boundingBox();
-        const action=await page.locator('.asset-directory .tree-action-bar button span').first().boundingBox();
-        assert.ok(Math.abs(name.x-action.x)<1,`Directory name at ${name.x}, actions at ${action.x}`);
+        const row=page.locator('.asset-directory [aria-current="true"]');
+        await row.hover();
+        const name=await row.locator('.tree-row-name').boundingBox();
+        const action=await page.locator('.asset-directory .tree-action-bar button').first().boundingBox();
+        assert.ok(action.x>=name.x+name.width-1,'actions follow the directory name');
+        assert.ok(Math.abs(name.y+name.height/2-action.y-action.height/2)<3,'actions share the directory row');
         const rows=await page.locator('.asset-directory .tree-action-bar button').evaluateAll(
             buttons=>new Set(buttons.map(button=>button.getBoundingClientRect().top)).size
         );

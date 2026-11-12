@@ -62,7 +62,7 @@ test('select menus fit dark surfaces, mobile and UI zoom with reduced motion', a
    const menu=page.locator('.studio-select-menu:not([hidden])');
    const r=await menu.evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,bg:getComputedStyle(el).backgroundColor};});
    assert.ok(r.left>=-1&&r.right<=width+1&&r.top>=-1&&r.bottom<=height+1,`${theme}/${width}/${scale}/${label}: ${JSON.stringify(r)}`);
-   assert.equal(r.bg,theme==='dark'?'rgb(20, 22, 20)':'rgb(255, 255, 255)');
+   assert.equal(r.bg,theme==='dark'?'rgb(18, 18, 21)':'rgb(255, 255, 255)');
    if(width===1280&&label==='生成质量') {
     const box=await page.locator('.tool-panel').boundingBox();
     await page.screenshot({path:'.local/studio-select/'+theme+'.png',animations:'disabled',clip:{x:box.x,y:box.y,width:box.width,height:Math.max(box.height,r.bottom-box.y)+8}});
