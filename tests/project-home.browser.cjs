@@ -75,10 +75,10 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
    const r=el.getBoundingClientRect(),cover=el.querySelector('.studio-canvas-cover').getBoundingClientRect();
    return {width:r.width,height:r.height,cover:cover.height,info:el.querySelector('.canvas-card-info').getBoundingClientRect().height};
   });
-  // Pixmax: max-width includes 80px padding, 24px gaps, 4/5 columns, 4:3 cards.
+  // The catalog retains its desktop columns with 16:10 thumbnails and a 72px footer.
   if(width!==1024)assert.ok(Math.abs(metrics.width-(width===1920?284.8:262))<1,JSON.stringify(metrics));
-  assert.ok(Math.abs(metrics.height-metrics.width*.75)<1,'card aspect ratio '+width);
-  assert.equal(metrics.info,60);
+  assert.ok(Math.abs(metrics.cover-(metrics.width-2)*10/16)<1,'thumbnail aspect ratio '+width);
+  assert.equal(metrics.info,72);
   assert.ok(Math.abs(metrics.cover+metrics.info+2-metrics.height)<1,'cover fills remaining height');
   const header=await home.locator('.gate-head').boundingBox();
   assert.equal(header.height,96,'compact directory header');
@@ -92,7 +92,7 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
  const firstCard=home.locator('.canvas-item').first(),overlay=firstCard.locator('.project-card-enter');
  await firstCard.hover();
  await page.waitForFunction(()=>getComputedStyle(document.querySelector('#frame-canvas').contentDocument.querySelector('.project-card-enter')).opacity==='1');
- assert.equal(await overlay.evaluate(el=>getComputedStyle(el).transitionDuration),'0.15s');
+ assert.equal(await overlay.evaluate(el=>getComputedStyle(el).transitionDuration),'0.2s');
  assert.equal(await overlay.evaluate(el=>getComputedStyle(el).transitionTimingFunction),'cubic-bezier(0.4, 0, 0.2, 1)');
  await page.screenshot({path:path.join(shots,'project-home-hover-aligned.png')});
  await firstCard.locator('.studio-card-menu summary').click();

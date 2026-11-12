@@ -18,12 +18,12 @@ test('folder and canvas cards align and use the same hover and keyboard focus tr
   }));
   assert.equal(metrics.length,3);
   for(const card of metrics){
-   assert.ok(Math.abs(card.height-card.width*.75)<1,JSON.stringify(card));
+   assert.ok(Math.abs(card.height-((card.width-2)*10/16+72+2))<1,JSON.stringify(card));
    assert.ok(Math.abs(card.height-metrics[0].height)<1,JSON.stringify(metrics));
    assert.equal(card.top,metrics[0].top);
-   assert.equal(card.radius,'8px');
+   assert.equal(card.radius,'12px');
   }
-  assert.deepEqual(metrics.map(card=>card.footer),[60,60,60]);
+  assert.deepEqual(metrics.map(card=>card.footer),[72,72,72]);
  }
  const folder=page.locator('.project-folder-card');
  const canvas=page.locator('.canvas-item').first();
@@ -33,13 +33,35 @@ test('folder and canvas cards align and use the same hover and keyboard focus tr
  });
  const before=await folder.boundingBox();
  await folder.hover();
- const active=['1','rgb(210, 255, 58)','rgba(0, 0, 0, 0.65)','rgb(210, 255, 58)'];
+ const active=['1','rgb(244, 244, 245)','rgba(24, 24, 28, 0.9)','rgba(255, 255, 255, 0.16)'];
  assert.deepEqual(await appearance(folder),active);
  assert.deepEqual(await folder.boundingBox(),before);
  await page.mouse.move(0,0);
  await page.keyboard.press('Tab');
  await canvas.locator('.canvas-open').focus();
  assert.deepEqual(await appearance(canvas),active);
+ const surface=await canvas.locator('.studio-canvas-cover').evaluate(el=>{
+  const cover=getComputedStyle(el),base=getComputedStyle(el,'::before'),icon=getComputedStyle(el,'::after');
+  return {background:cover.backgroundColor,glow:cover.backgroundImage,base:[base.width,base.height,base.borderRadius],icon:[icon.width,icon.height,icon.backgroundColor]};
+ });
+ assert.equal(surface.background,'rgb(24, 24, 28)');assert.match(surface.glow,/radial-gradient/);
+ assert.deepEqual(surface.base,['40px','40px','12px']);assert.deepEqual(surface.icon,['18px','18px','rgb(113, 113, 122)']);
+ const mosaic=await folder.locator('.project-folder-mosaic').evaluate(el=>{
+  const tiles=[...el.children].filter(child=>!child.classList.contains('project-folder-enter')).map(child=>child.getBoundingClientRect());
+  const overlay=getComputedStyle(el,'::before');
+  return {sizes:tiles.map(r=>[r.width,r.height]),overlay:overlay.backgroundColor,blur:overlay.backdropFilter,fourth:getComputedStyle(el,'::after').content};
+ });
+ assert.equal(mosaic.sizes.length,3);
+ for(const size of mosaic.sizes)assert.ok(size.every((value,index)=>Math.abs(value-mosaic.sizes[0][index])<1),'mosaic cells have equal dimensions');
+ assert.equal(mosaic.fourth,'""');assert.equal(mosaic.overlay,'rgba(0, 0, 0, 0.35)');assert.equal(mosaic.blur,'blur(2px)');
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await folder.hover();await page.waitForFunction(()=>getComputedStyle(document.querySelector('.project-folder-card')).top==='-2px');
+ await folder.locator('summary').click();
+ await page.waitForFunction(()=>document.querySelector('.project-folder-menu[open] .project-folder-actions')?.style.left);
+ const menu=await folder.locator('.project-folder-actions').boundingBox();
+ const trigger=await folder.locator('summary').boundingBox();
+ assert.ok(Math.abs(menu.x+menu.width-trigger.x-trigger.width)<1,'folder menu stays anchored after the hover lift');
+ assert.ok(Math.abs(menu.y-trigger.y-trigger.height-6)<1,'folder menu uses viewport coordinates');
 });
 
 test('folder cards group projects, preserve search and return position, and never load full video or graphs',async t=>{
