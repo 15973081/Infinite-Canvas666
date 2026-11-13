@@ -30,8 +30,8 @@ html:has(body.studio-canvas-home), html body.studio-canvas-home {
 #canvasGate {--project-card-radius:12px;--project-card-footer:72px;--project-motion:200ms;background:#09090b}
 #canvasGate .gate-head {background:rgb(9 9 11 / .8);backdrop-filter:blur(12px);border-bottom:1px solid rgb(255 255 255 / .06)}
 #canvasGate .gate-title-row {gap:10px}
-#canvasGate .project-heading-mark {width:52px;height:52px;filter:grayscale(1)}
-#canvasGate .gate-title {color:#f4f4f5;font-weight:600}
+#canvasGate .project-heading-mark {display:none}
+#canvasGate .gate-title {color:#f4f4f5;font-size:20px;font-weight:600;letter-spacing:-.5px}
 #canvasGate .gate-count-pill {color:#71717a}
 
 #canvasGate :is(.gate-search,.gate-icon-btn,.studio-pick-trigger) {
@@ -93,7 +93,7 @@ html:has(body.studio-canvas-home), html body.studio-canvas-home {
 
 #canvasGate .project-folder-mosaic {
     --folder-placeholder: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2352525B' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z'/%3E%3C/svg%3E");
-    grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:6px;padding:8px;
+    grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:6px;padding:8px;isolation:isolate;
 }
 #canvasGate .project-folder-mosaic>:first-child {grid-row:auto}
 #canvasGate .project-folder-mosaic :is(.studio-canvas-cover,.project-folder-placeholder) {aspect-ratio:auto;background:#141418;border:0;border-radius:5px}
@@ -118,6 +118,9 @@ html:has(body.studio-canvas-home), html body.studio-canvas-home {
     font:500 11px/16px var(--studio-font);letter-spacing:0;
 }
 #canvasGate .studio-card-type {background:rgb(24 24 27 / .75);color:#d4d4d8}
+#canvasGate .canvas-open {position:relative}
+#canvasGate .canvas-open>.studio-card-type {inset:10px auto auto 12px;transform:none;z-index:2}
+#canvasGate .canvas-cover-kind {inset:auto 10px 10px auto;transform:none;z-index:1}
 #canvasGate .project-folder-card.drag-over {border-color:#a1a1aa;box-shadow:0 0 0 2px rgb(255 255 255 / .16)}
 body.studio-canvas-home .name-dialog-choices label:has(:checked) {background:#27272a}
 

@@ -40,12 +40,12 @@
     load();let draft=structuredClone(value),dirty=false;const previous=document.activeElement;
     const root=el('dialog',undefined,'canvas-preferences');dialog=root;root.setAttribute('aria-label','偏好管理');
     const close=()=>{if(dirty&&!window.confirm('偏好尚未保存，确定关闭？'))return;root.close();};
-    const header=el('header'),x=button('×',close);x.className='account-close';x.setAttribute('aria-label','关闭偏好管理');header.append(el('h2','偏好管理'),x);
+    const header=el('header'),x=button('',close);x.className='account-close';x.setAttribute('aria-label','关闭偏好管理');header.append(el('h2','偏好管理'),x);
     const layout=el('div',undefined,'preferences-layout'),form=el('form'),preview=el('aside',undefined,'preferences-preview'),status=el('p','','account-status');status.setAttribute('role','status');
     function row(title,hint,control){const label=el('label',undefined,'preference-row'),text=el('div');text.append(el('strong',title));if(hint)text.append(el('small',hint));label.append(text,control);form.append(label);return control;}
     const font=el('select');font.setAttribute('aria-label','提示词输入框字体大小');['小','标准','标准+1','标准+2','大'].forEach((name,i)=>font.append(new Option(name,String(fonts[i]))));font.value=String(draft.font);
     row('提示词输入框 - 字体大小','调整输入框和节点文本的显示大小',font);
-    const lines=el('input');lines.type='checkbox';lines.checked=draft.connections;lines.setAttribute('aria-label','画布连接线显示');row('画布-连接线显示','关闭后点击节点显示对应的上下游连接线',lines);
+    const lines=el('input');lines.type='checkbox';lines.setAttribute('role','switch');lines.checked=draft.connections;lines.setAttribute('aria-label','画布连接线显示');row('画布-连接线显示','关闭后点击节点显示对应的上下游连接线',lines);
     const shortcuts=el('details');shortcuts.append(el('summary','快捷键 · 自定义'));
     const shortcutInputs={};
     for(const [kind,title]of [['asset','打开 / 关闭资源库'],['zoom','切换缩小预览']]){const label=el('label',title),select=el('select');select.setAttribute('aria-label',title);shortcutKeys.forEach(k=>select.append(new Option(k.toUpperCase(),k)));select.value=draft.shortcuts[kind];label.append(select);shortcuts.append(label);shortcutInputs[kind]=select;}
@@ -60,9 +60,9 @@
       text.setAttribute('aria-label','模型默认填充文本');text.maxLength=4000;text.placeholder='请输入默认填充文本';text.value=saved?.text||'';
       const remove=button('移除',()=>{block.remove();dirty=true;});block.append(select,text,remove);promptRows.append(block);}
     draft.prompts.forEach(addPrompt);const add=button('新增',()=>{addPrompt();dirty=true;});promptSettings.append(add);if(!catalog.length)promptSettings.append(el('p','当前空间没有可用模型，可在配置模型后新增。','account-muted'));add.disabled=!catalog.length;form.append(promptSettings);
-    const dots=el('input');dots.type='checkbox';dots.checked=draft.dots;dots.setAttribute('aria-label','显示点阵背景图');row('画布背景','显示点阵背景图',dots);
+    const dots=el('input');dots.type='checkbox';dots.setAttribute('role','switch');dots.checked=draft.dots;dots.setAttribute('aria-label','显示点阵背景图');row('画布背景','显示点阵背景图',dots);
     const previewNode=el('div',undefined,'preference-preview-node'),previewText=el('textarea');previewText.readOnly=true;previewText.value='这是一句提示词文本';previewText.setAttribute('aria-label','偏好预览提示词');previewNode.append(el('strong','文生视频'),previewText,el('small','16:9　·　1080P　·　5s'));preview.append(el('small','偏好预览'),previewNode);
-    function renderPreview(){preview.style.backgroundImage=dots.checked?'radial-gradient(#464650 1px,transparent 1px)':'none';previewText.style.fontSize=font.value+'px';previewNode.classList.toggle('preview-lines',lines.checked);}
+    function renderPreview(){preview.style.backgroundImage=dots.checked?'radial-gradient(var(--studio-dot-color) 1px,transparent 1px)':'none';previewText.style.fontSize=font.value+'px';previewNode.classList.toggle('preview-lines',lines.checked);}
     form.oninput=()=>{dirty=true;renderPreview();};form.onchange=()=>{dirty=true;renderPreview();};
     const actions=el('div',undefined,'preferences-actions'),save=el('button','保存偏好');save.type='submit';
     const restore=button('恢复默认',()=>{font.value='14';lines.checked=dots.checked=true;shortcutInputs.asset.value='a';shortcutInputs.zoom.value='z';Object.values(nameInputs).forEach(i=>i.value='');promptRows.replaceChildren();dirty=true;renderPreview();});actions.append(restore,save);form.append(status,el('p','保存在本浏览器，按登录账号分别生效。','account-muted'),actions);

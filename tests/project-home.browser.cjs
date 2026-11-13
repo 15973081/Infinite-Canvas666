@@ -2,6 +2,26 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {fixture}=require('./helpers/canvas-browser.cjs');
 const root=path.resolve(__dirname,'..');
 
+test('approved dock, folder overlay and canvas badges render in the real workbench',async t=>{
+ const {page,errors}=await fixture(t,'classic',false,{home:true,startPath:'/static/index.html',folders:[{id:'brand',name:'品牌项目'}],record:{title:'深度视频',kind:'smart',cover_media:{kind:'video',url:'/output/video.mp4',thumbnail:'/test-image.svg'}},extraRecords:Array.from({length:5},(_,i)=>({id:'canvas-'+i,title:'画布 '+i,kind:i%2?'classic':'smart',cover_media:i===0?{kind:'video',url:'/output/video.mp4',thumbnail:'/test-image.svg'}:undefined}))});
+ await page.emulateMedia({reducedMotion:'reduce'});await page.setViewportSize({width:1440,height:1000});
+ const rail=page.locator('#studioSidebar'),buttons=rail.locator('.nav-item,.settings-fold-toggle');
+ assert.equal(await buttons.count(),6);assert.equal(await rail.evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(18, 18, 21, 0.9)');assert.equal(await rail.evaluate(n=>getComputedStyle(n).borderRadius),'16px');
+ assert.equal(await buttons.first().evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(34, 34, 40)');assert.equal(await buttons.nth(1).evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(0, 0, 0, 0)');
+ assert.deepEqual(await buttons.locator('svg').evaluateAll(nodes=>nodes.map(n=>[getComputedStyle(n).width,getComputedStyle(n).strokeWidth,n.hasAttribute('data-tabler')])),Array.from({length:6},()=>['18px','1.65px',false]));
+ await buttons.nth(1).hover();const tooltip=page.locator('#studioRailTooltip');await tooltip.waitFor();
+ const tip=await tooltip.boundingBox(),dock=await rail.boundingBox();assert.equal(tip.x-dock.x-dock.width,10);assert.equal(await tooltip.evaluate(n=>getComputedStyle(n).fontSize),'11px');
+ await buttons.nth(1).click();await page.mouse.move(1200,950);assert.equal(await buttons.first().evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(0, 0, 0, 0)');assert.equal(await buttons.nth(1).evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(34, 34, 40)');
+ await buttons.first().click();const home=page.frameLocator('#frame-canvas');await home.locator('.project-folder-card').waitFor();
+ assert.equal(await home.locator('.project-heading-mark').isVisible(),false);assert.equal(await home.locator('.gate-title').evaluate(n=>getComputedStyle(n).fontSize),'20px');
+ await home.locator('.project-folder-card').hover();
+ const overlay=await home.locator('.project-folder-mosaic').evaluate(n=>{const c=getComputedStyle(n,'::before');return [c.backgroundColor,c.backdropFilter,c.opacity];});assert.deepEqual(overlay,['rgba(0, 0, 0, 0.35)','blur(2px)','1']);
+ assert.equal(await home.locator('.project-folder-enter').evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(24, 24, 28, 0.9)');
+ assert.equal(await home.locator('.canvas-cover-kind').count(),1);
+ const badges=await home.locator('.studio-card-type,.canvas-cover-kind').evaluateAll(nodes=>nodes.map(n=>{const b=n.getBoundingClientRect(),p=n.closest('.canvas-open').getBoundingClientRect();return b.top>=p.top&&b.left>=p.left&&b.right<=p.right&&b.bottom<=p.bottom;}));assert.ok(badges.length>=6&&badges.every(Boolean));
+ fs.mkdirSync('.local/interface-polish',{recursive:true});await page.screenshot({path:'.local/interface-polish/canvas-dock.png',fullPage:true});assert.deepEqual(errors,[]);
+});
+
 test('canvas filters keep their actions with neutral rounded dropdowns',async t=>{
  const {page,errors}=await fixture(t,'classic',true,{directory:true,folders:[{id:'brand',name:'品牌项目'}]});
  await page.locator('#studioFolderTrigger').click();const folder=page.locator('#studioFolderMenu');

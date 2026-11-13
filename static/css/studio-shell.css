@@ -1,14 +1,18 @@
 @import url('/static/css/studio-tokens.css');
+@import url('/static/css/studio-surface-palette.css');
 
 /* Short windows offset the centered navigation to clear the header. */
-body.studio-home {
+html body.studio-home {
+    --studio-page:#09090b;--studio-nav:#09090b;--studio-border:var(--studio-divider);
+    --studio-text:var(--studio-neutral-text);--studio-text-muted:var(--studio-neutral-muted);--studio-focus:var(--studio-neutral-muted);
     --studio-sidebar-width:56px;
     --studio-header-height:84px;
-    --studio-rail-surface:#171a18;
-    --studio-rail-hover:#272c28;
-    --studio-rail-current:#353d37;
-    --studio-rail-icon:#a6ada7;
+    --studio-rail-surface:rgb(18 18 21 / .9);
+    --studio-rail-hover:rgb(255 255 255 / .06);
+    --studio-rail-current:#222228;
+    --studio-rail-icon:var(--studio-neutral-muted);
 }
+body.studio-home .studio-desktop-brand::after{color:#3f3f46}
 html.member-workspace-shell body.studio-home>.app-shell{margin-top:0;height:100dvh!important}
 html.member-workspace-shell body.studio-home .stage{box-sizing:border-box}
 body.studio-home .stage,html.member-workspace-shell body.studio-home .stage{padding-top:var(--studio-header-height)}
@@ -30,38 +34,40 @@ body.studio-home .app-shell::before {
     z-index:21;
 }
 body.studio-home .stage{min-width:0;margin:0;border:0;border-radius:0;background:var(--studio-page)}
-body.studio-home .sidebar {
+body.studio-home #studioSidebar {
     box-sizing:border-box;
     display:flex;
     flex-direction:column;
     flex:0 0 var(--studio-sidebar-width);
     align-self:center;
-    gap:7px;
+    gap:6px;
     max-height:calc(100% - var(--studio-header-height) - 24px);
     margin:clamp(0px, calc(510px - 100dvh), var(--studio-header-height)) 12px 0 14px;
-    padding:2px 2px 6px;
-    border-radius:12px;
+    padding:6px;
+    border-radius:16px;
+    border:1px solid var(--studio-control-border);
+    backdrop-filter:blur(24px);
     background:var(--studio-rail-surface);
     z-index:20;
 }
-body.studio-home .sidebar nav {
+body.studio-home #studioSidebar nav {
     display:flex;
     flex-direction:column;
     align-items:center;
     flex:0 1 auto;
     min-height:0;
-    padding:4px;
+    padding:0;
     gap:6px;
     overflow-y:auto;
     scrollbar-width:none!important;
 }
-body.studio-home .sidebar .side-actions {
+body.studio-home #studioSidebar .side-actions {
     position:relative;
     display:flex;
     justify-content:center;
     flex:none;
 }
-body.studio-home .sidebar .settings-fold-group {
+body.studio-home #studioSidebar .settings-fold-group {
     position:absolute;
     left:calc(100% + 10px);
     bottom:0;
@@ -70,29 +76,29 @@ body.studio-home .sidebar .settings-fold-group {
     border-radius:8px;
     background:var(--studio-rail-surface);
 }
-body.studio-home .sidebar .settings-fold-group:is(.is-collapsed,:not(:has(> .side-pill:not([hidden])))) {display:none}
-body.studio-home .sidebar :is(.nav-item,.side-pill) {
+body.studio-home #studioSidebar .settings-fold-group:is(.is-collapsed,:not(:has(> .side-pill:not([hidden])))) {display:none}
+body.studio-home #studioSidebar :is(.nav-item,.side-pill) {
     box-sizing:border-box;
     display:grid;
     place-items:center;
-    width:44px;
-    height:44px;
+    width:42px;
+    height:42px;
     flex-shrink:0;
     padding:0;
-    border:0;
-    border-radius:7px;
+    border:1px solid transparent;
+    border-radius:10px;
     background:transparent;
     color:var(--studio-rail-icon);
     cursor:pointer;
     transition:background-color .16s,color .16s;
 }
-body.studio-home .sidebar :is(.nav-item,.side-pill):hover {background:var(--studio-rail-hover);color:var(--studio-text)}
-body.studio-home .sidebar :is(.nav-item.active,.side-pill[aria-expanded=true]) {background:var(--studio-rail-current);color:var(--studio-text)}
-body.studio-home .sidebar :is(.nav-item,.side-pill):focus-visible {outline:2px solid var(--studio-rail-icon);outline-offset:2px;color:var(--studio-text)}
-body.studio-home .sidebar :is(.nav-item,.side-pill) svg {width:18px;height:18px;stroke-width:1.5}
-body.studio-home .sidebar :is(.nav-item,.settings-fold-toggle) svg {width:22px;height:22px}
-body.studio-home .sidebar :is(.nav-text,.side-pill-text,.studio-nav-label) {display:none}
-body.studio-home .sidebar .settings-fold-group .side-pill {
+body.studio-home #studioSidebar :is(.nav-item,.side-pill):hover {background:var(--studio-rail-hover);color:var(--studio-text)}
+body.studio-home #studioSidebar :is(.nav-item.active,.side-pill[aria-expanded=true]) {background:var(--studio-rail-current);color:#fff;border-color:rgb(255 255 255 / .1)}
+body.studio-home #studioSidebar :is(.nav-item,.side-pill):focus-visible {outline:2px solid var(--studio-rail-icon);outline-offset:2px;color:var(--studio-text)}
+body.studio-home #studioSidebar :is(.nav-item,.side-pill) svg {width:18px;height:18px;stroke-width:1.65}
+body.studio-home #studioSidebar :is(.nav-item,.settings-fold-toggle) svg {width:18px;height:18px}
+body.studio-home #studioSidebar :is(.nav-text,.side-pill-text,.studio-nav-label) {display:none}
+body.studio-home #studioSidebar .settings-fold-group .side-pill {
     display:flex;
     align-items:center;
     gap:8px;
@@ -103,16 +109,17 @@ body.studio-home .sidebar .settings-fold-group .side-pill {
     font-size:12px;
     white-space:nowrap;
 }
-body.studio-home .sidebar .settings-fold-group .side-pill-text {display:inline}
+body.studio-home #studioSidebar .settings-fold-group .side-pill-text {display:inline}
 .studio-rail-tooltip {
     position:fixed;
     z-index:90;
-    padding:6px 9px;
-    border:1px solid var(--studio-border);
-    border-radius:6px;
-    background:var(--studio-panel);
-    color:var(--studio-text);
-    font:12px/1.4 var(--studio-font);
+    padding:4px 10px;
+    border:1px solid rgb(255 255 255 / .1);
+    border-radius:8px;
+    background:rgb(24 24 28 / .95);
+    box-shadow:0 12px 24px rgb(0 0 0 / .4);
+    color:var(--studio-neutral-text);
+    font:11px/1.4 var(--studio-font);
     white-space:nowrap;
 }
 .studio-rail-tooltip::before {content:'';position:absolute;width:14px;inset:0 auto 0 -14px}

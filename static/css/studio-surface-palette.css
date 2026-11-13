@@ -2,4 +2,14 @@
 :root {
     --studio-card-color:#121215;
     --studio-hover-color:#18181c;
+    --studio-modal-color:#0c0c0e;
+    --studio-input-color:#16161a;
+    --studio-neutral-text:#f4f4f5;
+    --studio-neutral-muted:#a1a1aa;
+    --studio-neutral-faint:#71717a;
+    --studio-control-border:rgb(255 255 255 / .08);
+    --studio-divider:rgb(255 255 255 / .06);
+    --studio-primary-color:#d4ff33;
+    --studio-primary-ink:#09090b;
+    --studio-danger-color:#f87171;
 }

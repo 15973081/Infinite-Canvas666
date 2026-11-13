@@ -1,0 +1,76 @@
+@import url('/static/css/studio-surface-palette.css');
+
+/* Shared account dialogs retain their native forms and disclosure controls. */
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences){
+    --studio-panel:var(--studio-card-color);--studio-surface-soft:var(--studio-hover-color);
+    --studio-text:var(--studio-neutral-text);--studio-text-muted:var(--studio-neutral-muted);--studio-text-faint:var(--studio-neutral-faint);
+    --studio-focus:var(--studio-neutral-muted);--ac-muted:var(--studio-neutral-muted);--ac-line:var(--studio-divider);--ac-accent:var(--studio-primary-color);
+    box-sizing:border-box;width:min(560px,calc(100vw - 32px));max-height:90dvh;padding:0;overflow:auto;
+    background:var(--studio-modal-color);color:var(--studio-text);border:1px solid var(--studio-control-border);border-radius:16px;
+    box-shadow:0 25px 50px -12px rgb(0 0 0 / .75);font:12px/1.7 var(--studio-font,'Segoe UI','Microsoft YaHei',sans-serif);color-scheme:dark;
+}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences)::backdrop{background:rgb(0 0 0 / .6);backdrop-filter:blur(4px)}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences) *{box-sizing:border-box}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences)>header{height:56px;min-height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px;border-bottom:1px solid var(--studio-divider);background:var(--studio-modal-color)}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences) h2{margin:0;font-size:14px;font-weight:500}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences) h3{margin:0 0 12px;font-size:13px;font-weight:500}
+:is(.account-email-dialog,.account-data-dialog) p{line-height:1.8;overflow-wrap:anywhere;color:var(--studio-text-muted)}
+:is(.account-email-dialog,.account-data-dialog) button,.canvas-preferences .preferences-actions button{min-height:36px;padding:7px 12px;border:1px solid var(--studio-control-border);border-radius:8px;background:#141418;color:#d4d4d8;font:500 12px/1.6 var(--studio-font,sans-serif);cursor:pointer}
+:is(.account-email-dialog,.account-data-dialog) button:hover,.canvas-preferences .preferences-actions button:hover{background:var(--studio-surface-soft);border-color:rgb(255 255 255 / .15)}
+:is(.account-email-dialog,.account-data-dialog) button:disabled{opacity:.45;cursor:not-allowed}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences)>header>button{display:flex;align-items:center;justify-content:center;flex:none;min-height:28px;width:28px;height:28px;padding:0;margin:0;border:0;border-radius:6px;background:transparent;color:var(--studio-text-muted);font-size:0}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences)>header>button::before{content:'';width:16px;height:16px;background:currentColor;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E") center/contain no-repeat}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences)>header>button:hover{background:rgb(255 255 255 / .06);color:var(--studio-text)}
+.canvas-preferences .account-close{padding:0;font-size:0}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences) :focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
+:is(.account-email-dialog,.account-data-dialog) label{display:grid;gap:7px;margin:0 0 16px;color:#d4d4d8}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences) input:not([type=checkbox]):not([type=hidden]),.canvas-preferences textarea{width:100%;min-width:0;min-height:36px;padding:7px 12px;border:1px solid var(--studio-control-border);border-radius:8px;background:var(--studio-input-color);color:var(--studio-text);font:12px/1.6 var(--studio-font,sans-serif)}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences) input:focus{border-color:rgb(255 255 255 / .2)}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences) input:not([type=checkbox]):focus-visible{outline:none;box-shadow:0 0 0 2px rgb(255 255 255 / .06)}
+:is(.account-email-dialog,.account-data-dialog,.canvas-preferences,.account-panel) input:is(:-webkit-autofill,:-webkit-autofill:hover,:-webkit-autofill:focus){-webkit-text-fill-color:var(--studio-neutral-text);-webkit-box-shadow:0 0 0 1000px var(--studio-input-color) inset;transition:background-color 5000s ease-in-out 0s}
+.account-email-dialog>p,.account-email-dialog>form{margin:20px 24px}
+.account-email-dialog>form+form{padding-top:24px;margin-top:24px;border-top:1px solid var(--studio-divider)}
+.account-email-dialog>form:first-of-type:not(:has(h3))>button,.canvas-preferences .preferences-actions button[type=submit]{background:var(--studio-primary-color);border-color:var(--studio-primary-color);color:var(--studio-primary-ink);font-weight:600}
+.account-email-dialog>form:first-of-type:not(:has(h3))>button:hover,.canvas-preferences .preferences-actions button[type=submit]:hover{background:#bce622;border-color:#bce622}
+.account-email-dialog [hidden]{display:none}
+.account-data-dialog{width:min(630px,calc(100vw - 32px))}
+.account-data-dialog>div,.account-data-dialog>[role=status]{margin:24px}
+.account-data-dialog>button{margin:0 24px 24px}
+.account-data-dialog>div>p{margin:0;padding:0 16px 8px;background:var(--studio-panel);border-inline:1px solid var(--studio-divider)}
+.account-data-dialog>div>p:first-child{padding-top:16px;border-top:1px solid var(--studio-divider);border-radius:12px 12px 0 0;color:var(--studio-text);font-weight:500}
+.account-data-dialog>div>p:last-of-type{padding-bottom:16px;border-bottom:1px solid var(--studio-divider);border-radius:0 0 12px 12px}
+.account-data-dialog>div>form{margin-top:16px}
+.account-data-dialog>div>form:has(h3){margin-top:24px;padding-top:24px;border-top:1px solid var(--studio-divider)}
+.account-data-dialog>div>form:has(h3)>p{margin:0 0 20px}
+.account-data-dialog>div>form:has(h3)>button{background:rgb(239 68 68 / .1);color:var(--studio-danger-color);border-color:rgb(239 68 68 / .25);padding:8px 16px;max-width:100%;white-space:normal}
+.account-data-dialog>div>form:has(h3)>button:hover{background:rgb(239 68 68 / .2)}
+.canvas-preferences{width:min(850px,calc(100vw - 24px));height:fit-content}
+.canvas-preferences .preferences-layout{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);max-height:calc(90dvh - 56px)}
+.canvas-preferences .preference-row{padding:0;border:0;margin:0 0 24px;gap:16px}
+.canvas-preferences .preference-row strong{font-size:12px;font-weight:500}
+.canvas-preferences .preference-row small{font-size:11px;color:var(--studio-text-faint);margin-top:4px}
+.canvas-preferences details{padding:0;margin:0 0 10px;border:1px solid var(--studio-divider);border-radius:8px;background:var(--studio-panel)}
+.canvas-preferences summary{list-style:none;display:flex;align-items:center;gap:8px;padding:11px 12px;color:#d4d4d8}
+.canvas-preferences summary::-webkit-details-marker{display:none}
+.canvas-preferences summary::before{content:'';width:14px;height:14px;flex:none;background:var(--studio-text-faint);mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center/contain no-repeat;transition:transform .2s}
+.canvas-preferences details[open]>summary::before{transform:rotate(90deg)}
+.canvas-preferences details>:not(summary){margin:12px 14px}
+.canvas-preferences details label{font-size:12px;margin-top:12px;gap:7px}
+.canvas-preferences details:first-of-type>label{grid-template-columns:minmax(0,1fr) 80px;align-items:center}
+.canvas-preferences details>button{font:500 12px/1.6 var(--studio-font,sans-serif);border:1px solid var(--studio-control-border);border-radius:8px;background:#141418;color:#d4d4d8;padding:7px 12px}
+.canvas-preferences .account-muted{font-size:11px;color:var(--studio-text-faint)}
+.canvas-preferences .preference-row input[type=checkbox]{appearance:none;position:relative;width:36px;height:20px;flex:0 0 36px;border:1px solid var(--studio-control-border);border-radius:999px;background:#27272a;margin:0;padding:0;transition:background-color .2s,border-color .2s}
+.canvas-preferences .preference-row input[type=checkbox]:after{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#d4d4d8;transition:transform .2s,background-color .2s}
+.canvas-preferences .preference-row input[type=checkbox]:checked{background:var(--studio-primary-color);border-color:var(--studio-primary-color)}
+.canvas-preferences .preference-row input[type=checkbox]:checked:after{left:2px;transform:translateX(16px);background:var(--studio-primary-ink)}
+.canvas-preferences .preferences-preview{--studio-dot-color:rgb(255 255 255 / .065);padding:24px 20px;background-color:var(--studio-primary-ink);background-size:16px 16px;border-color:var(--studio-divider);gap:18px}
+.canvas-preferences .preferences-preview>small{font-size:11px;color:var(--studio-text-faint)}
+.canvas-preferences .preference-preview-node{border:1px solid var(--studio-control-border);border-radius:12px;background:var(--studio-panel);padding:16px;gap:16px}
+.canvas-preferences .preference-preview-node strong{font-weight:500}
+.canvas-preferences .preference-preview-node textarea{height:110px;resize:none}
+.canvas-preferences .preference-preview-node small{font-size:11px;color:var(--studio-text-faint)}
+.canvas-preferences .preview-lines:before,.canvas-preferences .preview-lines:after{border-color:var(--studio-text-faint);opacity:.4}
+.canvas-preferences .preferences-actions{gap:8px}
+.canvas-preferences .preferences-actions button{margin:0}
+@media(max-width:750px){.canvas-preferences .preferences-layout{grid-template-columns:1fr}.canvas-preferences .preferences-preview{border-left:0;border-top:1px solid var(--studio-divider)}.canvas-preferences .preference-preview-node{width:min(330px,100%);align-self:center}}
+@media(prefers-reduced-motion:reduce){.canvas-preferences summary::before,.canvas-preferences .preference-row input[type=checkbox],.canvas-preferences .preference-row input[type=checkbox]:after{transition:none}}

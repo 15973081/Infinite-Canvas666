@@ -6,8 +6,8 @@
     async show() {
       if (document.querySelector('.account-data-dialog')) return;
       if (!document.getElementById('account-data-style')) {
-        const style=node('style'); style.id='account-data-style';
-        style.textContent='.account-data-dialog{width:min(640px,calc(100vw - 32px));box-sizing:border-box;max-height:85vh;overflow:auto;padding:20px;background:var(--studio-panel,#fff);color:var(--studio-text,#222);border:1px solid var(--studio-border,#ddd);font:14px var(--studio-font,sans-serif)}.account-data-dialog::backdrop{background:#0008}.account-data-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px}.account-data-dialog h2{font-size:18px;margin:0}.account-data-dialog p{line-height:1.7;overflow-wrap:anywhere}.account-data-dialog button{padding:8px 12px;margin:8px 8px 0 0;color:inherit;background:var(--studio-page,#eee);border:1px solid var(--studio-border,#ddd);font:inherit;cursor:pointer}.account-data-dialog form{margin-top:16px}.account-data-dialog label{display:block;margin:12px 0}.account-data-dialog input:not([type=hidden]){display:block;width:100%;box-sizing:border-box;min-height:40px;padding:8px;margin-top:6px;font:inherit;color:inherit;background:var(--studio-page,#eee);border:1px solid var(--studio-border,#ddd)}.account-data-dialog button{max-width:100%;white-space:normal}.account-data-dialog :focus-visible{outline:2px solid var(--studio-focus,#779366);outline-offset:2px}';
+        const style=node('link'); style.id='account-data-style'; style.rel='stylesheet';
+        style.href='/static/css/account-utilities.css';
         document.head.append(style);
       }
       const returnFocus=document.activeElement, boundMember=window.CanvasSession?.context?.member?.id;

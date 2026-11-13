@@ -127,12 +127,7 @@ body.studio-canvas #shell .minimap-viewport {background: #d2ff3a12!important}
 body.studio-canvas #shell .node.selected {border-color: var(--studio-accent)}
 html body.studio-canvas .shell :is(.canvas-nav,.toolbar,.minimap) {border-radius: 5px}
 body.studio-skin :is(.name-dialog,.billing-dialog,.ledger-dialog,.member-profile-dialog) {border-radius: 6px; border-top-color: var(--studio-accent)}
-body.studio-skin .canvas-preferences {--ac-bg:var(--studio-panel);--ac-line:var(--studio-border);--ac-muted:var(--studio-text-muted);--ac-accent:var(--studio-accent);border-radius:6px;color:var(--studio-text);font-family:var(--studio-font)}
-body.studio-skin .canvas-preferences>header {background: var(--studio-page)}
-body.studio-skin .canvas-preferences :is(button:where(:not(.studio-select-trigger,.studio-select-option)),input:not([type=checkbox]),select,textarea) {border-radius: 3px}
 body.studio-skin .account-bonus {border-radius: 0 2px 0 3px}
-body.studio-skin .canvas-preferences .preference-row input[type=checkbox]:checked {background: var(--studio-accent)}
-body.studio-skin .canvas-preferences .preference-row input[type=checkbox]:checked::after {background: var(--studio-accent-text)}
 body.studio-smart-canvas :is(.pixmax-navigator,.pixmax-navigator-menu,.pixmax-creation-sidebar,.pixmax-creation-modal>section) {background: var(--studio-panel); color: var(--studio-text); border-color: var(--studio-border); border-radius: 6px}
 body.studio-smart-canvas .pixmax-navigator [role=tab][aria-selected=true] {color: var(--studio-accent); border-bottom-color: var(--studio-accent)}
 body.studio-smart-canvas .pixmax-creation-primary {background: var(--studio-accent)!important; color: var(--studio-accent-text)!important}
