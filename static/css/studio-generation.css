@@ -9,7 +9,6 @@ html body.studio-online :is(.nano-input,.upload-item,.result-frame,.tool-panel,.
 html body.studio-online :is(.nano-input,.size-select,.size-custom,.glass-btn,.model-pill,.model-option){border-radius:var(--studio-radius-control);font-weight:500;transition:border-color .16s,background .16s,box-shadow .16s}
 html body.studio-online .nano-input{font-size:13px;line-height:1.7;padding:16px;min-height:136px;height:136px}
 body.studio-online .container-box>main{gap:24px}
-body.studio-online .container-box>main>div:first-child>*+*{margin-top:20px}
 body.studio-online #placeholder{opacity:1;color:var(--studio-text-muted)}
 html body.studio-online .glass-btn{min-height:44px;padding:12px 16px;box-shadow:none}
 body.studio-online .glass-btn svg{color:currentColor}

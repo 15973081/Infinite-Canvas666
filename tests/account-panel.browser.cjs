@@ -20,6 +20,7 @@ async function setup(t,productionSkin=false){
   document.querySelector('#open').onclick=()=>CanvasAccountPanel.show();
  });
  await page.click('#open');
+ await page.locator('.account-panel[open]').waitFor();
  return {page,errors,calls};
 }
 

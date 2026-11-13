@@ -1,10 +1,11 @@
+@import url('/static/css/studio-surface-palette.css');
 /* Directory surfaces, isolated from the canvas editors and generation tools. */
 html:has(body.studio-canvas-home), html body.studio-canvas-home {
     --studio-page: #09090b;
     --studio-nav: #09090b;
-    --studio-panel: #121215;
-    --studio-surface: #121215;
-    --studio-surface-soft: #18181c;
+    --studio-panel:var(--studio-card-color);
+    --studio-surface: var(--studio-panel);
+    --studio-surface-soft:var(--studio-hover-color);
     --studio-surface-muted: #1a1a1e;
     --studio-border: rgb(255 255 255 / .08);
     --studio-border-strong: rgb(255 255 255 / .16);
@@ -35,7 +36,7 @@ html:has(body.studio-canvas-home), html body.studio-canvas-home {
 
 #canvasGate :is(.gate-search,.gate-icon-btn,.studio-pick-trigger) {
     height:36px;min-height:36px;border-radius:8px;border:1px solid rgb(255 255 255 / .08);
-    background:#121215;color:#d4d4d8;font-size:12px;
+    background:var(--studio-panel);color:#d4d4d8;font-size:12px;
     transition:background-color .2s,border-color .2s;
 }
 #canvasGate .gate-icon-btn:not(.project-create-button):not(.project-create-folder) {width:36px}
@@ -52,7 +53,7 @@ html:has(body.studio-canvas-home), html body.studio-canvas-home {
 
 #canvasGate :is(.canvas-item,.project-folder-card) {
     position:relative;top:0;aspect-ratio:auto;border:1px solid rgb(255 255 255 / .07);
-    border-radius:12px;background:#121215;
+    border-radius:12px;background:var(--studio-panel);
     transition:top .2s,border-color .2s,background-color .2s,box-shadow .2s;
 }
 /* A positional lift leaves the folder menu's fixed viewport coordinates intact. */
@@ -64,9 +65,9 @@ html:has(body.studio-canvas-home), html body.studio-canvas-home {
 #canvasGate :is(.canvas-open>.studio-canvas-cover,.project-folder-mosaic) {
     aspect-ratio:16/10;height:auto;border-radius:11px 11px 0 0;overflow:hidden;
     border-bottom:1px solid rgb(255 255 255 / .04);
-    background:radial-gradient(circle at 50% 50%,rgb(255 255 255 / .035) 0%,transparent 70%),#18181c;
+    background:radial-gradient(circle at 50% 50%,rgb(255 255 255 / .035) 0%,transparent 70%),var(--studio-surface-soft);
 }
-#canvasGate :is(.canvas-card-info,.project-folder-info) {padding:14px;background:#121215;border-top:0;gap:6px}
+#canvasGate :is(.canvas-card-info,.project-folder-info) {padding:14px;background:var(--studio-panel);border-top:0;gap:6px}
 #canvasGate :is(.canvas-card-title,.project-folder-info strong) {color:#f4f4f5;font-size:14px;line-height:20px;font-weight:500}
 #canvasGate :is(.canvas-card-meta,.project-folder-meta) {color:#71717a;font-size:12px;background:transparent}
 #canvasGate .canvas-open>.studio-canvas-cover:not(.has-media)::before {

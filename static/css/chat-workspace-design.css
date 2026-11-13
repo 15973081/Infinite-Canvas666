@@ -13,7 +13,8 @@ body.studio-chat .messages {padding-top:24px}
 .chat-compose-meta {display:none}
 .messages:empty + .composer-wrap .chat-compose-meta {
     width:min(var(--chat-width),100%);
-    margin:8px auto 0;
+    margin-inline:auto;
+    margin-bottom:0;
     display:flex;
     flex-wrap:wrap;
     align-items:center;

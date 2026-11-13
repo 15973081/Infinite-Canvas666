@@ -61,7 +61,6 @@ body:is(.studio-skin,.studio-login,.studio-media-editor) :is(button,a,input,text
 
 body.studio-home .studio-desktop-brand {font-weight: 700; letter-spacing: -.06em}
 body.studio-home .studio-desktop-brand::after {content: '/'; color: var(--studio-accent); margin-left: 5px}
-body.studio-home :is(.member-home-wallet,.member-session-account>summary) {border-radius: 3px}
 body.studio-home .member-home-wallet {border-color: var(--studio-border-strong)}
 
 /* Homepage editorial panel. The artwork is a local, lightweight SVG. */
@@ -128,12 +127,9 @@ body.studio-canvas #shell .minimap-viewport {background: #d2ff3a12!important}
 body.studio-canvas #shell .node.selected {border-color: var(--studio-accent)}
 html body.studio-canvas .shell :is(.canvas-nav,.toolbar,.minimap) {border-radius: 5px}
 body.studio-skin :is(.name-dialog,.billing-dialog,.ledger-dialog,.member-profile-dialog) {border-radius: 6px; border-top-color: var(--studio-accent)}
-body.studio-skin :is(.account-panel,.canvas-preferences) {--ac-bg:var(--studio-panel);--ac-line:var(--studio-border);--ac-muted:var(--studio-text-muted);--ac-accent:var(--studio-accent);border-radius:6px;color:var(--studio-text);font-family:var(--studio-font)}
-body.studio-skin :is(.account-panel,.canvas-preferences)>header {background: var(--studio-page)}
-body.studio-skin :is(.account-panel,.canvas-preferences) :is(button,input:not([type=checkbox]),select,textarea) {border-radius: 3px}
-body.studio-skin .account-nav button.active {color: var(--studio-accent); background: var(--studio-selected)}
-body.studio-skin .account-panel .account-primary, body.studio-skin .account-bonus {color: var(--studio-accent-text)}
-body.studio-skin .account-panel .account-plan {border-radius: 4px}
+body.studio-skin .canvas-preferences {--ac-bg:var(--studio-panel);--ac-line:var(--studio-border);--ac-muted:var(--studio-text-muted);--ac-accent:var(--studio-accent);border-radius:6px;color:var(--studio-text);font-family:var(--studio-font)}
+body.studio-skin .canvas-preferences>header {background: var(--studio-page)}
+body.studio-skin .canvas-preferences :is(button,input:not([type=checkbox]),select,textarea) {border-radius: 3px}
 body.studio-skin .account-bonus {border-radius: 0 2px 0 3px}
 body.studio-skin .canvas-preferences .preference-row input[type=checkbox]:checked {background: var(--studio-accent)}
 body.studio-skin .canvas-preferences .preference-row input[type=checkbox]:checked::after {background: var(--studio-accent-text)}

@@ -348,31 +348,38 @@
             button('偏好管理',async()=>{account.open=false;try{await import('/static/js/canvas-preferences.js');window.CanvasPreferences.show();}catch(error){window.alert(error.message);}}),
             button('个人数据',async()=>{account.open=false;try{await import('/static/js/account-data.js');await window.CanvasAccountData.show();}catch(error){window.alert(error.message);}}),
             button('退出登录',async()=>{account.open=false;try{await logout();}catch(error){window.alert(error.message);}}));
+        const walletStore=window.CanvasCreditBalance;
+        const unsubscribeBalance=walletStore.subscribe(wallet=>{
+            if(wallet&&!blocked)balance.textContent='积分余额 '+BigInt(wallet.total_balance).toLocaleString('zh-CN')+' · 查看明细';
+            else balance.textContent='积分余额 · 查看明细';
+        });
         account.addEventListener('toggle',async()=>{
             if(!account.open)return;
-            const bound=context.member.id;
-            try{const data=await json('/api/account/credits?page_size=1');
-                if(!blocked&&context.member.id===bound&&balance.isConnected)balance.textContent='积分余额 '+BigInt(data.wallet.total_balance).toLocaleString('zh-CN')+' · 查看明细';
-            }catch(_){if(balance.isConnected)balance.textContent='积分暂不可用 · 查看明细';}
+            try{await walletStore.refresh();}
+            catch(_){if(!blocked&&balance.isConnected)balance.textContent='积分暂不可用 · 查看明细';}
         });
         account.append(summary,menu);
         if(canvasTopbar){
             bar.append(account);canvasTopbar.append(bar);
-            const close=()=>{account.open=false;space.open=false;};
-            const outside=event=>{if(!account.contains(event.target))close();};
-            const escape=event=>{if(event.key==='Escape'&&account.open){event.preventDefault();event.stopPropagation();close();summary.focus();}};
-            account.addEventListener('keydown',escape);
             account.addEventListener('toggle',()=>{if(!account.open)space.open=false;});
-            document.addEventListener('pointerdown',outside,true);
-            releaseBar=()=>{close();document.removeEventListener('pointerdown',outside,true);};
         } else {
             bar.append(brand,space);
             if(document.body.classList.contains('studio-home')){
                 const wallet=button('积分钱包',()=>openAccount('credits'));wallet.className='member-home-wallet';
                 bar.append(wallet);
             }
-            bar.append(account);document.body.append(bar);releaseBar=()=>{};
+            bar.append(account);document.body.append(bar);
         }
+        const close=()=>{account.open=false;};
+        const outside=event=>{if(!account.contains(event.target))close();};
+        const escape=event=>{if(event.key==='Escape'&&account.open){event.preventDefault();event.stopPropagation();close();summary.focus();}};
+        const detach=()=>{document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape);window.removeEventListener('blur',close);};
+        account.addEventListener('keydown',escape);
+        account.addEventListener('toggle',()=>{
+            if(account.open&&!account.contains(space))space.open=false;
+        });
+        document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape);window.addEventListener('blur',close);
+        releaseBar=()=>{close();space.open=false;detach();unsubscribeBalance();};
     }
     async function initialize() {
         try {
@@ -399,6 +406,8 @@
             if (!workspace) workspace = spaces.length === 1 ? spaces[0] : await choose(status.member, spaces, true);
             context = Object.freeze({member:Object.freeze(status.member), workspace:Object.freeze({...workspace,permissions:Object.freeze([...workspace.permissions])})});
             await domReady;
+            checkActive();
+            await import('/static/js/credit-balance-store.js');
             checkActive();
             document.documentElement.classList.remove('member-session-pending');
             document.documentElement.classList.add('member-session-enter'); renderBar();

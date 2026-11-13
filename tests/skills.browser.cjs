@@ -41,6 +41,25 @@ async function fixture(t,pageName){
  await page.goto(origin+'/static/'+pageName+'.html');
  return {page,calls,errors,skills,setFail:value=>fail=value,setChatFail:value=>chatFail=value,setCanImport:value=>canImport=value};
 }
+test('typing invalidates an in-flight Skill search before the debounce fires',async t=>{
+ const {page,errors,skills}=await fixture(t,'skill-library');await page.locator('.skill-card').first().waitFor();
+ await page.clock.install();
+ let release,received;
+ const requestStarted=new Promise(resolve=>received=resolve);
+ await page.route('**/api/skills?**',async route=>{
+  const q=new URL(route.request().url()).searchParams.get('q');
+  if(q==='old'){received();await new Promise(resolve=>release=resolve);return route.fulfill({json:{skills:[{...skills[0],name:'过期查询结果'}],can_import:true}});}
+  return route.fulfill({json:{skills:[{...skills[0],name:'当前查询结果'}],can_import:true}});
+ });
+ await page.locator('#skillSearch').fill('old');await page.clock.runFor(180);await requestStarted;
+ await page.locator('#skillSearch').fill('new');
+ const oldResponse=page.waitForResponse(r=>new URL(r.url()).searchParams.get('q')==='old');release();await oldResponse;
+ await page.clock.runFor(50);
+ assert.doesNotMatch(await page.locator('#skillGrid').innerText(),/过期查询结果/);
+ await page.clock.runFor(130);await page.getByRole('heading',{name:'当前查询结果',exact:true}).waitFor();
+ assert.deepEqual(errors,[]);
+});
+
 test('skill library search, install, enable, preview, retry and responsive dark layout',async t=>{
  const {page,calls,errors,setFail}=await fixture(t,'skill-library');await page.locator('.skill-card').first().waitFor();
  assert.match(await page.locator('#skillGrid').innerText(),/上传者：林岳/);assert.match(await page.locator('#skillGrid').innerText(),/影像实验室/);

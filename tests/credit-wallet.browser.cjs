@@ -7,6 +7,8 @@ async function setup(t){
   page.on('pageerror',e=>errors.push(e.message));
   await page.setContent('<html class="dark"><main></main></html>');
   await page.addStyleTag({content:fs.readFileSync('static/css/billing-view.css','utf8')});
+  await page.evaluate(()=>{window.CanvasSession={context:{member:{id:'member-a'}}};});
+  await page.addScriptTag({content:fs.readFileSync('static/js/credit-balance-store.js','utf8')});
   await page.addScriptTag({content:fs.readFileSync('static/js/credit-wallet.js','utf8')});
   await page.evaluate(()=>{
     window.active=true;window.pending=[];window.requests=[];

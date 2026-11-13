@@ -9,6 +9,7 @@
   const points = value => BigInt(value).toLocaleString('zh-CN');
   const sources = {RECHARGE:'充值', RECHARGE_GIFT:'充值赠送', PLATFORM_GIFT:'平台赠送'};
   function create({fetchReport, isActive = () => true}) {
+    const walletStore=window.CanvasCreditBalance;
     const root = el('section', undefined, 'billing-view credit-wallet');
     const summary = el('div', undefined, 'billing-overview');
     const toolbar = el('div', undefined, 'billing-toolbar');
@@ -32,16 +33,21 @@
     }
     function pause() {
       if(stopped)return;
-      stopped=true;version++;controller?.abort();busy=false;
+      stopped=true;version++;controller?.abort();unsubscribeBalance();busy=false;
       summary.replaceChildren();rows.replaceChildren();position.textContent='';
       message.textContent='登录状态已变化，请重新打开积分页面。';controls();
     }
-    function render(data) {
+    function renderWallet(wallet) {
+      if(!wallet||stopped||!isActive())return;
       const cards = el('div',undefined,'billing-totals');
       for (const [key,title] of [['total_balance','总积分'],['recharge_balance','充值积分'],['gift_balance','赠送积分']]) {
-        const card=el('div',undefined,'billing-total');card.append(el('span',title),el('strong',points(data.wallet[key])));cards.append(card);
+        const card=el('div',undefined,'billing-total');card.append(el('span',title),el('strong',points(wallet[key])));cards.append(card);
       }
       summary.replaceChildren(cards);
+    }
+    const unsubscribeBalance=walletStore.subscribe(renderWallet);
+    function render(data) {
+      renderWallet(walletStore.value);
       const table=el('table'), head=el('thead'), tr=el('tr'), body=el('tbody');
       for(const title of ['时间','分类 / 来源','变动积分','变动后总余额','批次剩余','有效期','备注'])tr.append(el('th',title));
       head.append(tr);table.append(head,body);
@@ -63,10 +69,12 @@
       if(!isActive()){pause();return;}
       const stamp=++version;controller?.abort();controller=new AbortController();
       busy=true;controls();summary.replaceChildren();rows.replaceChildren();position.textContent='';message.textContent='正在读取积分…';
+      const walletRead=walletStore.beginRead();
       try{
         const data=await fetchReport({category:category.value,page:target,page_size:25},controller.signal);
         if(stopped||stamp!==version)return;
         if(!isActive()){pause();return;}
+        walletStore.publish(data.wallet,walletRead);
         render(data);
       }catch(error){
         if(stopped||stamp!==version)return;
@@ -79,9 +87,10 @@
     next.onclick=()=>{if(!busy&&page<pages)void load(page+1);};
     window.addEventListener('member-session:paused',pause);
     controls();void load();
-    return {element:root,dispose(){stopped=true;version++;controller?.abort();window.removeEventListener('member-session:paused',pause);}};
+    return {element:root,dispose(){unsubscribeBalance();stopped=true;version++;controller?.abort();window.removeEventListener('member-session:paused',pause);}};
   }
-  function show(){
+  async function show(){
+    if(!window.CanvasCreditBalance)await import('/static/js/credit-balance-store.js');
     const boundMember=window.CanvasSession?.context?.member?.id;
     if(!boundMember||window.CanvasSession.paused)throw new Error('请重新登录后查看积分。');
     if(!document.getElementById('billing-view-style')){

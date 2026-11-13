@@ -54,12 +54,22 @@
   }
   const tabs=[['profile','个人资料'],['topup','积分充值'],['invoice','账单发票'],['credits','积分明细'],['tasks','任务明细'],['enterprise','企业认证']];
   function style(){for(const [id,href] of [['account-panel-style','/static/css/account-panel.css'],['billing-view-style','/static/css/billing-view.css']])if(!document.getElementById(id)){const s=el('link');s.id=id;s.rel='stylesheet';s.href=href;document.head.append(s);}}
+  function lockDocumentScroll(){
+    const root=document.documentElement,body=document.body;
+    const properties=[[root,'overflow'],[root,'scrollbar-gutter'],[body,'overflow']];
+    const saved=properties.map(([node,key])=>[node,key,node.style.getPropertyValue(key),node.style.getPropertyPriority(key)]);
+    if(innerWidth>root.clientWidth&&getComputedStyle(root).scrollbarGutter==='auto')root.style.setProperty('scrollbar-gutter','stable');
+    root.style.setProperty('overflow','hidden');body.style.setProperty('overflow','hidden');
+    return ()=>{for(const [node,key,value,priority]of saved){if(value)node.style.setProperty(key,value,priority);else node.style.removeProperty(key);}};
+  }
   let current;
   async function show(initial='profile'){
+    await import('/static/js/credit-balance-store.js');
     if(current?.dialog.open){await current.select(initial);current.dialog.focus();return;}
     const session=window.CanvasSession, member=session?.context?.member;
     if(!member?.id||session.paused)throw Error('请重新登录后打开账户管理。');
     style();
+    const walletStore=window.CanvasCreditBalance;
     const previous=document.activeElement, dialog=el('dialog',undefined,'account-panel');dialog.setAttribute('aria-label','账户管理');
     const head=el('header'), close=button('',()=>attemptClose(),'account-close');close.append(icon('x'));close.setAttribute('aria-label','关闭账户管理');
     head.append(el('h2','账户管理'),close);
@@ -75,14 +85,15 @@
       assertActive();const response=await fetch(path,{cache:'no-store',...options,headers:{'Content-Type':'application/json',...options.headers,'X-Member-ID':member.id}});
       assertActive();if(!response.ok){const error=Error(response.status===400?'请检查筛选条件。':'读取失败，请稍后重试。');error.status=response.status;throw error;}return response.json();
     }
-    const pause=()=>{stopped=true;version++;controller?.abort();dispose();identity.replaceChildren();body.replaceChildren(el('p','登录状态已变化，请关闭后重新确认登录。','account-empty'));nav.querySelectorAll('button').forEach(b=>b.disabled=true);dirty=false;saving=false;close.disabled=false;};
+    const unsubscribeBalance=walletStore.subscribe(wallet=>{if(active()&&wallet)balance.textContent='积分余额： '+points(wallet.total_balance);});
+    const pause=()=>{unsubscribeBalance();stopped=true;version++;controller?.abort();dispose();identity.replaceChildren();body.replaceChildren(el('p','登录状态已变化，请关闭后重新确认登录。','account-empty'));nav.querySelectorAll('button').forEach(b=>b.disabled=true);dirty=false;saving=false;close.disabled=false;};
     const profileChanged=()=>{if(active()){name.textContent=session.context.member.display_name;login.textContent=session.context.member.username||member.id;avatar.dataset.color=session.context.member.avatar||'';}};
     function attemptClose(){if(saving)return;if(dirty&&!window.confirm('资料尚未保存，确定关闭？'))return;dialog.close();}
     dialog.addEventListener('cancel',e=>{e.preventDefault();attemptClose();});
     for(const type of ['keydown','mousedown','wheel','dblclick'])dialog.addEventListener(type,e=>e.stopPropagation());
-    dialog.addEventListener('close',()=>{stopped=true;version++;controller?.abort();dispose();window.removeEventListener('member-session:paused',pause);window.removeEventListener('member-session:profile',profileChanged);dialog.remove();if(current?.dialog===dialog){current=null;if(previous?.isConnected)previous.focus();else document.querySelector('.member-session-account > summary')?.focus();}},{once:true});
+    dialog.addEventListener('close',()=>{restoreScroll();unsubscribeBalance();stopped=true;version++;controller?.abort();dispose();window.removeEventListener('member-session:paused',pause);window.removeEventListener('member-session:profile',profileChanged);dialog.remove();if(current?.dialog===dialog){current=null;if(previous?.isConnected)previous.focus();else document.querySelector('.member-session-account > summary')?.focus();}},{once:true});
     window.addEventListener('member-session:paused',pause);window.addEventListener('member-session:profile',profileChanged);
-    async function refreshBalance(){try{const data=await request('/api/account/credits?page_size=1');if(active())balance.textContent='积分余额： '+points(data.wallet.total_balance);}catch(_){if(active())balance.replaceChildren(button('余额读取失败 · 重试',refreshBalance));}}
+    async function refreshBalance(){try{await walletStore.refresh();}catch(_){if(active())balance.replaceChildren(button('余额读取失败 · 重试',refreshBalance));}}
     function profile(){
       const form=el('form',undefined,'account-profile'),title=el('h3','个人资料'),label=el('label','昵称'),input=el('input');input.value=session.context.member.display_name;input.required=true;input.maxLength=80;label.append(input);
       const colors=el('label','头像颜色'),color=el('select');for(const [value,text] of [['','默认'],['blue','蓝色'],['green','绿色'],['purple','紫色'],['orange','橙色'],['pink','粉色']])color.append(new Option(text,value));color.value=session.context.member.avatar||'';colors.append(color);
@@ -148,7 +159,9 @@
       else {const title=selected==='invoice'?'账单发票':'企业认证';const empty=el('div',selected==='invoice'?'真实支付和开票服务尚未开放，暂无可申请的充值发票。':'企业认证服务尚未开放，暂不收集营业执照或认证材料。','account-empty'),mark=el('span',undefined,'account-empty-icon');mark.append(icon(selected==='invoice'?'file-text':'building-2'));empty.prepend(mark);body.append(el('h3',title),empty);if(selected==='invoice')body.append(button('查看使用费用',()=>void billing(stamp)));}
     }
     for(const [id,label] of tabs){const b=button('',()=>void select(id));b.dataset.tab=id;b.append(icon(id),el('span',label));nav.append(b);}
-    document.body.append(dialog);current={dialog,select};dialog.showModal();void refreshBalance();await select(initial);
+    document.body.append(dialog);current={dialog,select};dialog.showModal();
+    const restoreScroll=lockDocumentScroll();
+    void refreshBalance();await select(initial);
   }
   window.CanvasAccountPanel={show};
 })();

@@ -11,7 +11,7 @@ body.studio-online .image-workspace-preview {grid-column:2;grid-row:1;min-width:
 .image-settings-heading>span,.image-preview-heading>span {font-size:11px;color:var(--studio-text-muted)}
 .image-settings-heading {padding-bottom:12px;border-bottom:1px solid var(--studio-border)}
 .image-preview-heading {padding:14px 18px;border-bottom:1px solid var(--studio-border);background:var(--studio-panel)}
-body.studio-online .image-workspace-controls>*+* {margin-top:10px!important}
+.image-workspace-controls > :not([hidden]) ~ :not([hidden]) {margin-top:10px}
 body.studio-online .image-workspace-controls section>div:first-child {font-size:12px;font-weight:500}
 body.studio-online .image-workspace-controls section>*+* {margin-top:8px}
 html body.studio-online .image-workspace-controls .nano-input {height:104px;min-height:88px;padding:10px;border-radius:4px;background:var(--studio-page);font-size:13px;line-height:1.6;resize:vertical}

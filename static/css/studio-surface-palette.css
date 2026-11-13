@@ -1,0 +1,5 @@
+/* Neutral palette shared by workspace and account surface tokens. */
+:root {
+    --studio-card-color:#121215;
+    --studio-hover-color:#18181c;
+}

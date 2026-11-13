@@ -3,12 +3,10 @@
 :where(body.studio-skin .studio-icon){width:18px;height:18px;vertical-align:middle;flex-shrink:0}
 body.studio-skin .studio-icon{stroke-width:1.5}
 /* Shared menu and dialog chrome; opaque surfaces preserve contrast over the grid. */
-html body.studio-skin :is(.member-session-account-menu,.member-space-menu,.member-profile-dialog,.billing-dialog,.ledger-dialog){border-radius:var(--studio-radius-dialog);border-top-color:var(--studio-accent-label);box-shadow:0 12px 32px var(--studio-shadow);backdrop-filter:none}
-html body.studio-skin :is(.member-session-account-menu,.member-space-menu){padding:8px;background:var(--studio-panel);color:var(--studio-text)}
+html body.studio-skin :is(.member-profile-dialog,.billing-dialog,.ledger-dialog){border-radius:var(--studio-radius-dialog);border-top-color:var(--studio-accent-label);box-shadow:0 12px 32px var(--studio-shadow);backdrop-filter:none}
 body.studio-skin .member-session-avatar{border-radius:2px;background:var(--studio-selected);color:var(--studio-accent-label);border:1px solid var(--studio-border)}
 body.studio-skin :is(.member-session-spaces,.member-session-account) summary{border-radius:var(--studio-radius-control)}
-body.studio-skin :is(.member-session-account-menu,.member-space-menu) button{border-radius:var(--studio-radius-control);font-weight:400;min-height:36px}
-body.studio-skin .member-space-option[aria-current=true]{border-left:2px solid var(--studio-accent-label);background:var(--studio-selected)}
+body.studio-skin :is(.member-session-account-menu,.member-space-menu) button{font-weight:400;min-height:36px}
 body.studio-skin :is(.member-profile-dialog,.ledger-dialog,.billing-dialog) :is(input,button){border-radius:var(--studio-radius-control)}
 body.studio-skin :is(button,input,textarea,select,summary):focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
 body.studio-skin :is(button,[role=button],a,input,select):focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
@@ -32,7 +30,7 @@ html body.studio-skin.history-bulk-selecting [data-history-ts].hbm-selected{outl
 
 body.studio-skin .member-session-bar{background:var(--st-bg);color:var(--st-text);border-color:var(--st-line)}
 
-html body.studio-skin :is(.member-session-account-menu,.member-space-menu,.member-profile-dialog) {background:var(--st-panel);color:var(--st-text);border-color:var(--st-line);--ms-bg:var(--st-panel);--ms-text:var(--st-text);--ms-muted:var(--st-muted);--ms-border:var(--st-line);--ms-hover:var(--st-soft);box-shadow:0 8px 28px #00000020;backdrop-filter:none}
+html body.studio-skin :is(.member-profile-dialog) {background:var(--st-panel);color:var(--st-text);border-color:var(--st-line);--ms-bg:var(--st-panel);--ms-text:var(--st-text);--ms-muted:var(--st-muted);--ms-border:var(--st-line);--ms-hover:var(--st-soft);box-shadow:0 8px 28px #00000020;backdrop-filter:none}
 
 html body.studio-skin :is(.composer,.composer-body,.chat-rail,.nano-input,.upload-item,.result-frame,.tool-panel,.control-panel) {background:var(--st-panel);border-color:var(--st-line);color:var(--st-text);border-radius:var(--studio-radius-control);box-shadow:none}
 
