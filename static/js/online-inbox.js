@@ -31,7 +31,7 @@
         search.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>void load(),250);});
         const refresh=button('刷新',()=>void load());filters.append(search,owner,folder,model,references,refresh);
         const bulk=node('div',undefined,'inbox-bulk'),count=node('span','已选 0 张'),all=button('全选本页',()=>{const available=rows.filter(r=>r.can_manage);const selecting=available.some(r=>!selected.has(r.id));for(const row of available)selecting?selected.add(row.id):selected.delete(row.id);render();});
-        const retain=button('保留作品',()=>void perform('save'), 'inbox-primary'),trash=button('移入回收站',()=>void perform('trash'));
+        const retain=button('保留作品',()=>void perform('save'), 'inbox-primary'),trash=button('移入回收站',()=>void perform('trash'),'inbox-danger');
         const restore=button('恢复所选',()=>void perform('restore')),purge=button('彻底删除',()=>void confirmPurge(),'inbox-danger');
         const editFolder=button('整理所选',()=>editMetadata()),canvas=button('加入画布',()=>importSelected('canvas')),library=button('保存到素材库',()=>importSelected('library'));
         bulk.append(count,all,retain,editFolder,canvas,library,trash,restore,purge);tools.append(tabs,filters,bulk);

@@ -175,8 +175,8 @@ body.studio-online .image-workspace-controls .upload-item:hover {background:#1c1
 body.studio-online .reference-add {color:#71717a}
 body.studio-online .reference-add:hover {color:#d4d4d8}
 html body.studio-online .image-workspace-controls :is(.size-select,.size-custom,.studio-select-trigger) {height:36px;min-height:36px;background:#16161a;border:1px solid rgb(255 255 255 / .08);border-radius:8px;font-size:12px}
-html body.studio-online .image-workspace-controls #genBtn {border-radius:8px}
-body.studio-online #genBtn svg {color:inherit}
+html body.studio-online .image-workspace-controls #genBtn {border-radius:8px;font-weight:600}
+body.studio-online #genBtn svg {width:16px;height:16px;color:inherit;stroke-width:2}
 html body.studio-online .image-workspace-preview #resultBox {flex:1;background:var(--workspace-glow),var(--studio-panel)}
 body.studio-online #placeholder::before {margin-bottom:16px}
 body.studio-online .image-preview-heading {background:var(--studio-panel);border-color:rgb(255 255 255 / .06)}

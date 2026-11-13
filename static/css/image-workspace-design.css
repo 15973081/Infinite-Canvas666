@@ -14,7 +14,7 @@ body.studio-online .image-workspace-preview {grid-column:2;grid-row:1;min-width:
 .image-workspace-controls > :not([hidden]) ~ :not([hidden]) {margin-top:10px}
 body.studio-online .image-workspace-controls section>div:first-child {font-size:12px;font-weight:500}
 body.studio-online .image-workspace-controls section>*+* {margin-top:8px}
-html body.studio-online .image-workspace-controls .nano-input {height:104px;min-height:88px;padding:10px;border-radius:4px;background:var(--studio-page);font-size:13px;line-height:1.6;resize:vertical}
+html body.studio-online .image-workspace-controls .nano-input {height:104px;min-height:88px;padding:10px;border-radius:4px;background:var(--studio-page);font-size:13px;line-height:1.6;resize:none}
 body.studio-online .image-workspace-controls section>div.grid {gap:6px}
 body.studio-online .image-workspace-controls .upload-item {height:52px;aspect-ratio:auto;border-radius:4px;background:var(--studio-page);border-color:var(--studio-border-strong)}
 body.studio-online .reference-add {display:grid;place-items:center;width:100%;height:100%;padding:0;background:transparent;color:var(--studio-text-muted);border:0;cursor:pointer}
@@ -41,7 +41,6 @@ body.studio-online #imageWorksAnchor {scroll-margin-top:16px}
 body.studio-online .inbox-heading {margin-bottom:12px}
 body.studio-online .inbox-heading h2 {font-size:14px}
 body.studio-online .inbox-tools {border-radius:4px;padding:10px;background:var(--studio-panel)}
-body.studio-online .inbox-tabs button {border-radius:4px}
 body.studio-online :is(button,a,textarea,summary):focus-visible {outline:2px solid var(--studio-focus);outline-offset:2px}
 @media(max-width:760px){
  body.studio-online .container-box {padding-inline:16px}
