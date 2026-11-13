@@ -28,7 +28,7 @@
             list.replaceChildren();
             for(const item of available.slice(0,limit)){
                 const button=document.createElement('button');button.type='button';button.dataset.nodeId=item.node_id;button.dataset.index=String(item.index);
-                button.innerHTML=mediaMarkup(item) || '<span class="canvas-cover-choice-placeholder">暂无缩略图</span>';
+                button.innerHTML=`<span class="canvas-cover-thumbnail" data-cover-kind="${item.kind}">${mediaMarkup(item)}</span>`;
                 const caption=document.createElement('span');caption.textContent=`${item.label} · ${item.kind==='video'?'视频':'图片'}${item.index>=0 ? ' '+(item.index+1):''}`;
                 button.append(caption);button.onclick=()=>{choice={node_id:item.node_id,index:item.index};update();};list.append(button);
             }

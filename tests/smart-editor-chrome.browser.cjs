@@ -70,3 +70,26 @@ test('shortcut overlay covers an open asset panel without losing shortcut entrie
     assert.equal(await modal.evaluate(el => el.classList.contains('open')),false);
     assert.deepEqual(errors,[]);
 });
+
+test('command menu follows the dock when the directory opens, closes and resizes', async t => {
+    const {page, errors} = await fixture(t, 'smart', true, {navigatorOpen:true});
+    await page.getByRole('button',{name:'更多工具',exact:true}).click();
+    const gap = () => page.evaluate(() => {
+        const dock = document.querySelector('.pixmax-rail').getBoundingClientRect();
+        const menu = document.querySelector('#pixmaxSettingsMenu').getBoundingClientRect();
+        return menu.left - dock.right;
+    });
+    for (const width of [1440,1024]) {
+        await page.setViewportSize({width,height:900});
+        assert.equal(await gap(),8);
+        await page.getByRole('button',{name:'关闭画布目录',exact:true}).click();
+        assert.equal(await gap(),8);
+        await page.getByRole('button',{name:'画布目录',exact:true}).click();
+        assert.equal(await gap(),8);
+    }
+    assert.equal(await page.locator('#pixmaxNavigator [role=tab][aria-selected=true]').evaluate(el => getComputedStyle(el).backgroundColor),'rgb(39, 39, 42)');
+    assert.equal(await page.locator('[data-directory-close] svg').getAttribute('stroke-width'),'1.75');
+    const topColors = await page.locator('.pixmax-topbar>.pixmax-control').evaluateAll(nodes => nodes.map(el => getComputedStyle(el).backgroundColor));
+    assert.ok(topColors.every(color => color === 'rgba(18, 18, 21, 0.9)'));
+    assert.deepEqual(errors,[]);
+});

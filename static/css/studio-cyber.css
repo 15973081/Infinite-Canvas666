@@ -110,7 +110,7 @@ html body.studio-chat .send-btn:disabled {background: var(--studio-surface-muted
 /* Editor chrome only. Keep media pixels, node geometry, transforms and timing intact. */
 html body.studio-smart-canvas {background: var(--studio-page); color: var(--studio-text)}
 body.studio-smart-canvas #shell {background-color: var(--studio-page)}
-body.studio-smart-canvas :is(.pixmax-control,.smart-minimap,.composer-card,.create-menu,.pixmax-context-menu) {background: var(--studio-panel); border-color: var(--studio-border); border-radius: 5px; color: var(--studio-text-muted)}
+body.studio-smart-canvas :is(.smart-minimap,.composer-card,.create-menu,.pixmax-context-menu) {background: var(--studio-panel); border-color: var(--studio-border); border-radius: 5px; color: var(--studio-text-muted)}
 body.studio-smart-canvas :is(.create-card,.create-card-icon,.engine-select,.smart-pill) {border-radius: 3px; color: var(--studio-text-muted)}
 body.studio-smart-canvas .run-btn {background: var(--studio-accent); color: var(--studio-accent-text); border-radius: 3px}
 body.studio-smart-canvas .run-btn:disabled {background: var(--studio-surface-muted); color: var(--studio-text-muted)}
@@ -129,7 +129,6 @@ html body.studio-canvas .shell :is(.canvas-nav,.toolbar,.minimap) {border-radius
 body.studio-skin :is(.name-dialog,.billing-dialog,.ledger-dialog,.member-profile-dialog) {border-radius: 6px; border-top-color: var(--studio-accent)}
 body.studio-skin .account-bonus {border-radius: 0 2px 0 3px}
 body.studio-smart-canvas :is(.pixmax-navigator,.pixmax-navigator-menu,.pixmax-creation-sidebar,.pixmax-creation-modal>section) {background: var(--studio-panel); color: var(--studio-text); border-color: var(--studio-border); border-radius: 6px}
-body.studio-smart-canvas .pixmax-navigator [role=tab][aria-selected=true] {color: var(--studio-accent); border-bottom-color: var(--studio-accent)}
 body.studio-smart-canvas .pixmax-creation-primary {background: var(--studio-accent)!important; color: var(--studio-accent-text)!important}
 
 /* Standalone and embedded native editing tools use the same chrome. */

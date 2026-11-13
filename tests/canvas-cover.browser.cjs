@@ -5,6 +5,44 @@ const shots=path.resolve(__dirname,'../.local/canvas-home-split/canvas-covers');
 const nodes=[{id:'picture',type:'image',title:'建筑草图',url:'/assets/test.png',x:100,y:100},
  {id:'video',type:'output',title:'城市夜景',images:[{url:'/output/first.mp4',kind:'video'}],x:500,y:100},
  {id:'later',type:'image',title:'海边片段',url:'https://example.test/later.webm',mediaKind:'video',x:800,y:100}];
+
+test('cover stays centered with a scrolling grid and quiet pending or failed thumbnails',async t=>{
+ const {page,errors}=await fixture(t,'smart',true);
+ let release;const ready=new Promise(resolve=>{release=resolve;});t.after(()=>release());
+ await page.route('**/api/media-preview?*',async route=>{
+  await ready;
+  if(route.request().url().includes('failed.png'))return route.fulfill({status:404,body:''});
+  return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300"><rect width="480" height="300" fill="#71717a"/></svg>'});
+ });
+ await page.evaluate(()=>{
+  nodes=Array.from({length:30},(_,i)=>({id:'cover-'+i,type:'image',title:'封面节点 '+i,url:'/assets/'+(i===0?'failed':i)+'.png',x:100,y:100}));canvas.nodes=nodes;
+ });
+ await page.getByRole('button',{name:'更多工具',exact:true}).click();
+ await page.getByRole('button',{name:'画布封面',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'画布封面',exact:true}),grid=dialog.locator('.canvas-cover-choices');
+ const first=grid.locator('button').first();
+ assert.equal(await first.locator('img').evaluate(el=>getComputedStyle(el).opacity),'0');
+ const placeholder=await first.locator('.canvas-cover-thumbnail').evaluate(el=>({mask:getComputedStyle(el,'::before').maskImage,width:getComputedStyle(el,'::before').width}));
+ assert.notEqual(placeholder.mask,'none');assert.equal(placeholder.width,'20px');
+ assert.equal(await first.evaluate(el=>getComputedStyle(el).borderColor),'rgba(255, 255, 255, 0.07)');
+ release();
+ await page.waitForFunction(()=>document.querySelector('.canvas-cover-choices button img').hidden);
+ await page.waitForFunction(()=>document.querySelectorAll('.canvas-cover-choices button img')[1].naturalWidth>0);
+ assert.equal(await grid.locator('button').nth(1).locator('img').evaluate(el=>getComputedStyle(el).opacity),'1');
+ for(const [width,height] of [[1440,1000],[1024,600],[390,844]]){
+  await page.setViewportSize({width,height});
+  const metrics=await dialog.evaluate(el=>{const r=el.getBoundingClientRect(),g=el.querySelector('.canvas-cover-choices');return{x:r.x+r.width/2-innerWidth/2,y:r.y+r.height/2-innerHeight/2,width:r.width,grid:g.clientHeight,overflow:getComputedStyle(g).overflowY,scroll:g.scrollHeight};});
+  assert.ok(Math.abs(metrics.x)<1&&Math.abs(metrics.y)<1,'dialog remains centered');
+  assert.ok(metrics.width<=560&&metrics.grid>=48);assert.equal(metrics.overflow,'auto');assert.ok(metrics.scroll>metrics.grid);
+  const header=await dialog.locator('header').boundingBox(),footer=await dialog.locator('footer').boundingBox();
+  await grid.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+  assert.deepEqual(await dialog.locator('header').boundingBox(),header);
+  assert.deepEqual(await dialog.locator('footer').boundingBox(),footer);
+ }
+ await dialog.getByRole('button',{name:'取消',exact:true}).click();
+ assert.deepEqual(errors,[]);
+});
+
 for(const kind of ['classic','smart'])test(kind+': cover selection, saving, fallback and view-only ownership use thumbnails',async t=>{
  const {page,errors,writes,record}=await fixture(t,kind,true);
  await page.route('**/api/media-preview?*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300"><defs><linearGradient id="g"><stop stop-color="#222e29"/><stop offset="1" stop-color="#536348"/></linearGradient></defs><rect width="480" height="300" fill="url(#g)"/><path d="M0 245L95 120L150 215L240 80L350 195L430 140L480 220V300H0Z" fill="#101611"/></svg>'}));

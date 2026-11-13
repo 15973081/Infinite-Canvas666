@@ -38,15 +38,17 @@
     function markup(item){
         const media = 'nodes' in item ? resolve(item.nodes,item.cover) : item.cover_media;
         const valid = media && safeUrl(media.url), image=valid ? mediaMarkup(media):'';
-        return `<div class="studio-canvas-cover${image ? ' has-media':''}" aria-hidden="true">${image}<div class="canvas-cover-copy"><span class="studio-cover-label">${item.kind === 'smart' ? 'ASSISTED':'CLASSIC'} / SHADOX</span><strong class="studio-cover-title">${escape(item.cover?.text || item.title || '未命名画布')}</strong></div>${valid && media.kind==='video' ? '<span class="canvas-cover-kind">VIDEO</span>':''}<span class="canvas-cover-unavailable"${!valid || image ? ' hidden':''}>暂无缩略图</span></div>`;
+        return `<div class="studio-canvas-cover${image ? ' has-media':''}" data-cover-kind="${media?.kind==='video'?'video':'image'}" aria-hidden="true">${image}<div class="canvas-cover-copy"><span class="studio-cover-label">${item.kind === 'smart' ? 'ASSISTED':'CLASSIC'} / SHADOX</span><strong class="studio-cover-title">${escape(item.cover?.text || item.title || '未命名画布')}</strong></div>${valid && media.kind==='video' ? '<span class="canvas-cover-kind">VIDEO</span>':''}<span class="canvas-cover-unavailable"${!valid || image ? ' hidden':''}>暂无缩略图</span></div>`;
     }
     function bind(root=document){
         root.querySelectorAll('.canvas-cover-media').forEach(media => {
             if(media.dataset.coverBound) return;
             media.dataset.coverBound='1';
+            const loaded=()=>{if(media.naturalWidth)media.setAttribute('data-cover-loaded','');};
+            media.addEventListener('load',loaded);loaded();
             media.addEventListener('error',()=>{
                 if(media.dataset.mediaPriorityPaused === '1') return;
-                media.hidden=true;
+                media.removeAttribute('data-cover-loaded');media.hidden=true;
                 const host=media.closest('.studio-canvas-cover');
                 host?.classList.remove('has-media');
                 host?.querySelector('.canvas-cover-unavailable')?.removeAttribute('hidden');

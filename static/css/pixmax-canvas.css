@@ -72,12 +72,13 @@ body.studio-smart-canvas .member-canvas-edit :is(button,summary) {
 }
 body.studio-smart-canvas .member-canvas-edit [hidden] { display: none; }
 body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary {
-  background: #e9e9ef;
-  border-color: #e9e9ef;
-  color: #19191c;
+  background:var(--studio-selection-color);
+  border-color:rgb(255 255 255 / .12);
+  color:var(--studio-neutral-text);
+  box-shadow:inset 0 1px 3px rgb(0 0 0 / .12);
   font-weight: 600;
 }
-body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary:hover:not(:disabled) { background: #fff; border-color: #fff; }
+body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary:hover:not(:disabled) {background:var(--studio-hover-color);border-color:rgb(255 255 255 / .18)}
 body.studio-smart-canvas .member-canvas-edit :is(button,summary):focus-visible { outline: 2px solid #aeb0bd; outline-offset: 2px; }
 body.studio-smart-canvas .member-canvas-edit [data-canvas-action]::before,
 body.studio-smart-canvas .member-canvas-presence > summary::before {
@@ -697,22 +698,10 @@ body.studio-smart-canvas .pixmax-logo-bar .smart-title { max-width:200px; }
 }
 
 .pixmax-control {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  width: 40px;
-  height: 40px;
-  border: 1px solid #313136;
-  border-radius: 12px;
-  background: #141416;
-  color: #aeb6c5;
+  display:flex;align-items:center;justify-content:center;padding:0;width:40px;height:40px;
+  border:1px solid var(--studio-control-border);border-radius:8px;background:rgb(18 18 21 / .9);color:var(--studio-neutral-secondary);
 }
-
-.pixmax-control:hover {
-  background: #282a2f;
-  color: #fafafa;
-}
+.pixmax-control:hover {background:var(--studio-hover-color);color:var(--studio-neutral-text)}
 
 .pixmax-control svg {
   width: 20px;
@@ -734,7 +723,7 @@ body.studio-smart-canvas .pixmax-logo-bar .smart-title { max-width:200px; }
 }
 
 .pixmax-rail {
-  position:absolute;z-index:56;top:50%;left:28px;transform:translateY(-50%);
+  position:absolute;z-index:56;top:50%;left:28px;transform:translateY(-50%);anchor-name:--pixmax-tool-dock;
   display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:16px;
   background:rgb(18 18 21 / .9);border:1px solid var(--studio-control-border);
   backdrop-filter:blur(24px);box-shadow:0 12px 32px rgb(0 0 0 / .65);
@@ -763,7 +752,7 @@ body.studio-smart-canvas .pixmax-logo-bar .smart-title { max-width:200px; }
 }
 
 .pixmax-settings-menu {
-  display:none;position:absolute;left:92px;top:50%;z-index:80;transform:translateY(-50%);
+  display:none;position:absolute;left:calc(anchor(--pixmax-tool-dock right) + 8px);top:anchor(--pixmax-tool-dock center);z-index:80;transform:translateY(-50%);
   width:210px;min-width:180px;padding:6px;background:rgb(20 20 24 / .95);
   border:1px solid var(--studio-control-border);border-radius:12px;
   backdrop-filter:blur(24px);box-shadow:0 20px 50px rgb(0 0 0 / .65);
