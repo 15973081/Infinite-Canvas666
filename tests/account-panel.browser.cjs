@@ -36,6 +36,21 @@ test('account panels share navigation, precise real balance and persistent profi
  assert.deepEqual(errors,[]);
 });
 
+test('account tab replacement enhances new filters and disposes open dropdowns',async t=>{
+ const {page,errors}=await setup(t,true),dialog=page.locator('.account-panel');
+ const avatar=dialog.getByRole('combobox',{name:'头像颜色',exact:true});await avatar.click();
+ await dialog.getByRole('option',{name:'紫色',exact:true}).click();assert.equal(await dialog.locator('select').inputValue(),'purple');
+ await avatar.click();await page.keyboard.press('Escape');assert.equal(await dialog.getAttribute('open'),'');
+ page.once('dialog',d=>d.accept());await dialog.getByRole('button',{name:'任务明细',exact:true}).click();
+ const status=dialog.getByRole('combobox',{name:'任务状态',exact:true});await status.click();await dialog.getByRole('option',{name:'失败',exact:true}).click();
+ await page.getByText('task-1',{exact:true}).waitFor();assert.equal(await dialog.locator('select').inputValue(),'failed');
+ await status.click();fs.mkdirSync('.local/custom-select',{recursive:true});await page.screenshot({path:'.local/custom-select/account-tasks-open.png',fullPage:true});
+ await page.evaluate(()=>{window.oldTaskSelect=document.querySelector('.account-content select');void CanvasAccountPanel.show('credits');});
+ await dialog.getByRole('combobox',{name:'积分分类',exact:true}).waitFor();
+ assert.equal(await page.locator('.studio-select-menu:popover-open').count(),0);assert.equal(await page.evaluate(()=>Object.hasOwn(oldTaskSelect,'value')),false);
+ await dialog.getByRole('combobox',{name:'积分分类',exact:true}).click();await page.keyboard.press('Escape');assert.equal(await dialog.getAttribute('open'),'');assert.deepEqual(errors,[]);
+});
+
 test('topup matches reference tiers without payment writes or fabricated first-purchase eligibility',async t=>{
  const {page,errors,calls}=await setup(t);await page.getByRole('button',{name:'积分充值',exact:true}).click();
  const summary=page.locator('.account-topup-summary');
@@ -49,7 +64,7 @@ test('topup matches reference tiers without payment writes or fabricated first-p
 test('tasks filter and page without inventing credit consumption, and usage costs remain accessible',async t=>{
  const {page,calls,errors}=await setup(t);await page.getByRole('button',{name:'任务明细',exact:true}).click();await page.getByText('task-1',{exact:true}).waitFor();
  await page.getByRole('button',{name:'下一页',exact:true}).click();await page.getByText('task-2',{exact:true}).waitFor();
- await page.getByLabel('任务状态',{exact:true}).selectOption('failed');await page.getByText('task-1',{exact:true}).waitFor();
+ await page.locator('select[aria-label="任务状态"]').selectOption('failed');await page.getByText('task-1',{exact:true}).waitFor();
  assert.equal(calls.filter(c=>c.path==='/api/account/tasks').at(-1).query.status,'failed');
  assert.equal(await page.getByText('未接入积分结算',{exact:true}).count(),1);
  await page.getByRole('button',{name:'查看使用费用',exact:true}).click();await page.getByText('暂无费用记录',{exact:true}).waitFor();assert.deepEqual(errors,[]);
@@ -89,8 +104,8 @@ test('account surfaces retain neutral navigation and native controls under produ
  assert.equal(await style('.account-avatar svg','width'),'20px');
  assert.equal(await style('.account-primary','fontWeight'),'600');
  assert.equal(await style('.account-primary','color'),'rgb(9, 9, 11)');
- assert.equal(await style('select','appearance'),'none');
- assert.equal(await style('select','paddingRight'),'32px');
+ assert.equal(await style('.studio-select-trigger','height'),'36px');
+ assert.equal(await style('.studio-select-trigger','borderRadius'),'8px');
  await dialog.locator('.account-profile select').selectOption('purple');
  await page.getByRole('button',{name:'保存资料',exact:true}).click();
  await page.getByText('资料已保存',{exact:true}).waitFor();

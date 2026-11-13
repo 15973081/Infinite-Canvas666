@@ -51,6 +51,19 @@ test('custom selects use direct lists, commit one change, preserve dependencies,
  assert.equal(writes.length,before,'selecting settings does not generate or write data');
  assert.deepEqual(errors,[]);
 });
+
+test('image work records enhance all filters while preserving facet refresh and query parameters',async t=>{
+ const {page,errors}=await online(t),queries=[];
+ await page.route('**/api/online-works?**',route=>{const url=new URL(route.request().url());queries.push(Object.fromEntries(url.searchParams));return route.fulfill({json:{items:[],summary:{counts:{},bytes:{}},folders:['品牌'],models:['image-model-1'],next_cursor:null}});});
+ await page.evaluate(async()=>{document.querySelector('.image-records').open=true;await OnlineInbox.attach(document.getElementById('onlineWorksSection')).ready;});
+ const inbox=page.locator('#onlineInbox');assert.equal(await inbox.getByRole('combobox').count(),4);
+ await inbox.getByRole('combobox',{name:'作品文件夹',exact:true}).click();await inbox.getByRole('option',{name:'品牌',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#inboxGrid').getAttribute('aria-busy')==='false');assert.equal(queries.at(-1).folder,'品牌');
+ assert.equal(await inbox.getByRole('combobox',{name:'作品文件夹',exact:true}).innerText(),'品牌');
+ await inbox.getByRole('combobox',{name:'作品引用状态',exact:true}).click();await inbox.getByRole('option',{name:'仅看未引用',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#inboxGrid').getAttribute('aria-busy')==='false');assert.equal(queries.at(-1).references,'unreferenced');
+ assert.deepEqual(errors,[]);
+});
 test('select menus fit dark surfaces, mobile and UI zoom with reduced motion', async t => {
  const {page, errors} = await online(t);
  fs.mkdirSync('.local/studio-select',{recursive:true});
@@ -62,7 +75,7 @@ test('select menus fit dark surfaces, mobile and UI zoom with reduced motion', a
    const menu=page.locator('.studio-select-menu:not([hidden])');
    const r=await menu.evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,bg:getComputedStyle(el).backgroundColor};});
    assert.ok(r.left>=-1&&r.right<=width+1&&r.top>=-1&&r.bottom<=height+1,`${theme}/${width}/${scale}/${label}: ${JSON.stringify(r)}`);
-   assert.equal(r.bg,theme==='dark'?'rgb(18, 18, 21)':'rgb(255, 255, 255)');
+   assert.equal(r.bg,'rgba(20, 20, 24, 0.95)');
    if(width===1280&&label==='生成质量') {
     const box=await page.locator('.tool-panel').boundingBox();
     await page.screenshot({path:'.local/studio-select/'+theme+'.png',animations:'disabled',clip:{x:box.x,y:box.y,width:box.width,height:Math.max(box.height,r.bottom-box.y)+8}});

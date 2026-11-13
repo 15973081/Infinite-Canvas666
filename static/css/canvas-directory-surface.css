@@ -50,6 +50,15 @@ html:has(body.studio-canvas-home), html body.studio-canvas-home {
 }
 #canvasGate .project-create-button:hover {background:#bce622;border-color:#bce622;color:#09090b}
 #canvasGate :is(.studio-pick-menu,.studio-card-menu-items,.canvas-folder-menu) {border-radius:8px}
+#canvasGate .studio-pick-trigger:is(:focus-visible,[aria-expanded=true]) {background:#16161a;border-color:rgb(255 255 255 / .18);outline:none;box-shadow:0 0 0 2px rgb(255 255 255 / .06)}
+#canvasGate .studio-pick-trigger svg {width:14px;height:14px;stroke-width:1.75;transition:transform .15s}
+#canvasGate .studio-pick-menu {padding:4px;background:rgb(20 20 24 / .95);backdrop-filter:blur(24px);border:1px solid rgb(255 255 255 / .1);border-radius:12px;box-shadow:0 16px 40px rgb(0 0 0 / .75)}
+#canvasGate .studio-pick-menu :is(.gate-folder-node,.gate-sort-btn) {border:0;border-radius:8px;background:transparent;box-shadow:none;color:#d4d4d8}
+#canvasGate .studio-pick-menu :is(.gate-folder-node,.gate-sort-btn):is(:hover,:focus-within) {background:rgb(255 255 255 / .06);color:#fff}
+#canvasGate .studio-pick-menu :is(.gate-folder-node,.gate-sort-btn).active {background:rgb(255 255 255 / .09);color:#fff;font-weight:500}
+#canvasGate .studio-pick-menu :is(.gate-folder-main,.gate-sort-btn) {display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:8px;min-height:30px;height:auto;font-size:12px;outline:none}
+#canvasGate .studio-pick-menu .gate-folder-main {justify-content:flex-start}
+#canvasGate .studio-pick-menu .gate-folder-node.active .gate-folder-main::after,#canvasGate .studio-pick-menu .gate-sort-btn.active::after {content:'';display:block;flex:none;width:14px;height:14px;margin-left:auto;background:#f4f4f5;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/contain no-repeat}
 
 #canvasGate :is(.canvas-item,.project-folder-card) {
     position:relative;top:0;aspect-ratio:auto;border:1px solid rgb(255 255 255 / .07);

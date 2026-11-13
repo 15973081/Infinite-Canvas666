@@ -65,6 +65,7 @@
   let current;
   async function show(initial='profile'){
     await import('/static/js/credit-balance-store.js');
+    await import('/static/js/studio-select.js');
     if(current?.dialog.open){await current.select(initial);current.dialog.focus();return;}
     const session=window.CanvasSession, member=session?.context?.member;
     if(!member?.id||session.paused)throw Error('请重新登录后打开账户管理。');
@@ -161,7 +162,7 @@
     for(const [id,label] of tabs){const b=button('',()=>void select(id));b.dataset.tab=id;b.append(icon(id),el('span',label));nav.append(b);}
     document.body.append(dialog);current={dialog,select};dialog.showModal();
     const restoreScroll=lockDocumentScroll();
-    void refreshBalance();await select(initial);
+    void refreshBalance();await select(initial);window.StudioSelect.observe(dialog);
   }
   window.CanvasAccountPanel={show};
 })();

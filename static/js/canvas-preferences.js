@@ -30,7 +30,8 @@
   }
   const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const button=(text,fn)=>{const b=el('button',text);b.type='button';b.onclick=fn;return b;};
-  function show(){
+  async function show(){
+    await import('/static/js/studio-select.js');
     if(dialog?.open){dialog.focus();return;}
     dialog?.remove();dialog=null;
     const bound=window.CanvasSession?.context?.member?.id;
@@ -76,7 +77,7 @@
     const paused=()=>{dirty=false;root.close();};window.addEventListener('member-session:paused',paused);
     root.addEventListener('cancel',e=>{e.preventDefault();close();});root.addEventListener('close',()=>{window.removeEventListener('member-session:paused',paused);root.remove();if(dialog===root){dialog=null;if(previous?.isConnected)previous.focus();}},{once:true});
     for(const type of ['keydown','mousedown','wheel','dblclick'])root.addEventListener(type,e=>e.stopPropagation());
-    layout.append(form,preview);root.append(header,layout);document.body.append(root);renderPreview();root.showModal();
+    layout.append(form,preview);root.append(header,layout);document.body.append(root);renderPreview();root.showModal();window.StudioSelect.observe(root);
   }
   window.CanvasPreferences={show,get:()=>structuredClone(value),shortcut:kind=>value.shortcuts[kind],defaultName(base){const kind=Object.keys(labels).find(k=>labels[k]===base);return kind&&value.names[kind]||base;},
     applyNode(node){if(!node.generationKind||node.images?.length)return;const settings=node.runSettings||{},video=node.generationKind==='video',provider=video?settings.videoProvider:settings.provider_id,model=video?settings.videoModel:settings.model;const p=value.prompts.find(p=>p.provider===provider&&p.model===model);if(p&&!node.promptDraftTouched&&!node.promptDraftText){node.promptDraftText=p.text;node.promptDraftHtml=p.text.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));node.promptDraftTouched=true;}}};

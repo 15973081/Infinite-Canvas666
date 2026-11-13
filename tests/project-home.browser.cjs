@@ -2,6 +2,17 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {fixture}=require('./helpers/canvas-browser.cjs');
 const root=path.resolve(__dirname,'..');
 
+test('canvas filters keep their actions with neutral rounded dropdowns',async t=>{
+ const {page,errors}=await fixture(t,'classic',true,{directory:true,folders:[{id:'brand',name:'品牌项目'}]});
+ await page.locator('#studioFolderTrigger').click();const folder=page.locator('#studioFolderMenu');
+ assert.equal(await folder.evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(20, 20, 24, 0.95)');
+ assert.equal(await folder.evaluate(n=>getComputedStyle(n).borderRadius),'12px');
+ await page.locator('[data-folder-id="brand"] .gate-folder-main').click();assert.equal(await page.locator('#studioFolderLabel').textContent(),'品牌项目');
+ await page.locator('#studioSortTrigger').click();fs.mkdirSync('.local/custom-select',{recursive:true});await page.screenshot({path:'.local/custom-select/canvas-sort-open.png',fullPage:true});
+ await page.locator('[data-sort="name"]').click();assert.equal(await page.locator('#studioSortLabel').textContent(),'名称');
+ await page.locator('#studioSortTrigger').press('ArrowDown');await page.keyboard.press('Escape');assert.equal(await page.locator('#studioSortTrigger').getAttribute('aria-expanded'),'false');assert.deepEqual(errors,[]);
+});
+
 test('unified creation keeps kind and folder through a failed submission and sends one retry',async t=>{
  const {page,errors}=await fixture(t,'classic',true,{directory:true,folders:[{id:'brand',name:'品牌项目'}]});
  const posts=[];let fail=true;

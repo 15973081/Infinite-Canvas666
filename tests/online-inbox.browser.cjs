@@ -11,10 +11,10 @@ async function main(){
   await page.locator('.image-records > summary').click();
   const inbox=page.locator('#onlineInbox');await inbox.getByRole('heading',{name:'作品收件箱'}).waitFor();
   await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
-  await inbox.getByLabel('作品引用状态').selectOption('unreferenced');
+  await inbox.locator('select[aria-label="作品引用状态"]').selectOption('unreferenced');
   await page.waitForFunction(()=>document.querySelector('#inboxGrid').getAttribute('aria-busy')==='false'&&document.querySelectorAll('.inbox-card').length===2);
-  await inbox.getByLabel('作品引用状态').selectOption('referenced');await inbox.getByText('没有匹配的作品',{exact:true}).waitFor();
-  await inbox.getByLabel('作品引用状态').selectOption('all');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
+  await inbox.locator('select[aria-label="作品引用状态"]').selectOption('referenced');await inbox.getByText('没有匹配的作品',{exact:true}).waitFor();
+  await inbox.locator('select[aria-label="作品引用状态"]').selectOption('all');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
   await inbox.getByLabel('搜索作品').fill('无匹配词');await inbox.getByText('没有匹配的作品',{exact:true}).waitFor();
   await inbox.getByLabel('搜索作品').fill('海边');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
   await inbox.getByLabel('搜索作品').fill('');
@@ -36,11 +36,11 @@ async function main(){
   await transfer.getByRole('button',{name:'导入',exact:true}).click();await transfer.getByText(/已保存 1 张图片/).waitFor();await transfer.getByRole('button',{name:'关闭',exact:true}).click();
   await inbox.getByText('收件箱为空，生成的作品会出现在这里',{exact:true}).waitFor();
   await inbox.getByRole('tab',{name:'已保留',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
-  await inbox.getByLabel('作品引用状态').selectOption('unreferenced');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===1);
+  await inbox.locator('select[aria-label="作品引用状态"]').selectOption('unreferenced');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===1);
   await inbox.getByRole('heading',{name:'保留画面',exact:true}).waitFor();
-  await inbox.getByLabel('作品引用状态').selectOption('referenced');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===1);
+  await inbox.locator('select[aria-label="作品引用状态"]').selectOption('referenced');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===1);
   assert.equal(await inbox.getByRole('heading',{name:'保留画面',exact:true}).count(),0,'library image remains referenced');
-  await inbox.getByLabel('作品引用状态').selectOption('all');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
+  await inbox.locator('select[aria-label="作品引用状态"]').selectOption('all');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
   await page.setViewportSize({width:390,height:844});
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.inbox-card-actions button')).backgroundColor==='rgb(255, 255, 255)');
   await inbox.scrollIntoViewIfNeeded();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile overflow');
@@ -48,7 +48,7 @@ async function main(){
   await inbox.getByLabel('作品引用状态').focus();await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
   assert.equal(await inbox.getByLabel('作品引用状态').inputValue(),'unreferenced');
   await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===1);
-  await inbox.getByLabel('作品引用状态').selectOption('all');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
+  await inbox.locator('select[aria-label="作品引用状态"]').selectOption('all');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
   await inbox.screenshot({path:path.join(out,'inbox-mobile-light.png'),animations:'disabled',style:'.member-session-bar{visibility:hidden}'});
   await inbox.getByRole('button',{name:'回收',exact:true}).first().click();await inbox.getByText('已移入回收站，可以恢复',{exact:true}).waitFor();
   await inbox.getByRole('tab',{name:'回收站',exact:true}).click();await inbox.getByRole('button',{name:'彻底删除',exact:true}).last().click();

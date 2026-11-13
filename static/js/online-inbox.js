@@ -40,6 +40,7 @@
         const more=button('加载更多',()=>void load(true),'inbox-more');more.hidden=true;
         const note=node('p','未引用筛选按已保存的画布、素材库、备份、任务输入及其他作品判断，自身生成结果不计入；未托管或状态未知的图片不列入未引用。删除前会重新检查。自动清理暂未启用，移入回收站仍占用空间。','inbox-footnote');
         host.append(heading,tools,status,grid,more,note);
+        root.StudioSelect?.observe(host);
         function message(text,error=false){status.textContent=text;status.classList.toggle('error',error);}
         function picked(){return rows.filter(row=>selected.has(row.id));}
         function sync(){
