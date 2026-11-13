@@ -83,6 +83,9 @@ test('account surfaces retain neutral navigation and native controls under produ
  const style=(selector,property)=>dialog.locator(selector).first().evaluate((el,property)=>getComputedStyle(el)[property],property);
  assert.equal(await dialog.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(12, 12, 14)');
  assert.equal(await style('.account-nav button.active','backgroundColor'),'rgb(28, 28, 33)');
+ assert.deepEqual(await dialog.locator('.account-nav svg').evaluateAll(nodes=>nodes.map(node=>node.dataset.accountIcon)),['user','coins','receipt-text','arrow-left-right','list-checks','building-2']);
+ assert.ok(await dialog.locator('.account-nav svg').evaluateAll(nodes=>nodes.every(node=>getComputedStyle(node).strokeWidth==='1.75px'&&getComputedStyle(node).width==='16px')));
+ assert.equal(await style('.account-avatar svg','width'),'20px');
  assert.equal(await style('.account-primary','fontWeight'),'600');
  assert.equal(await style('.account-primary','color'),'rgb(9, 9, 11)');
  assert.equal(await style('select','appearance'),'none');
@@ -93,6 +96,11 @@ test('account surfaces retain neutral navigation and native controls under produ
  assert.equal(await page.evaluate(()=>saved[0].avatar),'purple');
  await page.getByRole('button',{name:'积分充值',exact:true}).click();
  assert.equal(await style('.account-plan.selected','borderColor'),'rgba(255, 255, 255, 0.25)');
+ assert.equal(await dialog.locator('.account-plan svg[data-account-icon="zap"]').count(),4);
+ assert.equal(await style('.account-plan-credits svg','width'),'14px');
+ assert.equal(await style('.account-plan-credits svg','fill'),'rgba(212, 255, 51, 0.2)');
+ assert.equal(await dialog.locator('.account-payment-unavailable svg[data-account-icon="lock"]').count(),1);
+ assert.doesNotMatch(await dialog.innerText(),/[ϟ◇]/);
  const heights=await dialog.locator('.account-topup-other input,.account-topup-other button').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().height));
  assert.deepEqual(heights,[40,40]);
  await page.getByRole('button',{name:'399 元充值方案',exact:true}).click();
@@ -106,6 +114,7 @@ test('account surfaces retain neutral navigation and native controls under produ
   await page.getByRole('button',{name:tab,exact:true}).click();
   assert.match(await dialog.locator('.account-empty').innerText(),/尚未开放/);
   assert.equal(await style('.account-empty','borderRadius'),'12px');
+  assert.equal(await dialog.locator('.account-empty-icon svg').getAttribute('data-account-icon'),tab==='账单发票'?'file-text':'building-2');
  }
  assert.equal(calls.some(call=>call.method!=='GET'),false);
  assert.deepEqual(errors,[]);

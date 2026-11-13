@@ -3,15 +3,56 @@
   const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const button=(text,fn,cls)=>{const b=el('button',text,cls);b.type='button';b.onclick=fn;return b;};
   const points=n=>BigInt(n).toLocaleString('zh-CN');
+  // Lucide 0.468.0 (ISC); see static/vendor/licenses/lucide-0.468.0-LICENSE.
+  const iconMarkup={
+    "user": `<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+  <circle cx="12" cy="7" r="4" />`,
+    "coins": `<circle cx="8" cy="8" r="6" />
+  <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+  <path d="M7 6h1v4" />
+  <path d="m16.71 13.88.7.71-2.82 2.82" />`,
+    "receipt-text": `<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+  <path d="M14 8H8" />
+  <path d="M16 12H8" />
+  <path d="M13 16H8" />`,
+    "arrow-left-right": `<path d="M8 3 4 7l4 4" />
+  <path d="M4 7h16" />
+  <path d="m16 21 4-4-4-4" />
+  <path d="M20 17H4" />`,
+    "list-checks": `<path d="m3 17 2 2 4-4" />
+  <path d="m3 7 2 2 4-4" />
+  <path d="M13 6h8" />
+  <path d="M13 12h8" />
+  <path d="M13 18h8" />`,
+    "building-2": `<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+  <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+  <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+  <path d="M10 6h4" />
+  <path d="M10 10h4" />
+  <path d="M10 14h4" />
+  <path d="M10 18h4" />`,
+    "zap": `<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />`,
+    "lock": `<rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+  <path d="M7 11V7a5 5 0 0 1 10 0v4" />`,
+    "file-text": `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+  <path d="M10 9H8" />
+  <path d="M16 13H8" />
+  <path d="M16 17H8" />`,
+    "x": `<path d="M18 6 6 18" />
+  <path d="m6 6 12 12" />`,
+    "chevron-right": `<path d="m9 18 6-6-6-6" />`
+  };
+  const iconNames={profile:'user',topup:'coins',invoice:'receipt-text',credits:'arrow-left-right',tasks:'list-checks',enterprise:'building-2'};
   function icon(kind){
-    const paths={profile:'M5 3h14v18H5z M9 16c0-4 6-4 6 0 M10 8a2 2 0 1 0 4 0a2 2 0 1 0-4 0',
-      topup:'M3 6c0-5 18-5 18 0s-18 5-18 0v6c0 5 18 5 18 0V6 M3 12v6c0 5 18 5 18 0v-6',
-      invoice:'M5 3h14v18l-3-2-4 2-4-2-3 2z M8 8h8 M8 12h8',credits:'M5 3h14v18H5z M8 7h2 M8 11h8 M8 15h8',
-      tasks:'M4 5h16v16H4z M8 3v4 M16 3v4 M7 12h2 M11 12h6 M7 16h2 M11 16h6',enterprise:'M3 21V3h11v18 M14 10h7v11 M7 7h3 M7 11h3 M7 15h3 M17 14h1 M17 18h1'};
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),path=document.createElementNS(svg.namespaceURI,'path');
-    svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.6');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');path.setAttribute('d',paths[kind]||'M5 20c0-9 14-9 14 0z M8 7a4 4 0 1 0 8 0a4 4 0 1 0-8 0');svg.append(path);return svg;
+    const name=iconNames[kind]||kind;
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    const attrs={xmlns:'http://www.w3.org/2000/svg',width:'24',height:'24',viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.75','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false','data-account-icon':name};
+    for(const [key,value] of Object.entries(attrs))svg.setAttribute(key,value);
+    svg.innerHTML=iconMarkup[name];
+    return svg;
   }
-  const tabs=[['profile','个人资料','♙'],['topup','积分充值','◎'],['invoice','账单发票','▤'],['credits','积分明细','▧'],['tasks','任务明细','▦'],['enterprise','企业认证','▥']];
+  const tabs=[['profile','个人资料'],['topup','积分充值'],['invoice','账单发票'],['credits','积分明细'],['tasks','任务明细'],['enterprise','企业认证']];
   function style(){for(const [id,href] of [['account-panel-style','/static/css/account-panel.css'],['billing-view-style','/static/css/billing-view.css']])if(!document.getElementById(id)){const s=el('link');s.id=id;s.rel='stylesheet';s.href=href;document.head.append(s);}}
   let current;
   async function show(initial='profile'){
@@ -20,7 +61,7 @@
     if(!member?.id||session.paused)throw Error('请重新登录后打开账户管理。');
     style();
     const previous=document.activeElement, dialog=el('dialog',undefined,'account-panel');dialog.setAttribute('aria-label','账户管理');
-    const head=el('header'), close=button('×',()=>attemptClose(),'account-close');close.setAttribute('aria-label','关闭账户管理');
+    const head=el('header'), close=button('',()=>attemptClose(),'account-close');close.append(icon('x'));close.setAttribute('aria-label','关闭账户管理');
     head.append(el('h2','账户管理'),close);
     const layout=el('div',undefined,'account-layout'),nav=el('nav',undefined,'account-nav'),main=el('main',undefined,'account-main');nav.setAttribute('aria-label','账户管理栏目');
     const identity=el('div',undefined,'account-identity'),avatar=el('span',undefined,'account-avatar'),identityText=el('div'),name=el('strong',member.display_name),login=el('small',member.username||member.id),balance=el('div','积分余额：—','account-balance');
@@ -65,10 +106,10 @@
         if(!Number.isInteger(value)||value<1||value>1000000){right.append(el('p','请输入 1 至 1,000,000 元的整数进行预览。'));return;}
         const rate=[...plans].reverse().find(p=>value>=p[0])?.[1]||0,base=BigInt(value)*15n,gift=base*BigInt(rate)/100n;
         for(const [label,text] of [['充值积分',points(base)],['赠送积分',points(gift)],['首充加赠','资格未接入，暂不计入'],['预计到账积分',points(base+gift)],['预览金额','¥'+value]]){const item=el('div');item.append(el('span',label),el('strong',text));right.append(item);}
-        const unavailable=el('div',undefined,'account-payment-unavailable');unavailable.append(el('span','◇'),el('strong','支付暂未开放'),el('small','开放后可在此查看支付方式。'));right.append(unavailable);
+        const unavailable=el('div',undefined,'account-payment-unavailable');const paymentIcon=el('span');paymentIcon.append(icon('lock'));unavailable.append(paymentIcon,el('strong','支付暂未开放'),el('small','开放后可在此查看支付方式。'));right.append(unavailable);
       }
-      for(const [price,rate] of plans){const total=BigInt(price)*15n*(100n+BigInt(rate))/100n,b=button('',()=>{amount.value=String(price);render();},'account-plan');b.append(el('span','加赠 '+rate+'%','account-bonus'),el('span','ϟ '+points(total)+' 积分'),el('strong','¥'+price));b.setAttribute('aria-label',price+' 元充值方案');cards.append(b);}
-      amount.oninput=render;const other=el('div',undefined,'account-topup-other'),coupon=button('优惠码 ›',null);coupon.disabled=true;coupon.title='优惠码暂未开放';other.append(amountLabel,coupon);
+      for(const [price,rate] of plans){const total=BigInt(price)*15n*(100n+BigInt(rate))/100n,b=button('',()=>{amount.value=String(price);render();},'account-plan');const credits=el('span',undefined,'account-plan-credits');credits.append(icon('zap'),document.createTextNode(points(total)+' 积分'));b.append(el('span','加赠 '+rate+'%','account-bonus'),credits,el('strong','¥'+price));b.setAttribute('aria-label',price+' 元充值方案');cards.append(b);}
+      amount.oninput=render;const other=el('div',undefined,'account-topup-other'),coupon=button('优惠码 ',null);coupon.append(icon('chevron-right'));coupon.disabled=true;coupon.title='优惠码暂未开放';other.append(amountLabel,coupon);
       left.append(cards,other,el('p','¥1＝15 积分\n当前方案充值积分永久有效','account-muted'));grid.append(left,right);block.append(note,grid);body.append(block);render();
     }
     async function credits(stamp){
@@ -104,7 +145,7 @@
       selected=tabs.some(t=>t[0]===id)?id:'profile';const stamp=++version;controller?.abort();controller=new AbortController();dispose();dispose=()=>{};body.replaceChildren();
       nav.querySelectorAll('button').forEach(b=>{const on=b.dataset.tab===selected;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
       if(selected==='profile')profile();else if(selected==='topup')topup();else if(selected==='credits')await credits(stamp);else if(selected==='tasks')tasks(stamp);
-      else {const title=selected==='invoice'?'账单发票':'企业认证';body.append(el('h3',title),el('div',selected==='invoice'?'真实支付和开票服务尚未开放，暂无可申请的充值发票。':'企业认证服务尚未开放，暂不收集营业执照或认证材料。','account-empty'));if(selected==='invoice')body.append(button('查看使用费用',()=>void billing(stamp)));}
+      else {const title=selected==='invoice'?'账单发票':'企业认证';const empty=el('div',selected==='invoice'?'真实支付和开票服务尚未开放，暂无可申请的充值发票。':'企业认证服务尚未开放，暂不收集营业执照或认证材料。','account-empty'),mark=el('span',undefined,'account-empty-icon');mark.append(icon(selected==='invoice'?'file-text':'building-2'));empty.prepend(mark);body.append(el('h3',title),empty);if(selected==='invoice')body.append(button('查看使用费用',()=>void billing(stamp)));}
     }
     for(const [id,label] of tabs){const b=button('',()=>void select(id));b.dataset.tab=id;b.append(icon(id),el('span',label));nav.append(b);}
     document.body.append(dialog);current={dialog,select};dialog.showModal();void refreshBalance();await select(initial);
