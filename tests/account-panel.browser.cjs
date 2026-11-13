@@ -1,12 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
-async function setup(t){
+async function setup(t,productionSkin=false){
  const browser=await chromium.launch({channel:'chrome',headless:true});t.after(()=>browser.close());
  const page=await browser.newPage({viewport:{width:1600,height:1050}}),errors=[],calls=[];page.setDefaultTimeout(5000);
  page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',route=>{
   const req=route.request(),url=new URL(req.url());
-  if(url.pathname==='/')return route.fulfill({contentType:'text/html; charset=utf-8',body:'<html lang="zh-CN"><head><meta charset="utf-8"></head><body><button id="open">账户</button><script src="/static/js/account-panel.js"></script></body></html>'});
+  if(url.pathname==='/')return route.fulfill({contentType:'text/html; charset=utf-8',body:'<html lang="zh-CN"><head><meta charset="utf-8">'+(productionSkin?'<link rel="stylesheet" href="/static/css/studio-cyber.css"><link rel="stylesheet" href="/static/css/studio-workspace-surface.css">':'')+'</head><body class="'+(productionSkin?'studio-skin':'')+'"><button id="open">账户</button><script src="/static/js/account-panel.js"></script></body></html>'});
   if(url.pathname.startsWith('/static/'))return route.fulfill({path:path.resolve('.'+url.pathname)});
   calls.push({path:url.pathname,method:req.method(),headers:req.headers(),query:Object.fromEntries(url.searchParams)});
   if(url.pathname==='/api/account/credits')return route.fulfill({json:{wallet:{total_balance:'9007199254740993',recharge_balance:'0',gift_balance:'9007199254740993'},page:1,pages:1,records:1,entries:[{type:'ADD',amount:'125',balance_after:'9007199254740993',remaining_amount:'125',category:'gift',source:'PLATFORM_GIFT',validity:'PERMANENT',created_at:1792000000000,note:'<img src=x onerror=alert(1)>'}]}});
@@ -69,8 +69,44 @@ test('account panels fit desktop and phone with six reachable tabs',async t=>{
  for(const width of [1600,390]){
   await page.setViewportSize({width,height:1050});await page.getByRole('button',{name:'积分充值',exact:true}).click();
   const bounds=await page.locator('.account-panel').evaluate(n=>({w:n.getBoundingClientRect().width,scroll:n.scrollWidth,client:n.clientWidth,viewport:innerWidth}));assert.ok(bounds.w<=width&&bounds.scroll<=bounds.client,JSON.stringify(bounds));
-  await page.screenshot({path:'.local/commercial-kickoff/account-topup-'+width+'.png',fullPage:true});
+  await page.screenshot({path:'.local/commercial-kickoff/account-topup-'+width+'.png',fullPage:true,animations:'disabled'});
   await page.getByRole('button',{name:'企业认证',exact:true}).click();await page.getByText('企业认证服务尚未开放，暂不收集营业执照或认证材料。',{exact:true}).waitFor();
  }
+ assert.deepEqual(errors,[]);
+});
+
+test('account surfaces retain neutral navigation and native controls under production skins',async t=>{
+ const {page,errors,calls}=await setup(t,true);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('.account-panel')).getPropertyValue('--ac-bg').trim()==='#0c0c0e');
+ const dialog=page.locator('.account-panel');
+ const style=(selector,property)=>dialog.locator(selector).first().evaluate((el,property)=>getComputedStyle(el)[property],property);
+ assert.equal(await dialog.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(12, 12, 14)');
+ assert.equal(await style('.account-nav button.active','backgroundColor'),'rgb(28, 28, 33)');
+ assert.equal(await style('.account-primary','fontWeight'),'600');
+ assert.equal(await style('.account-primary','color'),'rgb(9, 9, 11)');
+ assert.equal(await style('select','appearance'),'none');
+ assert.equal(await style('select','paddingRight'),'32px');
+ await dialog.locator('.account-profile select').selectOption('purple');
+ await page.getByRole('button',{name:'保存资料',exact:true}).click();
+ await page.getByText('资料已保存',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>saved[0].avatar),'purple');
+ await page.getByRole('button',{name:'积分充值',exact:true}).click();
+ assert.equal(await style('.account-plan.selected','borderColor'),'rgba(255, 255, 255, 0.25)');
+ const heights=await dialog.locator('.account-topup-other input,.account-topup-other button').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().height));
+ assert.deepEqual(heights,[40,40]);
+ await page.getByRole('button',{name:'399 元充值方案',exact:true}).click();
+ assert.equal(await dialog.locator('.account-plan.selected').count(),1);
+ assert.match(await dialog.locator('.account-topup-summary').innerText(),/7,780/);
+ await page.getByRole('button',{name:'任务明细',exact:true}).click();
+ await page.getByText('task-1',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'下一页',exact:true}).evaluate(el=>el.getBoundingClientRect().width),28);
+ await page.getByRole('button',{name:'下一页',exact:true}).click();await page.getByText('task-2',{exact:true}).waitFor();
+ for(const tab of ['账单发票','企业认证']){
+  await page.getByRole('button',{name:tab,exact:true}).click();
+  assert.match(await dialog.locator('.account-empty').innerText(),/尚未开放/);
+  assert.equal(await style('.account-empty','borderRadius'),'12px');
+ }
+ assert.equal(calls.some(call=>call.method!=='GET'),false);
  assert.deepEqual(errors,[]);
 });

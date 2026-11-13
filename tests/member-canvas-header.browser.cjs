@@ -24,6 +24,7 @@ async function setup(t){
 
 test('smart canvas keeps its full height and places workspace settings inside its account menu',async t=>{
     const {page,errors}=await setup(t);
+    await page.emulateMedia({reducedMotion:'reduce'});
     assert.equal(await page.locator('body > .member-session-bar').count(),0);
     assert.equal(await page.locator('.member-session-brand').count(),0);
     assert.deepEqual(await page.locator('#shell').evaluate(el=>({top:el.getBoundingClientRect().top,height:el.getBoundingClientRect().height,viewport:innerHeight})),{top:0,height:900,viewport:900});
@@ -36,11 +37,11 @@ test('smart canvas keeps its full height and places workspace settings inside it
     assert.deepEqual(await balance.evaluate(el=>{
         const style=getComputedStyle(el);
         return [style.color,style.backgroundColor,style.borderTopColor];
-    }),['rgb(210, 255, 58)','rgb(40, 51, 27)','rgb(101, 115, 79)']);
+    }),['rgb(228, 228, 231)','rgb(24, 24, 28)','rgba(255, 255, 255, 0.07)']);
     await balance.hover();
-    assert.equal(await balance.evaluate(el=>getComputedStyle(el).borderTopColor),'rgb(210, 255, 58)');
+    assert.equal(await balance.evaluate(el=>getComputedStyle(el).borderTopColor),'rgba(255, 255, 255, 0.07)');
     await page.keyboard.press('Tab');await balance.focus();
-    assert.equal(await balance.evaluate(el=>el.matches(':focus-visible')&&getComputedStyle(el).outlineColor),'rgb(210, 255, 58)');
+    assert.equal(await balance.evaluate(el=>el.matches(':focus-visible')&&getComputedStyle(el).outlineColor),'rgb(161, 161, 170)');
     await page.getByLabel('切换工作空间',{exact:true}).click();
     await page.getByRole('button',{name:'刷新用量',exact:true}).waitFor();
     assert.notEqual(await account.getAttribute('open'),null,'expanding a nested workspace menu keeps the account menu open');
@@ -95,7 +96,7 @@ test('account management uses the reference layout inside the real smart canvas'
       await page.setViewportSize({width,height:1050});await dialog.getByRole('button',{name:'积分充值',exact:true}).click();
       const r=await dialog.evaluate(n=>{const b=n.getBoundingClientRect();return {x:b.x,y:b.y,right:b.right,bottom:b.bottom,scroll:n.scrollWidth,client:n.clientWidth};});
       assert.ok(r.x>=0&&r.y>=0&&r.right<=width&&r.bottom<=1050&&r.scroll<=r.client,JSON.stringify(r));
-      await page.screenshot({path:'.local/commercial-kickoff/account-canvas-'+width+'.png',fullPage:true});
+      await page.screenshot({path:'.local/commercial-kickoff/account-canvas-'+width+'.png',fullPage:true,animations:'disabled'});
       await dialog.getByRole('button',{name:'积分明细',exact:true}).click();await dialog.getByText('暂无积分流水',{exact:true}).waitFor();
     }
     assert.deepEqual(errors,[]);

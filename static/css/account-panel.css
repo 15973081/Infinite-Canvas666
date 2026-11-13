@@ -1,3 +1,4 @@
+@import url('/static/css/account-surfaces.css?v=2026.11.13.1');
 .account-panel,.canvas-preferences{--ac-bg:#141416;--ac-line:#2d2d33;--ac-muted:#9b9ca8;--ac-accent:var(--studio-accent);color:#ededf0;background:var(--ac-bg);border:1px solid var(--ac-line);border-radius:16px;padding:0;font:14px/1.55 Inter,"Microsoft YaHei",sans-serif;box-sizing:border-box;color-scheme:dark}
 .account-panel,.canvas-preferences{position:fixed;inset:0;margin:auto}.canvas-preferences{height:fit-content}
 .account-nav svg{width:20px;height:20px;flex-shrink:0}.account-avatar svg{width:34px;height:34px}

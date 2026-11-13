@@ -61,6 +61,17 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
  });
  await page.reload();await page.locator('.member-home-wallet').waitFor();
  await page.emulateMedia({reducedMotion:'reduce'});
+ assert.equal(await page.locator('.studio-desktop-brand').evaluate(el=>getComputedStyle(el,'::after').color),'rgb(63, 63, 70)');
+ await page.locator('.member-session-account>summary').click();
+ const menuStyle=await page.locator('.member-session-account-menu').evaluate(el=>{
+  const css=getComputedStyle(el);return [css.backgroundColor,css.borderRadius,css.backdropFilter];
+ });
+ assert.deepEqual(menuStyle,['rgba(18, 18, 21, 0.95)','16px','blur(24px)']);
+ await page.locator('.member-session-account>summary').click();
+ await page.locator('.member-session-space').click();await page.locator('.member-space-option').waitFor();
+ assert.equal(await page.locator('.member-space-option[aria-current=true]').evaluate(el=>getComputedStyle(el).boxShadow),'none');
+ assert.equal(await page.locator('.member-space-menu').evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(18, 18, 21, 0.95)');
+ await page.locator('.member-session-space').press('Escape');
  const home=page.frameLocator('#frame-canvas');await home.locator('#gateCreateBtn').waitFor();
  assert.equal(await page.locator('#sidebarLogoToggle').count(),0);
  const shots=path.join(root,'.local/commercial-kickoff');fs.mkdirSync(shots,{recursive:true});
