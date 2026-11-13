@@ -110,11 +110,11 @@ html body.studio-chat .send-btn:disabled {background: var(--studio-surface-muted
 /* Editor chrome only. Keep media pixels, node geometry, transforms and timing intact. */
 html body.studio-smart-canvas {background: var(--studio-page); color: var(--studio-text)}
 body.studio-smart-canvas #shell {background-color: var(--studio-page)}
-body.studio-smart-canvas :is(.pixmax-rail,.pixmax-control-group,.pixmax-control,.smart-minimap,.composer-card,.create-menu,.pixmax-context-menu,.pixmax-settings-menu) {background: var(--studio-panel); border-color: var(--studio-border); border-radius: 5px; color: var(--studio-text-muted)}
-body.studio-smart-canvas :is(.pixmax-rail button,.pixmax-control-group button,.create-card,.create-card-icon,.engine-select,.smart-pill) {border-radius: 3px; color: var(--studio-text-muted)}
-body.studio-smart-canvas :is(.pixmax-rail button.primary,.run-btn) {background: var(--studio-accent); color: var(--studio-accent-text); border-radius: 3px}
+body.studio-smart-canvas :is(.pixmax-control,.smart-minimap,.composer-card,.create-menu,.pixmax-context-menu) {background: var(--studio-panel); border-color: var(--studio-border); border-radius: 5px; color: var(--studio-text-muted)}
+body.studio-smart-canvas :is(.create-card,.create-card-icon,.engine-select,.smart-pill) {border-radius: 3px; color: var(--studio-text-muted)}
+body.studio-smart-canvas .run-btn {background: var(--studio-accent); color: var(--studio-accent-text); border-radius: 3px}
 body.studio-smart-canvas .run-btn:disabled {background: var(--studio-surface-muted); color: var(--studio-text-muted)}
-body.studio-smart-canvas :is(.pixmax-control-group button.active,.pixmax-rail button:hover,.create-card:hover) {background: var(--studio-selected); color: var(--studio-accent)}
+body.studio-smart-canvas .create-card:hover {background: var(--studio-selected); color: var(--studio-accent)}
 body.studio-smart-canvas :is(.prompt-row,.prompt-input) {background: var(--studio-page); border-radius: 3px; color: var(--studio-text)}
 body.studio-smart-canvas .prompt-input:empty::before {color: var(--studio-text-faint)}
 body.studio-smart-canvas .composer-card:focus-within {border-color: var(--studio-border-strong)}

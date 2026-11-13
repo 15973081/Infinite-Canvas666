@@ -140,39 +140,99 @@
             <button class="pixmax-control" type="button" onclick="openSmartCanvasLog()" aria-label="任务消息" title="任务消息"><i data-lucide="bell"></i></button>
         </div>
         <div class="smart-top-tools pixmax-rail" role="toolbar" aria-label="创作工具">
-            <button class="primary" type="button" onclick="openPixmaxNodeMenu(event)" aria-label="添加节点" title="添加节点"><i data-lucide="plus"></i></button>
-            <button type="button" onclick="document.getElementById('fileInput').click()" aria-label="上传素材" title="上传素材"><i data-lucide="upload"></i></button>
-            <button id="assetToggle" type="button" aria-label="资产库" title="资产库"><i data-lucide="layers"></i></button>
-            <button type="button" onclick="PixmaxGenerationHistory.openCompact(event.currentTarget)" aria-label="生成历史" title="生成历史"><i data-lucide="history"></i></button>
+            <button class="primary" type="button" onclick="openPixmaxNodeMenu(event)" aria-label="添加节点" title="添加节点"><svg class="studio-icon" data-canvas-chrome-icon="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" />
+  <path d="M12 5v14" /></svg></button>
+            <button type="button" onclick="document.getElementById('fileInput').click()" aria-label="上传素材" title="上传素材"><svg class="studio-icon" data-canvas-chrome-icon="upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+  <polyline points="17 8 12 3 7 8" />
+  <line x1="12" x2="12" y1="3" y2="15" /></svg></button>
+            <button id="assetToggle" type="button" aria-label="资产库" title="资产库"><svg class="studio-icon" data-canvas-chrome-icon="layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+  <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+  <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" /></svg></button>
+            <button type="button" onclick="PixmaxGenerationHistory.openCompact(event.currentTarget)" aria-label="生成历史" title="生成历史"><svg class="studio-icon" data-canvas-chrome-icon="history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+  <path d="M3 3v5h5" />
+  <path d="M12 7v5l4 2" /></svg></button>
             <hr>
-            <button type="button" onclick="document.getElementById('pixmaxSettingsMenu').classList.toggle('open')" aria-label="更多工具" title="更多工具"><i data-lucide="command"></i></button>
+            <button type="button" onclick="document.getElementById('pixmaxSettingsMenu').classList.toggle('open')" aria-label="更多工具" title="更多工具"><svg class="studio-icon" data-canvas-chrome-icon="command" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" /></svg></button>
         </div>
-        <div id="pixmaxSettingsMenu" class="smart-top-tools pixmax-settings-menu"><button type="button" class="smart-shortcut-toggle" onclick="CanvasPreferences.show()" aria-label="偏好管理" title="偏好管理"><i data-lucide="sliders-horizontal"></i><span>偏好管理</span></button>        <button class="smart-shortcut-toggle" type="button" onclick="LocalDepthVideo.openSettings()" title="控制中心" aria-label="控制中心"><i data-lucide="settings-2"></i><span>控制中心</span></button>
-        <button id="smartCoverToggle" class="smart-backup-toggle" type="button" onclick="editCanvasCover()" title="画布封面" aria-label="画布封面"><i data-lucide="photo"></i><span>封面</span></button>
-        <button id="retiredWorkflowToggle" class="smart-workflow-toggle" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open"></i><span>工作流</span></button>
-        <button id="smartShortcutToggle" class="smart-shortcut-toggle" type="button" onclick="openSmartCanvasShortcuts()" title="快捷键" aria-label="快捷键"><i data-lucide="keyboard"></i><span>快捷键</span></button>
-        <button id="smartCostToggle" class="smart-cost-toggle" type="button" onclick="openSmartCanvasCost(event)" title="费用中心" aria-label="费用中心"><i data-lucide="circle-dollar-sign"></i><span id="smartCostToggleLabel">费用 ¥0.00</span></button>
-        <button id="smartLogToggle" class="smart-log-toggle" type="button" onclick="openSmartCanvasLog()" title="日志" aria-label="日志"><i data-lucide="list-todo"></i><span>日志</span></button>
-        <button id="smartBackupToggle" class="smart-backup-toggle" type="button" onclick="showSmartCanvasBackups()" title="备份" aria-label="备份"><i data-lucide="hard-drive"></i><span>备份</span></button>
-        <button id="retiredAssetToggle" class="asset-toggle" type="button"><i data-lucide="library"></i><span>资产库</span></button>
+        <div id="pixmaxSettingsMenu" class="smart-top-tools pixmax-settings-menu"><button type="button" class="smart-shortcut-toggle" onclick="CanvasPreferences.show()" aria-label="偏好管理" title="偏好管理"><svg class="studio-icon" data-canvas-chrome-icon="sliders-horizontal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="14" y1="4" y2="4" />
+  <line x1="10" x2="3" y1="4" y2="4" />
+  <line x1="21" x2="12" y1="12" y2="12" />
+  <line x1="8" x2="3" y1="12" y2="12" />
+  <line x1="21" x2="16" y1="20" y2="20" />
+  <line x1="12" x2="3" y1="20" y2="20" />
+  <line x1="14" x2="14" y1="2" y2="6" />
+  <line x1="8" x2="8" y1="10" y2="14" />
+  <line x1="16" x2="16" y1="18" y2="22" /></svg><span>偏好管理</span></button>        <button class="smart-shortcut-toggle" type="button" onclick="LocalDepthVideo.openSettings()" title="控制中心" aria-label="控制中心"><svg class="studio-icon" data-canvas-chrome-icon="settings-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7h-9" />
+  <path d="M14 17H5" />
+  <circle cx="17" cy="17" r="3" />
+  <circle cx="7" cy="7" r="3" /></svg><span>控制中心</span></button>
+        <button id="smartCoverToggle" class="smart-backup-toggle" type="button" onclick="editCanvasCover()" title="画布封面" aria-label="画布封面"><svg class="studio-icon" data-canvas-chrome-icon="image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+  <circle cx="9" cy="9" r="2" />
+  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg><span>封面</span></button>
+        <button id="retiredWorkflowToggle" class="smart-workflow-toggle" type="button" title="导入导出工作流" aria-label="导入导出工作流"><svg class="studio-icon" data-canvas-chrome-icon="package-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-9" />
+  <path d="M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z" />
+  <path d="M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13" />
+  <path d="M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.636 1.636 0 0 0 1.63 0z" /></svg><span>工作流</span></button>
+        <div class="pixmax-settings-divider" role="separator"></div>
+        <button id="smartShortcutToggle" class="smart-shortcut-toggle" type="button" onclick="openSmartCanvasShortcuts()" title="快捷键" aria-label="快捷键"><svg class="studio-icon" data-canvas-chrome-icon="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 8h.01" />
+  <path d="M12 12h.01" />
+  <path d="M14 8h.01" />
+  <path d="M16 12h.01" />
+  <path d="M18 8h.01" />
+  <path d="M6 8h.01" />
+  <path d="M7 16h10" />
+  <path d="M8 12h.01" />
+  <rect width="20" height="16" x="2" y="4" rx="2" /></svg><span>快捷键</span></button>
+        <button id="smartCostToggle" class="smart-cost-toggle" type="button" onclick="openSmartCanvasCost(event)" title="费用中心" aria-label="费用中心"><svg class="studio-icon" data-canvas-chrome-icon="circle-dollar-sign" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" />
+  <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+  <path d="M12 18V6" /></svg><span id="smartCostToggleLabel">费用 ¥0.00</span></button>
+        <button id="smartLogToggle" class="smart-log-toggle" type="button" onclick="openSmartCanvasLog()" title="日志" aria-label="日志"><svg class="studio-icon" data-canvas-chrome-icon="list-todo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="6" height="6" rx="1" />
+  <path d="m3 17 2 2 4-4" />
+  <path d="M13 6h8" />
+  <path d="M13 12h8" />
+  <path d="M13 18h8" /></svg><span>日志</span></button>
+        <div class="pixmax-settings-divider" role="separator"></div>
+        <button id="smartBackupToggle" class="smart-backup-toggle" type="button" onclick="showSmartCanvasBackups()" title="备份" aria-label="备份"><svg class="studio-icon" data-canvas-chrome-icon="hard-drive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" x2="2" y1="12" y2="12" />
+  <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+  <line x1="6" x2="6.01" y1="16" y2="16" />
+  <line x1="10" x2="10.01" y1="16" y2="16" /></svg><span>备份</span></button>
+        <button id="retiredAssetToggle" class="asset-toggle" type="button"><svg class="studio-icon" data-canvas-chrome-icon="archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="5" x="2" y="3" rx="1" />
+  <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+  <path d="M10 12h4" /></svg><span>资产库</span></button>
+        <div class="pixmax-settings-divider" role="separator"></div>
         </div>
         <div class="smart-top-tools pixmax-bottom-controls" role="toolbar" aria-label="视图工具">
             <div class="pixmax-control-group">
-                <button type="button" class="active" data-pixmax-mode onclick="setPixmaxCanvasTool('preview')" aria-label="切换预览模式" aria-pressed="false" title="选择模式"><i data-lucide="mouse-pointer-2"></i></button>
-                <button type="button" onclick="document.getElementById('minimap').hidden=!document.getElementById('minimap').hidden" aria-label="切换缩略图" title="切换缩略图"><i data-lucide="map"></i></button>
-                <button type="button" onclick="this.classList.toggle('active');pixmaxSnapToGrid=this.classList.contains('active')" aria-label="吸附网格" title="吸附网格"><i data-lucide="magnet"></i></button>
-                <button type="button" onclick="tidyPixmaxCanvas()" aria-label="整理画布" title="整理画布"><i data-lucide="scan"></i></button>
+                <button type="button" class="active" data-pixmax-mode onclick="setPixmaxCanvasTool('preview')" aria-label="切换预览模式" aria-pressed="false" title="选择模式"><svg class="studio-icon" data-canvas-chrome-icon="mouse-pointer-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z" /></svg></button>
+                <button type="button" onclick="document.getElementById('minimap').hidden=!document.getElementById('minimap').hidden" aria-label="切换缩略图" title="切换缩略图"><svg class="studio-icon" data-canvas-chrome-icon="map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" />
+  <path d="M15 5.764v15" />
+  <path d="M9 3.236v15" /></svg></button>
+                <button type="button" onclick="this.classList.toggle('active');pixmaxSnapToGrid=this.classList.contains('active')" aria-label="吸附网格" title="吸附网格"><svg class="studio-icon" data-canvas-chrome-icon="magnet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15" />
+  <path d="m5 8 4 4" />
+  <path d="m12 15 4 4" /></svg></button>
+                <button type="button" onclick="tidyPixmaxCanvas()" aria-label="整理画布" title="整理画布"><svg class="studio-icon" data-canvas-chrome-icon="panels-top-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" />
+  <path d="M3 9h18" />
+  <path d="M9 21V9" /></svg></button>
                 <span class="separator"></span>
-                <button type="button" onclick="zoomPixmaxCanvas(1/1.2)" aria-label="缩小"><i data-lucide="minus"></i></button>
+                <button type="button" onclick="zoomPixmaxCanvas(1/1.2)" aria-label="缩小"><svg class="studio-icon" data-canvas-chrome-icon="minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /></svg></button>
                 <span id="pixmaxZoomLabel" class="pixmax-zoom-label">100%</span>
-                <button type="button" onclick="zoomPixmaxCanvas(1.2)" aria-label="放大"><i data-lucide="plus"></i></button>
+                <button type="button" onclick="zoomPixmaxCanvas(1.2)" aria-label="放大"><svg class="studio-icon" data-canvas-chrome-icon="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" />
+  <path d="M12 5v14" /></svg></button>
             </div>
             <div class="pixmax-control-group">
-                <button type="button" onclick="performUndo()" aria-label="撤销" title="撤销"><i data-lucide="undo-2"></i></button>
-                <button type="button" onclick="redoSmartCanvas()" aria-label="重做" title="重做"><i data-lucide="redo-2"></i></button>
-                <button type="button" onclick="openPixmaxPins()" aria-label="pin汇总" title="pin汇总"><i data-lucide="pin"></i></button>
-                <button type="button" data-pin-picker onclick="PixmaxTags.openPicker(selectedNodeIds(),this)" aria-label="选中节点标签" title="选中节点标签"><i data-lucide="tag"></i></button>
-                <button type="button" onclick="openPixmaxAssistant()" aria-label="打开创作助手" title="打开创作助手"><i data-lucide="sparkles"></i></button>
+                <button type="button" onclick="performUndo()" aria-label="撤销" title="撤销"><svg class="studio-icon" data-canvas-chrome-icon="undo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" />
+  <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></svg></button>
+                <button type="button" onclick="redoSmartCanvas()" aria-label="重做" title="重做"><svg class="studio-icon" data-canvas-chrome-icon="redo-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5" />
+  <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" /></svg></button>
+                <button type="button" onclick="openPixmaxPins()" aria-label="pin汇总" title="pin汇总"><svg class="studio-icon" data-canvas-chrome-icon="pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5" />
+  <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></svg></button>
+                <button type="button" data-pin-picker onclick="PixmaxTags.openPicker(selectedNodeIds(),this)" aria-label="选中节点标签" title="选中节点标签"><svg class="studio-icon" data-canvas-chrome-icon="tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+  <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>
+                <button type="button" onclick="openPixmaxAssistant()" aria-label="打开创作助手" title="打开创作助手"><svg class="studio-icon" data-canvas-chrome-icon="sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+  <path d="M20 3v4" />
+  <path d="M22 5h-4" />
+  <path d="M4 17v2" />
+  <path d="M5 18H3" /></svg></button>
             </div>
         </div>
         <aside id="smartWorkflowTransferModal" class="workflow-transfer-panel">
@@ -268,8 +328,17 @@
         <div id="smartShortcutModal" class="shortcut-modal" onclick="closeSmartCanvasShortcuts()">
             <div class="shortcut-panel" onclick="event.stopPropagation()">
                 <div class="shortcut-head">
-                    <div class="shortcut-title"><i data-lucide="keyboard"></i><span>快捷键</span></div>
-                    <button class="preview-icon-btn" type="button" onclick="closeSmartCanvasShortcuts()" title="关闭"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    <div class="shortcut-title"><svg class="studio-icon" data-canvas-chrome-icon="keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 8h.01" />
+  <path d="M12 12h.01" />
+  <path d="M14 8h.01" />
+  <path d="M16 12h.01" />
+  <path d="M18 8h.01" />
+  <path d="M6 8h.01" />
+  <path d="M7 16h10" />
+  <path d="M8 12h.01" />
+  <rect width="20" height="16" x="2" y="4" rx="2" /></svg><span>快捷键</span></div>
+                    <button class="preview-icon-btn" type="button" onclick="closeSmartCanvasShortcuts()" title="关闭"><svg class="studio-icon" data-canvas-chrome-icon="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" />
+  <path d="m6 6 12 12" /></svg></button>
                 </div>
                 <div class="shortcut-list">
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd></span><span>按住并拖拽框选节点</span></div>

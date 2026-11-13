@@ -1,3 +1,4 @@
+@import url('/static/css/studio-surface-palette.css');
 /* Canvas structure follows the supplied Pixmax runtime. Original component
    styles and SVG paths are loaded from static/vendor/pixmax. */
 
@@ -733,98 +734,58 @@ body.studio-smart-canvas .pixmax-logo-bar .smart-title { max-width:200px; }
 }
 
 .pixmax-rail {
-  position: absolute;
-  z-index: 56;
-  top: 50%;
-  left: 28px;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid #313136;
-  border-radius: 12px;
-  background: #141416;
+  position:absolute;z-index:56;top:50%;left:28px;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:16px;
+  background:rgb(18 18 21 / .9);border:1px solid var(--studio-control-border);
+  backdrop-filter:blur(24px);box-shadow:0 12px 32px rgb(0 0 0 / .65);
 }
 
 .pixmax-rail button {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: transparent;
-  color: #aeb6c5;
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;padding:0;
+  border:1px solid transparent;border-radius:12px;background:transparent;color:var(--studio-neutral-muted);
+  transition:background .15s,color .15s;
 }
 
 .pixmax-rail button:hover {
-  background: #282a2f;
-  color: #fafafa;
+  background:rgb(255 255 255 / .06);color:var(--studio-neutral-text);transform:none;
 }
 
 .pixmax-rail button.primary {
-  background: #fafafa;
-  color: #000;
+  background:var(--studio-primary-color);color:var(--studio-primary-ink);
 }
 
 .pixmax-rail svg {
-  width: 20px;
-  height: 20px;
+  width:18px;height:18px;stroke-width:1.75;
 }
 
 .pixmax-rail hr {
-  height: 1px;
-  width: 32px;
-  background: #313136;
-  margin: 4px auto;
-  border: 0;
+  height:1px;width:26px;background:var(--studio-divider);margin:4px auto;border:0;
 }
 
 .pixmax-settings-menu {
-  display: none;
-  position: absolute;
-  left: 92px;
-  top: 50%;
-  z-index: 80;
-  transform: translateY(-50%);
-  width: 210px;
-  padding: 8px;
-  background: #141416;
-  border: 1px solid #313136;
-  border-radius: 12px;
+  display:none;position:absolute;left:92px;top:50%;z-index:80;transform:translateY(-50%);
+  width:210px;min-width:180px;padding:6px;background:rgb(20 20 24 / .95);
+  border:1px solid var(--studio-control-border);border-radius:12px;
+  backdrop-filter:blur(24px);box-shadow:0 20px 50px rgb(0 0 0 / .65);
 }
 
 .pixmax-settings-menu.open {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  display:flex;flex-direction:column;gap:0;
 }
 
 .pixmax-settings-menu button {
-  position: static;
-  width: 100%;
-  height: 36px;
-  border: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  padding: 0 12px;
-  border-radius: 6px;
-  background: transparent;
-  color: #aeb6c5;
-  box-shadow: none;
-  font-size: 13px;
+  position:static;width:100%;height:32px;min-height:32px;border:0;display:flex;
+  align-items:center;justify-content:flex-start;gap:10px;padding:0 10px;border-radius:8px;
+  background:transparent;color:var(--studio-neutral-muted);box-shadow:none;
+  font-size:12px;font-weight:500;transform:none;transition:background .15s,color .15s;
 }
 
 .pixmax-settings-menu button:hover {
-  background: #282a2f;
+  background:rgb(255 255 255 / .07);color:var(--studio-neutral-text);transform:none;
 }
 
 .pixmax-settings-menu svg {
-  width: 16px;
-  height: 16px;
+  width:15px;height:15px;stroke-width:1.75;color:var(--studio-neutral-muted);
 }
 
 .pixmax-bottom-controls {
@@ -862,51 +823,39 @@ body.studio-smart-canvas .pixmax-logo-bar .smart-title { max-width:200px; }
 body:has(.pixmax-generation-controls) [data-combo-selector-panel]{z-index:100150!important;max-height:min(650px,calc(100vh - 24px));overflow:auto}
 
 .pixmax-control-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 4px 8px;
-  background: #141416;
-  border: 1px solid #313136;
-  border-radius: 12px;
+  display:flex;align-items:center;gap:4px;height:42px;padding:4px;
+  background:rgb(18 18 21 / .9);border:1px solid var(--studio-control-border);border-radius:12px;
+  backdrop-filter:blur(24px);box-shadow:0 12px 32px rgb(0 0 0 / .65);
 }
 
 .pixmax-control-group button {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #aeb6c5;
+  width:32px;height:32px;flex:none;padding:0;border:1px solid transparent;border-radius:8px;
+  background:transparent;display:flex;align-items:center;justify-content:center;color:var(--studio-neutral-muted);
 }
 
-.pixmax-control-group button:hover,.pixmax-control-group button.active {
-  background: #282a2f;
-  color: #fafafa;
+.pixmax-control-group button:hover {
+  background:rgb(255 255 255 / .06);color:var(--studio-neutral-text);
 }
 
 .pixmax-control-group svg {
-  width: 18px;
-  height: 18px;
+  width:16px;height:16px;stroke-width:1.75;
 }
 
 .pixmax-control-group .separator {
-  width: 1px;
-  height: 20px;
-  background: #313136;
-  margin: 0 6px;
+  width:1px;height:18px;background:var(--studio-divider);margin:0 3px;
 }
 
 .pixmax-zoom-label {
-  padding: 0 4px;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  min-width: 44px;
-  text-align: center;
+  padding:0 6px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;min-width:44px;text-align:center;color:var(--studio-neutral-secondary);
 }
+
+body.studio-smart-canvas :is(.pixmax-rail,.pixmax-control-group) button.active {
+  background:var(--studio-selection-color);color:var(--studio-neutral-text);border-color:rgb(255 255 255 / .1);box-shadow:inset 0 1px 3px rgb(0 0 0 / .12);
+}
+.pixmax-settings-divider {height:1px;flex:none;background:var(--studio-divider);margin:4px}
+.pixmax-settings-menu button span {display:inline}
+.pixmax-settings-menu button.active {background:var(--studio-selection-color);color:var(--studio-neutral-text)}
+
 
 .smart-minimap {
   position: absolute;

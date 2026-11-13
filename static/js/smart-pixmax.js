@@ -250,9 +250,6 @@ document.querySelectorAll('#createMenu .create-card').forEach(button=>{
 });
 for(const [selector,kinds] of [
     ['.pixmax-topbar>button',['cloud','external','share','bell']],
-    ['.pixmax-rail>button',['add','upload','assets','history','more']],
-    ['.pixmax-bottom-controls .pixmax-control-group:first-child>button',['pointer','map','magnet','fit','minus','plus']],
-    ['.pixmax-bottom-controls .pixmax-control-group:last-child>button',['undo','redo']]
 ])document.querySelectorAll(selector).forEach((button,index)=>{
     const icon=button.querySelector('i,svg'),svg=pixmaxSvg('tool-'+kinds[index]);if(icon&&svg)icon.outerHTML=svg;
 });
@@ -267,12 +264,14 @@ function zoomPixmaxCanvas(factor){
     viewport.scale=Math.min(2,Math.max(.1,safeScale(viewport.scale*factor)));viewport.x=cx-x*viewport.scale;viewport.y=cy-y*viewport.scale;
     applyViewport();
 }
+// Lucide 0.468.0; static/vendor/licenses/lucide-0.468.0-LICENSE.
+const pixmaxCanvasModeIcons={"normal": "<svg class=\"studio-icon\" data-canvas-chrome-icon=\"mouse-pointer-2\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z\" /></svg>", "preview": "<svg class=\"studio-icon\" data-canvas-chrome-icon=\"eye\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\" />\n  <circle cx=\"12\" cy=\"12\" r=\"3\" /></svg>"};
 function setPixmaxCanvasTool(tool){
     pixmaxCanvasMode=tool==='select'?'normal':tool==='pan'?'gripper':pixmaxCanvasMode==='preview'?'normal':'preview';
     shell.dataset.tool=pixmaxCanvasMode==='normal'?'select':'pan';
     shell.dataset.canvasMode=pixmaxCanvasMode;
     const button=document.querySelector('[data-pixmax-mode]');
-    if(button){button.classList.add('active');button.setAttribute('aria-pressed',String(pixmaxCanvasMode!=='normal'));button.title=pixmaxCanvasMode==='preview'?'预览模式':'选择模式';button.innerHTML=pixmaxSvg(pixmaxCanvasMode==='normal'?'tool-pointer':'tool-preview');}
+    if(button){button.classList.add('active');button.setAttribute('aria-pressed',String(pixmaxCanvasMode!=='normal'));button.title=pixmaxCanvasMode==='preview'?'预览模式':'选择模式';button.innerHTML=pixmaxCanvasModeIcons[pixmaxCanvasMode==='normal'?'normal':'preview'];}
 }
 function tidyPixmaxCanvas(){
     if(isSmartCanvasLocked())return;

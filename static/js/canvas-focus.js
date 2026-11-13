@@ -6,14 +6,14 @@
     button.type='button';button.className='tool-btn canvas-focus-toggle';
     const smart=Boolean(document.getElementById('smartWorkflowToggle'));
     if(smart) button.classList.add('smart-focus-toggle');
-    const expand='<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>';
-    const shrink='<path d="M3 8h5V3m13 5h-5V3M8 21v-5H3m13 5v-5h5"/>';
+    const expand="<path d=\"M8 3H5a2 2 0 0 0-2 2v3\" />\n  <path d=\"M21 8V5a2 2 0 0 0-2-2h-3\" />\n  <path d=\"M3 16v3a2 2 0 0 0 2 2h3\" />\n  <path d=\"M16 21h3a2 2 0 0 0 2-2v-3\" />";
+    const shrink="<path d=\"M8 3v3a2 2 0 0 1-2 2H3\" />\n  <path d=\"M21 8h-3a2 2 0 0 1-2-2V3\" />\n  <path d=\"M3 16h3a2 2 0 0 1 2 2v3\" />\n  <path d=\"M16 21v-3a2 2 0 0 1 2-2h3\" />";
     let active=false,parentDoc=null,parentWin=null;
     function update(){
         button.title=active?'退出全屏（Esc）':'全屏画布';
         button.setAttribute('aria-label',active?'退出全屏':'全屏画布');
         button.setAttribute('aria-pressed',String(active));
-        button.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(active?shrink:expand)+'</svg>';
+        button.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(active?shrink:expand)+'</svg>';
         if(host.id==='pixmaxSettingsMenu')button.insertAdjacentHTML('beforeend','<span>'+(active?'退出全屏':'全屏画布')+'</span>');
     }
     function setFocus(value){
