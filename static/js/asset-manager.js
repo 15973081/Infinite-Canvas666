@@ -400,10 +400,10 @@ function decorateManagerNavigation(){
         const key=JSON.stringify([activeTab,row.dataset]);
         const expanded=!managerViews.collapsed[key];
         const heading=document.createElement('div');
-        heading.className='manager-tree-heading';
+        heading.className='manager-tree-heading' + (branch.closest('.folder-tree') ? ' folder-tree-row' : '');
         const toggle=document.createElement('button');
         toggle.type='button'; toggle.className='manager-tree-toggle'; toggle.dataset.managerToggle=key;
-        toggle.innerHTML=`<i data-lucide="${expanded ? 'chevron-down' : 'chevron-right'}" aria-hidden="true"></i>`; toggle.setAttribute('aria-expanded',String(expanded));
+        toggle.innerHTML=branch.closest('.folder-tree') ? folderTreeIcon(expanded ? 'chevron-down' : 'chevron-right') : `<i data-lucide="${expanded ? 'chevron-down' : 'chevron-right'}" aria-hidden="true"></i>`; toggle.setAttribute('aria-expanded',String(expanded));
         toggle.setAttribute('aria-label',`${expanded ? '折叠' : '展开'}${row.textContent.trim()}`);
         branch.insertBefore(heading,row); heading.append(toggle,row);
         children.hidden=!expanded;
@@ -2029,12 +2029,12 @@ function renderAssetManager(){
             <div class="panel-head">
                 <div class="panel-title"><strong>文件夹</strong></div>
                 <div class="panel-actions compact-actions">
-                    ${assetTreeEdit?.placement === 'head' ? '' : '<button class="asset-icon-btn" type="button" data-asset-lib-new title="新建资产库"><i data-lucide="plus"></i></button>'}
-                    ${renderHeadTreeInlineEdit(assetTreeEdit, 'assetTreeEditInput', 'data-asset-tree-edit-save', 'data-asset-tree-edit-cancel')}
+                    <button class="asset-icon-btn" type="button" data-asset-lib-new title="新建资产库" aria-label="新建资产库">${folderTreeIcon('plus')}</button>
                 </div>
             </div>
             <div class="nav-scroll">
-                <div class="nav-tree asset-library-tree">
+                <div class="nav-tree asset-library-tree folder-tree">
+                    ${assetTreeEdit?.placement === 'head' ? renderAssetTreeInlineEdit() : ''}
                     ${libs.map(item => renderAssetTreeBranch(item)).join('')}
                 </div>
             </div>
@@ -2091,27 +2091,32 @@ function renderWorkflowManager(){
             <div class="panel-head">
                 <div class="panel-title"><strong>文件夹</strong></div>
                 <div class="panel-actions compact-actions">
-                    ${workflowTreeEdit?.placement === 'head' ? '' : '<button class="asset-icon-btn" type="button" data-workflow-cat-new title="新建工作流分组"><i data-lucide="folder-plus"></i></button>'}
-                    ${renderHeadTreeInlineEdit(workflowTreeEdit, 'workflowTreeEditInput', 'data-workflow-tree-edit-save', 'data-workflow-tree-edit-cancel')}
+                    <button class="asset-icon-btn" type="button" data-workflow-cat-new title="新建工作流分组" aria-label="新建工作流分组">${folderTreeIcon('plus')}</button>
                 </div>
             </div>
             <div class="nav-scroll">
-                <div class="nav-tree">
+                <div class="nav-tree folder-tree">
+                    ${workflowTreeEdit?.placement === 'head' ? renderWorkflowTreeInlineEdit() : ''}
                     <div class="tree-branch expanded">
                         <button class="tree-row tree-parent contains-active" type="button" data-workflow-root>
-                            <span class="tree-row-icon"><i data-lucide="folder-open"></i></span>
+                            <span class="tree-row-icon">${folderTreeIcon('folder-open')}</span>
                             <span class="tree-row-name">工作流库</span>
                             <span class="tree-row-count">${workflowCount()}</span>
                         </button>
                         <div class="tree-children">
-                            ${cats.length ? cats.map(c => {
+                            ${cats.map(c => {
                                 const active = c.id === activeWorkflowCategoryId && c.__libraryId === activeWorkflowLibraryId;
-                                return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-workflow-cat="${escapeAttr(c.id)}" data-workflow-cat-lib="${escapeAttr(c.__libraryId || '')}" ${active ? 'aria-current="true"' : ''}>
-                                <span class="tree-row-icon"><i data-lucide="folder"></i></span>
-                                <span class="tree-row-name" title="${escapeAttr(c.name || '工作流')}">${escapeHtml(c.name || '工作流')}</span>
-                                <span class="tree-row-count">${(c.items || []).length}</span>
-                            </button>${active ? renderWorkflowTreeActionBar() : ''}`;
-                            }).join('') : '<div class="tree-empty">暂无工作流分组</div>'}
+                                if(active && workflowTreeEdit?.kind === 'category-rename') return renderWorkflowTreeInlineEdit();
+                                return `<div class="folder-tree-row ${active ? 'is-current' : ''}">
+                                    <button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-workflow-cat="${escapeAttr(c.id)}" data-workflow-cat-lib="${escapeAttr(c.__libraryId || '')}" ${active ? 'aria-current="true"' : ''}>
+                                        <span class="tree-row-icon">${folderTreeIcon('folder')}</span>
+                                        <span class="tree-row-name" title="${escapeAttr(c.name || '工作流')}">${escapeHtml(c.name || '工作流')}</span>
+                                        <span class="tree-row-count">${(c.items || []).length}</span>
+                                    </button>
+                                    ${renderWorkflowTreeActionBar(c)}
+                                </div>`;
+                            }).join('')}
+                            ${cats.length ? '' : '<div class="tree-empty">暂无工作流分组</div>'}
                         </div>
                     </div>
                 </div>
@@ -2156,24 +2161,16 @@ function renderWorkflowUploadCard(cat){
         </span>
     </button>`;
 }
-function renderWorkflowTreeActionBar(){
-    const editHtml = renderWorkflowTreeInlineEdit();
-    if(editHtml) return editHtml;
-    const deleteKey = `workflow-cat:${activeWorkflowLibraryId}:${activeWorkflowCategoryId}`;
-    return `<div class="tree-action-bar child-actions">
-        <button type="button" data-workflow-cat-rename><i data-lucide="pencil"></i><span>重命名</span></button>
-        <button type="button" class="danger ${pendingTreeDelete === deleteKey ? 'detail-confirm' : ''}" data-workflow-cat-delete><i data-lucide="trash-2"></i><span>${pendingTreeDelete === deleteKey ? '确认删除' : '删除'}</span></button>
+function renderWorkflowTreeActionBar(cat){
+    const confirm = pendingTreeDelete === `workflow-cat:${cat.__libraryId}:${cat.id}`;
+    return `<div class="folder-tree-actions" data-tree-workflow="${escapeAttr(cat.id)}" data-tree-library="${escapeAttr(cat.__libraryId)}">
+        <button type="button" data-workflow-cat-new aria-label="新建工作流分组" title="新建工作流分组">${folderTreeIcon('folder-plus')}</button>
+        <button type="button" data-workflow-cat-rename aria-label="重命名" title="重命名">${folderTreeIcon('pencil')}</button>
+        <button type="button" class="danger ${confirm ? 'detail-confirm' : ''}" data-workflow-cat-delete aria-label="${confirm ? '确认删除' : '删除'}" title="${confirm ? '再次点击确认删除' : '删除'}">${folderTreeIcon(confirm ? 'check' : 'trash-2')}</button>
     </div>`;
 }
 function renderWorkflowTreeInlineEdit(){
-    if(!workflowTreeEdit || workflowTreeEdit.placement === 'head') return '';
-    if(workflowTreeEdit.kind !== 'category-rename') return '';
-    const label = workflowTreeEdit.label || '名称';
-    return `<div class="tree-inline-edit child-actions">
-        <input id="workflowTreeEditInput" type="text" value="${escapeAttr(workflowTreeEdit.value || '')}" placeholder="${escapeAttr(label)}">
-        <button type="button" class="primary" data-workflow-tree-edit-save><i data-lucide="check"></i><span>保存</span></button>
-        <button type="button" data-workflow-tree-edit-cancel><i data-lucide="x"></i><span>取消</span></button>
-    </div>`;
+    return renderFolderTreeEditor(workflowTreeEdit, 'workflowTreeEditInput', 'data-workflow-tree-edit-save', 'data-workflow-tree-edit-cancel');
 }
 function renderWorkflowCard(item){
     return `<article class="asset-card workflow-card ${item.id === selectedWorkflowId ? 'active' : ''}" data-workflow-card="${escapeAttr(item.id)}">
@@ -2224,65 +2221,79 @@ function renderAssetClipboardBar(){
         </div>
     </div>`;
 }
+// Lucide 0.468.0; see static/vendor/licenses/lucide-0.468.0-LICENSE.
+const folderTreeIcons = {
+    "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" />",
+    "folder-open": "<path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\" />",
+    "folder-plus": "<path d=\"M12 10v6\" />\n  <path d=\"M9 13h6\" />\n  <path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" />",
+    "pencil": "<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" />\n  <path d=\"m15 5 4 4\" />",
+    "trash-2": "<path d=\"M3 6h18\" />\n  <path d=\"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6\" />\n  <path d=\"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2\" />\n  <line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\" />\n  <line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\" />",
+    "check": "<path d=\"M20 6 9 17l-5-5\" />",
+    "x": "<path d=\"M18 6 6 18\" />\n  <path d=\"m6 6 12 12\" />",
+    "chevron-down": "<path d=\"m6 9 6 6 6-6\" />",
+    "chevron-right": "<path d=\"m9 18 6-6-6-6\" />",
+    "plus": "<path d=\"M5 12h14\" />\n  <path d=\"M12 5v14\" />"
+};
+function folderTreeIcon(name){
+    return `<svg class="folder-tree-icon" data-tree-icon="${name}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${folderTreeIcons[name]}</svg>`;
+}
+function renderFolderTreeEditor(edit, inputId, saveAttr, cancelAttr){
+    return `<div class="folder-tree-editor">
+        ${folderTreeIcon('folder')}
+        <input id="${inputId}" type="text" value="${escapeAttr(edit.value || '')}" aria-label="${escapeAttr(edit.label || '名称')}" placeholder="${escapeAttr(edit.label || '名称')}">
+        <button type="button" ${saveAttr} aria-label="保存" title="保存（Enter）">${folderTreeIcon('check')}</button>
+        <button type="button" ${cancelAttr} aria-label="取消" title="取消（Escape）">${folderTreeIcon('x')}</button>
+    </div>`;
+}
+function renderAssetTreeInlineEdit(){
+    return renderFolderTreeEditor(assetTreeEdit, 'assetTreeEditInput', 'data-asset-tree-edit-save', 'data-asset-tree-edit-cancel');
+}
 function renderAssetTreeBranch(lib){
     const isActiveLib = lib.id === activeAssetLibraryId;
-    const isExpanded = !collapsedAssetLibraryIds.has(lib.id);
+    const editing = isActiveLib && assetTreeEdit && assetTreeEdit.placement !== 'head';
+    const isExpanded = !collapsedAssetLibraryIds.has(lib.id) || !!editing;
     const libraryName = lib.name || '资产库';
     const cats = (lib.categories || []).filter(cat => (cat.type || 'image') === 'image');
     const isCurrent = isActiveLib && (assetTreeFocus === 'library' || !isExpanded);
+    const newCategory = editing && assetTreeEdit.kind === 'category-new';
+    const insertAfterCategory = newCategory && assetTreeFocus === 'category' && cats.some(cat => cat.id === activeAssetCategoryId);
     return `<div class="tree-branch ${isExpanded ? 'expanded' : ''}">
-        <div class="manager-tree-heading">
-            <button class="manager-tree-toggle" type="button" data-asset-lib-toggle="${escapeAttr(lib.id)}" aria-expanded="${isExpanded}" aria-label="${isExpanded ? '折叠' : '展开'}${escapeAttr(libraryName)}">
-                <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" aria-hidden="true"></i>
-            </button>
-            <button class="tree-row tree-parent ${isActiveLib ? 'contains-active' : ''} ${isCurrent ? 'active' : ''}" type="button" data-asset-lib="${escapeAttr(lib.id)}" ${isCurrent ? 'aria-current="true"' : ''}>
-                <span class="tree-row-icon"><i data-lucide="${isExpanded ? 'folder-open' : 'folder'}"></i></span>
+        ${editing && assetTreeEdit.kind === 'library-rename' ? renderAssetTreeInlineEdit() : `
+        <div class="manager-tree-heading folder-tree-row ${isCurrent ? 'is-current' : ''}">
+            <button class="manager-tree-toggle" type="button" data-asset-lib-toggle="${escapeAttr(lib.id)}" aria-expanded="${isExpanded}" aria-label="${isExpanded ? '折叠' : '展开'}${escapeAttr(libraryName)}">${folderTreeIcon(isExpanded ? 'chevron-down' : 'chevron-right')}</button>
+            <button class="tree-row tree-parent ${isCurrent ? 'active' : ''}" type="button" data-asset-lib="${escapeAttr(lib.id)}" ${isCurrent ? 'aria-current="true"' : ''}>
+                <span class="tree-row-icon">${folderTreeIcon(isExpanded ? 'folder-open' : 'folder')}</span>
                 <span class="tree-row-name" title="${escapeAttr(libraryName)}">${escapeHtml(libraryName)}</span>
                 <span class="tree-row-count">${assetCountForLibrary(lib)}</span>
             </button>
-        </div>
-        ${isCurrent && isExpanded ? renderAssetTreeActionBar('library') : ''}
+            ${renderAssetTreeActionBar('library', lib.id)}
+        </div>`}
         <div class="tree-children">
-            ${cats.length ? cats.map(cat => {
+            ${newCategory && !insertAfterCategory ? renderAssetTreeInlineEdit() : ''}
+            ${cats.map(cat => {
                 const active = isActiveLib && cat.id === activeAssetCategoryId && assetTreeFocus === 'category';
-                return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-asset-cat="${escapeAttr(cat.id)}" data-asset-cat-lib="${escapeAttr(lib.id)}" ${active ? 'aria-current="true"' : ''}>
-                <span class="tree-row-icon"><i data-lucide="folder"></i></span>
-                <span class="tree-row-name" title="${escapeAttr(cat.name || '分组')}">${escapeHtml(cat.name || '分组')}</span>
-                <span class="tree-row-count">${(cat.items || []).length}</span>
-            </button>${active ? renderAssetTreeActionBar('category') : ''}`;
-            }).join('') : '<div class="tree-empty">暂无分组</div>'}
+                const rename = active && editing && assetTreeEdit.kind === 'category-rename';
+                return `${rename ? renderAssetTreeInlineEdit() : `<div class="folder-tree-row ${active ? 'is-current' : ''}">
+                    <button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-asset-cat="${escapeAttr(cat.id)}" data-asset-cat-lib="${escapeAttr(lib.id)}" ${active ? 'aria-current="true"' : ''}>
+                        <span class="tree-row-icon">${folderTreeIcon('folder')}</span>
+                        <span class="tree-row-name" title="${escapeAttr(cat.name || '分组')}">${escapeHtml(cat.name || '分组')}</span>
+                        <span class="tree-row-count">${(cat.items || []).length}</span>
+                    </button>
+                    ${renderAssetTreeActionBar('category', lib.id, cat.id)}
+                </div>`}${insertAfterCategory && active ? renderAssetTreeInlineEdit() : ''}`;
+            }).join('')}
+            ${!cats.length && !newCategory ? '<div class="tree-empty">暂无分组</div>' : ''}
         </div>
     </div>`;
 }
-function renderAssetTreeActionBar(kind){
-    const editHtml = renderAssetTreeInlineEdit(kind);
-    if(editHtml) return editHtml;
-    const deleteKey = kind === 'library' ? `asset-lib:${activeAssetLibraryId}` : `asset-cat:${activeAssetCategoryId}`;
-    if(kind === 'library'){
-        return `<div class="tree-action-bar library-actions">
-            <button type="button" data-asset-cat-new><i data-lucide="folder-plus"></i><span>新分组</span></button>
-            <button type="button" data-asset-lib-rename><i data-lucide="pencil"></i><span>重命名</span></button>
-            <button type="button" class="danger ${pendingTreeDelete === deleteKey ? 'detail-confirm' : ''}" data-asset-lib-delete><i data-lucide="trash-2"></i><span>${pendingTreeDelete === deleteKey ? '确认删除' : '删除库'}</span></button>
-        </div>`;
-    }
-    return `<div class="tree-action-bar child-actions">
-        <button type="button" data-asset-cat-new><i data-lucide="folder-plus"></i><span>新分组</span></button>
-        <button type="button" data-asset-cat-rename><i data-lucide="pencil"></i><span>重命名</span></button>
-        <button type="button" class="danger ${pendingTreeDelete === deleteKey ? 'detail-confirm' : ''}" data-asset-cat-delete><i data-lucide="trash-2"></i><span>${pendingTreeDelete === deleteKey ? '确认删除' : '删除'}</span></button>
-    </div>`;
-}
-function renderAssetTreeInlineEdit(kind){
-    if(!assetTreeEdit) return '';
-    if(assetTreeEdit.placement === 'head') return '';
-    const expectedKinds = kind === 'library'
-        ? ['library-new', 'library-rename', 'category-new']
-        : ['category-new', 'category-rename'];
-    if(!expectedKinds.includes(assetTreeEdit.kind)) return '';
-    const label = assetTreeEdit.label || '名称';
-    return `<div class="tree-inline-edit ${kind === 'category' ? 'child-actions' : 'library-actions'}">
-        <input id="assetTreeEditInput" type="text" value="${escapeAttr(assetTreeEdit.value || '')}" placeholder="${escapeAttr(label)}">
-        <button type="button" class="primary" data-asset-tree-edit-save><i data-lucide="check"></i><span>保存</span></button>
-        <button type="button" data-asset-tree-edit-cancel><i data-lucide="x"></i><span>取消</span></button>
+function renderAssetTreeActionBar(kind, libraryId, categoryId = ''){
+    const library = kind === 'library';
+    const deleteKey = library ? `asset-lib:${libraryId}` : `asset-cat:${categoryId}`;
+    const confirm = pendingTreeDelete === deleteKey;
+    return `<div class="folder-tree-actions" data-tree-library="${escapeAttr(libraryId)}" data-tree-category="${escapeAttr(categoryId)}">
+        <button type="button" data-asset-cat-new aria-label="新建分组" title="${library ? '新建子分组' : '在此资产库中新建分组'}">${folderTreeIcon('folder-plus')}</button>
+        <button type="button" ${library ? 'data-asset-lib-rename' : 'data-asset-cat-rename'} aria-label="重命名" title="重命名">${folderTreeIcon('pencil')}</button>
+        <button type="button" class="danger ${confirm ? 'detail-confirm' : ''}" ${library ? 'data-asset-lib-delete' : 'data-asset-cat-delete'} aria-label="${confirm ? '确认删除' : '删除'}" title="${confirm ? '再次点击确认删除' : '删除'}">${folderTreeIcon(confirm ? 'check' : 'trash-2')}</button>
     </div>`;
 }
 function renderAssetCard(item){
@@ -3045,6 +3056,17 @@ async function handleClick(event){
         return;
     }
     const target = event.target;
+    const treeAction = target.closest?.('.folder-tree-actions');
+    if(treeAction && target.closest('button')){
+        if(treeAction.dataset.treeWorkflow){
+            activeWorkflowLibraryId = treeAction.dataset.treeLibrary;
+            activeWorkflowCategoryId = treeAction.dataset.treeWorkflow;
+        }else{
+            activeAssetLibraryId = treeAction.dataset.treeLibrary;
+            if(treeAction.dataset.treeCategory) activeAssetCategoryId = treeAction.dataset.treeCategory;
+            assetTreeFocus = treeAction.dataset.treeCategory ? 'category' : 'library';
+        }
+    }
     if(target.closest?.('[data-manager-retry]')){ await switchManagerTab(activeTab); return; }
     if(target.closest?.('[data-manager-cancel-delete]')){ cancelManagerDelete();setStatus('已取消删除');return; }
     if(target.closest?.('[data-manager-clear-search]')){

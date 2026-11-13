@@ -90,18 +90,57 @@ body.studio-library .content-scroll:has(.empty-state) .upload-thumb svg {width:1
 body.studio-library .content-scroll:has(.empty-state) .upload-body {padding:0;min-height:0}
 body.studio-library .content-scroll:has(.empty-state) .upload-body strong {font-size:12px;font-weight:500}
 body.studio-library .content-scroll:has(.empty-state) .upload-body small {display:none}
-body.studio-library .asset-directory :is(.tree-row,.manager-tree-heading):has(+.tree-action-bar) {padding-right:76px}
-body.studio-library .asset-directory .tree-action-bar {
-    position:relative;z-index:1;align-self:flex-end;flex:none;flex-wrap:nowrap;height:32px;
-    margin:-34px 4px 0 auto;gap:2px;padding:0;background:var(--studio-panel);border:0;opacity:0;pointer-events:none;
+/* Folder rows own their count/actions slot; editors stay inside the tree. */
+body.studio-library .asset-directory .panel-title {min-width:0;flex:1}
+body.studio-library .asset-directory .panel-title strong {white-space:nowrap;overflow:visible;text-overflow:clip}
+body.studio-library .asset-directory .panel-actions {flex:none}
+body.studio-library .folder-tree .folder-tree-row,
+body.studio-library .folder-tree .folder-tree-editor {
+    box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;min-width:0;height:32px;
+    margin:0;padding:0 8px;border:1px solid transparent;border-radius:var(--studio-radius-control);
 }
-body.studio-library .asset-directory .tree-action-bar:is(.child-actions,.library-actions) {margin-inline-start:auto}
-body.studio-library .asset-directory :is(.tree-row,.manager-tree-heading):hover+.tree-action-bar,
-body.studio-library .asset-directory .tree-action-bar:is(:hover,:focus-within,:has(.detail-confirm)) {opacity:1;pointer-events:auto}
-body.studio-library .asset-directory .tree-action-bar button {height:28px;width:22px;padding:4px;border-radius:6px;font-size:12px}
-body.studio-library .asset-directory .tree-action-bar button svg {display:block;width:14px;height:14px}
-body.studio-library .asset-directory .tree-action-bar button:not(.detail-confirm)>span {position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-body.studio-library .asset-directory .tree-action-bar button.detail-confirm {width:auto;padding-inline:6px;background:#27272a}
+body.studio-library .folder-tree .folder-tree-row {background:transparent;color:var(--studio-text-muted);transition:background .15s,border-color .15s}
+body.studio-library .folder-tree .folder-tree-row:hover {background:rgb(255 255 255 / .05);color:var(--studio-text)}
+body.studio-library .folder-tree .folder-tree-row.is-current {background:var(--studio-hover-color);border-color:var(--studio-border);color:var(--studio-neutral-text)}
+body.studio-library .folder-tree .tree-row {
+    display:flex;align-items:center;gap:6px;flex:1;min-width:0;width:auto;height:30px;min-height:0;
+    padding:0;border:0;border-radius:0;background:transparent;color:inherit;box-shadow:none;
+}
+body.studio-library .folder-tree .tree-row::before {display:none}
+body.studio-library .folder-tree .tree-row-name {flex:1;min-width:0;margin:0;font-size:12px;text-align:left}
+body.studio-library .folder-tree .tree-row-icon {display:flex;flex:0 0 15px;width:15px;color:var(--studio-text-muted)}
+body.studio-library .folder-tree-icon {display:block;flex:none;width:15px;height:15px}
+body.studio-library .folder-tree .tree-row-count {flex:none;padding:0;min-width:0;background:transparent;color:var(--studio-text-faint);font-size:12px}
+body.studio-library .folder-tree .manager-tree-toggle {flex:0 0 15px;width:15px;height:24px;padding:0;display:grid;place-items:center;background:transparent;border:0}
+body.studio-library .folder-tree .tree-children {display:flex;flex-direction:column;gap:2px;margin:2px 0 2px 14px;padding:0 0 0 8px;border-left:1px solid var(--studio-border)}
+body.studio-library .folder-tree .tree-children[hidden],
+body.studio-library .folder-tree.asset-library-tree .tree-branch:not(.expanded)>.tree-children {display:none}
+body.studio-library .folder-tree .folder-tree-actions {display:none;flex:none;align-items:center;gap:2px;margin:0;padding:0;background:transparent;border:0}
+body.studio-library .folder-tree .folder-tree-row:is(:hover,:focus-within,:has(.detail-confirm)) .folder-tree-actions {display:flex}
+body.studio-library .folder-tree .folder-tree-row:has(.folder-tree-actions):is(:hover,:focus-within,:has(.detail-confirm)) .tree-row-count {display:none}
+body.studio-library .folder-tree .folder-tree-actions button,
+body.studio-library .folder-tree .folder-tree-editor button {
+    display:grid;place-items:center;flex:none;width:24px;height:24px;min-height:0;padding:0;
+    border:0;border-radius:6px;background:transparent;color:var(--studio-text-muted);box-shadow:none;cursor:pointer;
+}
+body.studio-library .folder-tree .folder-tree-actions button:hover,
+body.studio-library .folder-tree .folder-tree-editor button:hover {background:rgb(255 255 255 / .08);color:var(--studio-neutral-text)}
+body.studio-library .folder-tree .folder-tree-actions button:is(.danger:hover,.detail-confirm) {background:rgb(248 113 113 / .1);color:var(--studio-danger-color)}
+body.studio-library .folder-tree .folder-tree-editor {background:var(--studio-hover-color);border-color:rgb(255 255 255 / .18);color:var(--studio-text-muted)}
+body.studio-library .folder-tree>.folder-tree-editor,
+body.studio-library .folder-tree>.tree-branch>.folder-tree-editor {padding-left:29px}
+body.studio-library .folder-tree .folder-tree-editor input {
+    flex:1;min-width:0;width:0;height:28px;min-height:0;margin:0;padding:0;border:0;border-radius:0;
+    outline:0;background:transparent;color:var(--studio-neutral-text);box-shadow:none;font-size:12px;
+}
+body.studio-library .folder-tree .folder-tree-editor input::selection {background:rgb(212 255 51 / .25);color:var(--studio-neutral-text)}
+body.studio-library .folder-tree .folder-tree-editor button {width:20px;height:20px;border-radius:4px}
+body.studio-library .folder-tree .folder-tree-editor button:first-of-type {color:var(--studio-neutral-text)}
+body.studio-library .folder-tree button:focus-visible {outline:1px solid var(--studio-border-strong);outline-offset:1px}
+@media (hover:none) {
+    body.studio-library .folder-tree .folder-tree-actions {display:flex}
+    body.studio-library .folder-tree .folder-tree-row:has(.folder-tree-actions) .tree-row-count {display:none}
+}
 
 /* The welcome mark exists only while the conversation has no messages. */
 body.studio-chat .messages:empty+.composer-wrap::before {
@@ -146,5 +185,4 @@ body.studio-online .image-records>summary span {font-size:11px;color:#71717a}
 
 @media(max-width:650px) {.skill-toolbar {align-items:stretch}.skill-toolbar nav {width:fit-content}.skill-toolbar input[type=search] {width:100%}}
 @media(max-width:640px) {html body.studio-chat .composer {padding:14px}body.studio-chat .messages:empty+.composer-wrap::before {margin-bottom:28px}html body.studio-chat .model-picker-button {max-width:100%}}
-@media(pointer:coarse) {body.studio-library .asset-directory .tree-action-bar {opacity:1;pointer-events:auto}}
 @media(prefers-reduced-motion:reduce) {body.studio-skin details>summary::before,html body.studio-chat .composer,body.studio-chat .chat-starters button,body.studio-online .image-workspace-controls .upload-item {transition:none}}

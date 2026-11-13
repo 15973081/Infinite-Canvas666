@@ -136,16 +136,16 @@ body.studio-library .asset-directory .panel-title strong {color:var(--studio-tex
 body.studio-library .asset-directory .panel-head .asset-icon-btn {width:28px;height:28px;border-color:transparent;background:transparent}
 body.studio-library .asset-directory .panel-head .asset-icon-btn:hover {background:var(--studio-surface-muted)}
 body.studio-library .asset-directory .nav-scroll {padding-top:4px}
-body.studio-library .asset-directory :is(.tree-branch,.tree-children) {gap:2px}
-body.studio-library .asset-directory .tree-children {margin-left:20px;padding:0;border:0}
-body.studio-library .asset-directory .manager-tree-toggle {
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) :is(.tree-branch,.tree-children) {gap:2px}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-children {margin-left:20px;padding:0;border:0}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .manager-tree-toggle {
     flex:0 0 var(--directory-leading-width);
     height:32px;
     border-radius:5px;
     color:var(--studio-text-muted);
 }
-body.studio-library .asset-directory .manager-tree-toggle:hover {background:var(--studio-surface-muted);color:var(--studio-text)}
-body.studio-library .asset-directory .tree-row {
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .manager-tree-toggle:hover {background:var(--studio-surface-muted);color:var(--studio-text)}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-row {
     grid-template-columns:var(--directory-leading-width) minmax(0,1fr) auto;
     min-height:32px;
     padding:4px 8px 4px var(--directory-parent-inset);
@@ -153,23 +153,23 @@ body.studio-library .asset-directory .tree-row {
     border:0;
     color:var(--studio-text-muted);
 }
-body.studio-library .asset-directory .tree-row:has(.canvas-source-status) {min-height:44px}
-body.studio-library .asset-directory .tree-child {padding-left:var(--directory-child-inset)}
-body.studio-library .asset-directory .tree-row-icon {justify-content:flex-start}
-body.studio-library .asset-directory .tree-row-name {margin-inline-end:8px;font-size:12px;font-weight:500}
-body.studio-library .asset-directory .tree-parent .tree-row-name {font-weight:600}
-body.studio-library .asset-directory .tree-row:hover {background:var(--studio-surface-soft);color:var(--studio-text)}
-body.studio-library .asset-directory .tree-row.active,
-body.studio-library .asset-directory .tree-branch:has(> .tree-children[hidden]) .tree-row.contains-active {background:var(--studio-selected);color:var(--studio-text)}
-body.studio-library .asset-directory .tree-row-count {min-width:16px;padding:0;justify-content:flex-end}
-body.studio-library .asset-directory .tree-empty {margin-left:16px}
-body.studio-library .asset-directory .tree-action-bar.library-actions {
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-row:has(.canvas-source-status) {min-height:44px}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-child {padding-left:var(--directory-child-inset)}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-row-icon {justify-content:flex-start}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-row-name {margin-inline-end:8px;font-size:12px;font-weight:500}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-parent .tree-row-name {font-weight:600}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-row:hover {background:var(--studio-surface-soft);color:var(--studio-text)}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-row.active,
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-branch:has(> .tree-children[hidden]) .tree-row.contains-active {background:var(--studio-selected);color:var(--studio-text)}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-row-count {min-width:16px;padding:0;justify-content:flex-end}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-empty {margin-left:16px}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-action-bar.library-actions {
     margin-inline-start:calc(2 * var(--directory-leading-width) + var(--directory-parent-inset));
 }
-body.studio-library .asset-directory .tree-action-bar.child-actions {
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-action-bar.child-actions {
     margin-inline-start:calc(var(--directory-leading-width) + var(--directory-child-inset));
 }
-body.studio-library .asset-directory .tree-action-bar button:first-child {padding-inline-start:0}
+body.studio-library .asset-directory:where(:not(:has(.folder-tree))) .tree-action-bar button:first-child {padding-inline-start:0}
 @media(min-width:1440px){
     body.studio-library .asset-nav .tree-action-bar {gap:8px}
 }
