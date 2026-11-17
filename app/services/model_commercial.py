@@ -114,6 +114,10 @@ def amounts(base_micros, price):
 
 def enforce(provider, kind, request):
     model=str(request.get('model') or '').strip()
+    if kind == 'video':
+        from app.services.apimart_video import is_apimart_kling
+        if is_apimart_kling(provider, model):
+            request = {**request, 'resolution': request.get('resolution') or '720p'}
     if kind+'_models' in provider and model not in provider[kind+'_models']:
         raise HTTPException(403,{'code':'model_not_available','message':'该模型未在管理员开放的模型列表中。'})
     rule=provider.get('model_policies',{}).get(kind+':'+model,{})

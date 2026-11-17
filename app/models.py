@@ -3,7 +3,7 @@
 Extracted from main.py — Phase 1 physical split, no behavior changes.
 """
 from typing import Literal, List, Dict, Any, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from fastapi import UploadFile
 
 from app.config import (
@@ -99,10 +99,10 @@ class CanvasVideoRequest(BaseModel):
     canvas_target: Optional[CanvasTaskTarget] = None
     canvas_id: str = Field(default="", max_length=96)
     client_task_id: str = Field(default="", max_length=96)
-    prompt: str = Field(min_length=1, max_length=VIDEO_PROMPT_MAX_LENGTH)
+    prompt: str = Field(default="", max_length=VIDEO_PROMPT_MAX_LENGTH)
     provider_id: str = "comfly"
     model: str = "veo3-fast"
-    duration: int = 5
+    duration: Optional[int] = 5
     aspect_ratio: str = "16:9"
     resolution: str = ""
     size: str = ""
@@ -119,8 +119,18 @@ class CanvasVideoRequest(BaseModel):
     multimodal: bool = False
     trusted_asset: bool = False
     task_mode: str = "auto"
+    audio_setting: str = ""
     draft: bool = False
     draft_source_task_id: str = Field(default="", max_length=96)
+
+    @model_validator(mode="after")
+    def video_defaults(self):
+        if self.model.strip().lower() not in {"kling-v4", "kling-v4-flash"}:
+            if not self.prompt:
+                raise ValueError("提示词不能为空。")
+            if self.duration is None:
+                self.duration = 5
+        return self
 
 
 class SmartCanvasVideoTrimRequest(BaseModel):

@@ -150,6 +150,8 @@ def price_log(log, providers=(), frozen_price=None):
         if _amount(saved.get("amount_micros")) is None:
             return {**unknown, "reason": "invalid_amount"}
         return {**info, **copy.deepcopy(saved), "amount_micros": _amount(saved["amount_micros"])}
+    if saved.get("billing_source") == "apimart_kling":
+        return {**info, **copy.deepcopy(saved)}
     provider = next((p for p in providers if p.get("id") == info["providerId"]), {})
     # Preserve legacy priced snapshots, but never turn missing Ark usage into guessed seconds.
     if info["kind"] == "video" and (info["providerId"] == "volcengine" or provider.get("protocol") == "volcengine"):
@@ -488,8 +490,16 @@ def task_billing_fields(payload, kind):
     if kind == "chat":
         request["prompt"] = data.get("message", "")
     request["has_video_input"] = bool(data.get("videos"))
+    providers = provider_list()
+    if kind == "video":
+        from app.services.apimart_video import is_apimart_kling, build_apimart_video_request
+        provider = next((p for p in providers if p.get("id") == data.get("provider_id")), {})
+        if is_apimart_kling(provider, data.get("model")):
+            body = build_apimart_video_request(provider, payload)
+            request.update(resolution=body["resolution"], duration=body.get("duration"),
+                           has_video_input=bool(data.get("videos")) and data.get("task_mode") != "extend")
     return {"canvas_id": data.get("canvas_id", ""), "billing_request": request,
-            "billing_price": historical_price(info, int(time.time() * 1000), provider_list(), request)}
+            "billing_price": historical_price(info, int(time.time() * 1000), providers, request)}
 
 
 def sync_canvas_tasks(canvas_id):

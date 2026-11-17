@@ -3,6 +3,38 @@ const assert=require('node:assert/strict');
 const {fixture}=require('./helpers/canvas-browser.cjs');
 const {execFileSync}=require('node:child_process');
 
+for(const kind of ['classic','smart'])test(`${kind} Kling controls expose supported modes and preserve edit defaults`,async t=>{
+    const {page,errors}=await fixture(t,kind,false);
+    const result=await page.evaluate(kind=>{
+        apiProviders.splice(0,apiProviders.length,{id:'kling-test',protocol:'apimart',has_key:true,enabled:true,
+            video_models:['kling-v4','kling-v4-flash'],image_models:[]});
+        const host=document.body.appendChild(document.createElement('div'));
+        if(kind==='classic'){
+            const node={id:'kling-node',type:'video',apiProvider:'kling-test',model:'kling-v4',taskMode:'edit',
+                duration:-1,resolution:'',aspectRatio:'auto',inputs:[]};
+            normalizeVideoNodeSelection(node);
+            host.replaceChildren(renderVideoBody(node));
+            const modes=[...host.querySelector('.video-task-mode').options].map(o=>o.value);
+            const duration=node.duration;
+            node.model='kling-v4-flash';node.taskMode='extend';normalizeVideoNodeSelection(node);
+            host.replaceChildren(renderVideoBody(node));
+            return {modes,duration,resolutions:[...host.querySelector('.video-resolution').options].map(o=>o.value),
+                followsInput:host.querySelector('.video-aspect').disabled,segment:host.textContent.includes('只返回新增片段')};
+        }
+        Object.assign(settings,{engine:'api',apiKind:'video',videoProvider:'kling-test',videoModel:'kling-v4',
+            videoTaskMode:'edit',videoDuration:-1,videoResolution:'',videoAspect:'auto'});
+        host.innerHTML=renderSeedance25TaskModeControl()+renderVideoDurationControl();
+        const modes=[...host.querySelectorAll('[data-smart-param="videoTaskMode"]')].map(o=>o.dataset.smartValue);
+        const duration=VideoDurationPolicy.clamp(settings.videoDuration,smartVideoDurationRange());
+        Object.assign(settings,{videoModel:'kling-v4-flash',videoTaskMode:'extend'});
+        host.innerHTML=renderVideoResolutionControl()+renderVideoAspectControl()+renderVideoAdvancedControl(true);
+        return {modes,duration,resolutions:[...host.querySelectorAll('[data-smart-param="videoResolution"]')].map(o=>o.dataset.smartValue),
+            followsInput:host.textContent.includes('跟随输入比例'),segment:host.textContent.includes('只返回新增片段')};
+    },kind);
+    assert.deepEqual(result,{modes:['auto','text','image','reference','edit','extend'],duration:-1,resolutions:['720p'],followsInput:true,segment:true});
+    assert.deepEqual(errors,[]);
+});
+
 // Use the production member projection rather than a full administrator config.
 function memberConfig(){
     return JSON.parse(execFileSync('python',['-c',`

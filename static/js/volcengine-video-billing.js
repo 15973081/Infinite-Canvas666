@@ -1,4 +1,4 @@
-/* Shared presentation of server-side Ark accounting; never estimate tokens here. */
+/* Shared presentation of server-side video accounting. */
 (function(root){
     const copy = value => JSON.parse(JSON.stringify(value));
     function isProvider(provider){
@@ -9,12 +9,12 @@
         return match ? `seedance-${match[1]}${match[2] || ''}` : '';
     }
     function metadata(result={}){
-        if(result.cost?.billing_source !== 'volcengine_usage') return {};
+        if(!['volcengine_usage','apimart_kling'].includes(result.cost?.billing_source)) return {};
         return {usage:copy(result.usage || {}), video_info:copy(result.video_info || {}), cost:copy(result.cost)};
     }
     function costFor(run={}, log={}, identity={}, providers=[]){
-        const saved = log.cost?.billing_source === 'volcengine_usage' ? log.cost : run.cost;
-        if(saved?.billing_source === 'volcengine_usage') return copy(saved);
+        const saved = ['volcengine_usage','apimart_kling'].includes(log.cost?.billing_source) ? log.cost : run.cost;
+        if(['volcengine_usage','apimart_kling'].includes(saved?.billing_source)) return copy(saved);
         const provider = providers.find(p => p.id === identity.providerId);
         if(identity.kind !== 'video' || !(identity.providerId === 'volcengine' || isProvider(provider))) return undefined;
         if(log.status === 'failed') return null;
@@ -24,6 +24,10 @@
         const info = log.video_info || {};
         const usage = log.usage || {};
         const cost = log.cost || {};
+        if(cost.billing_source==='apimart_kling') return [info.model,info.resolution,
+            info.billing_duration ? `计费 ${info.billing_duration} 秒` : '计费时长待核算',
+            info.has_video_input ? '视频输入价' : '普通生成价',
+            info.continuation==='full' ? '续写完整视频' : info.continuation==='segment' ? '续写新增片段' : ''].filter(Boolean);
         if(!log.video_info && cost.billing_source !== 'volcengine_usage') return [];
         return [info.model || info.requested_model,
             info.resolution, info.ratio,
@@ -35,6 +39,7 @@
         ].filter(Boolean);
     }
     function pendingLabel(cost){
+        if(cost?.billing_source==='apimart_kling' && cost.reason==='missing_input_duration')return '待核算：缺少输入视频时长';
         if(cost?.billing_source !== 'volcengine_usage') return '待定价';
         return ({missing_usage:'待核算：缺少token', missing_video_spec:'待核算：缺少规格',
             missing_price:'待核算：缺少单价', invalid_price:'待核算：单价无效'})[cost?.reason] || '待核算';

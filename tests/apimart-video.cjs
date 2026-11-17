@@ -5,6 +5,26 @@ const vm=require('node:vm');
 const policy=require('../static/js/video-duration-policy.js');
 const apimart=require('../static/js/apimart-video-policy.js');
 
+test('Kling model tiers, frame ordering and edit duration work on both canvases',()=>{
+    for(const [model,max,resolutions] of [['kling-v4',30,['720p','1080p']],['kling-v4-flash',20,['720p']]]){
+        const {provider,context}=fixture(model);
+        assert.deepEqual(Array.from(context.allowedVideoResolutions({model,apiProvider:'p'})),resolutions);
+        assert.deepEqual(Array.from(context.smartVideoResolutions({videoModel:model,videoProvider:'p'})),resolutions);
+        assert.equal(policy.bounds(provider,model).min,3);
+        assert.equal(policy.bounds(provider,model).max,max);
+        assert.equal(apimart.durationBounds(provider,model,'edit').auto,true);
+        assert.equal(apimart.durationBounds(provider,model,'extend').auto,false);
+        assert.equal(apimart.kling({protocol:'openai',base_url:'https://elsewhere.invalid'},model),false);
+    }
+    const images=Array.from({length:10},(_,i)=>({url:`https://example.invalid/${i}.png`}));
+    assert.deepEqual(apimart.imageRoles(images,'image').map(i=>i.role),['first_frame',...Array(8).fill('keyframe'),'last_frame']);
+    assert.ok(apimart.imageRoles(images,'reference').every(i=>i.role==='reference_image'));
+    assert.equal(apimart.imageRoles(images.slice(0,1),'extend')[0].role,'last_frame');
+    assert.equal(apimart.canOmitPrompt('image',false,images),true);
+    assert.equal(apimart.canOmitPrompt('reference',false,images),false);
+    assert.equal(apimart.canOmitPrompt('image',false,images,['video']),false);
+});
+
 function fixture(model,rule={}){
     const provider={id:'p',protocol:'apimart',video_models:[model],model_policies:{['video:'+model]:rule}};
     const window={VideoDurationPolicy:policy,ApimartVideoPolicy:apimart};

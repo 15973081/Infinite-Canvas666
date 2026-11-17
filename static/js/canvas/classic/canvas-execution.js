@@ -380,7 +380,7 @@ function isVolcengineSeedance25VideoNode(node){
 
 function videoNodeDurationRange(node){
     const seedance=isVolcengineSeedance25VideoNode(node);
-    return window.VideoDurationPolicy.bounds(apiProviders.find(p=>p.id===resolveVideoProviderId(node.apiProvider || 'comfly')),node.model,{min:seedance?4:1,max:seedance?30:60,auto:seedance});
+    return window.ApimartVideoPolicy.durationBounds(apiProviders.find(p=>p.id===resolveVideoProviderId(node.apiProvider || 'comfly')),node.model,node.taskMode,{min:seedance?4:1,max:seedance?30:60,auto:seedance});
 }
 
 function normalizeVideoNodeSelection(node){
@@ -388,6 +388,11 @@ function normalizeVideoNodeSelection(node){
     node.duration = window.VideoDurationPolicy.clamp(node.duration,videoNodeDurationRange(node));
     const resolutions = allowedVideoResolutions(node);
     if(!resolutions.includes(node.resolution || '')) node.resolution = resolutions[0] || '';
+    if(window.ApimartVideoPolicy.kling(apiProviders.find(p=>p.id===resolveVideoProviderId(node.apiProvider || 'comfly')),node.model)){
+        if(!window.ApimartVideoPolicy.taskModes.some(([mode])=>mode===node.taskMode)) node.taskMode='auto';
+        if(!['16:9','9:16','1:1','21:9','auto'].includes(node.aspectRatio)) node.aspectRatio='auto';
+        return;
+    }
     if(isVolcengineSeedance25VideoNode(node)){
 
         if(!['', '480p', '720p', '1080p'].includes(node.resolution)) node.resolution = '';
@@ -1134,14 +1139,16 @@ async function runVideoNode(nodeId, opts={}){
         showErrorModal(window.CanvasAssetAuth.error(unreadyVolcengineAsset.face_auth_status), '素材认证');
         return;
     }
-    const refs = imageRefsOnly(mediaRefs);
+    let refs = imageRefsOnly(mediaRefs);
     const videoRefs = videoRefsOnly(mediaRefs);
     const audioRefs = audioRefsOnly(mediaRefs);
     const usesTrustedVolcengineAssets = isVolcengineVideo && [...refs, ...videoRefs, ...audioRefs]
         .some(ref => String(ref?.url || '').trim().startsWith('asset://'));
     if(!isVolcengineVideo && node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
     if(!isVolcengineVideo && node.useFrameRoles && refs[1]) refs[1] = {...refs[1], role:'last_frame'};
-    if(!prompt){ alert('请先连接提示词'); return; }
+    const kling=window.ApimartVideoPolicy.kling(apiProviders.find(p=>p.id===providerId),node.model);
+    if(kling) refs=window.ApimartVideoPolicy.imageRoles(refs,node.taskMode || 'auto',node.useFrameRoles);
+    if(!prompt && !(kling && !manualVideoUrlForNode(node) && window.ApimartVideoPolicy.canOmitPrompt(node.taskMode || 'auto',node.useFrameRoles,refs,videoRefs,audioRefs))){ alert('请先连接提示词'); return; }
     let out = outputForNode(node, 460);
     const writeGuard=canvasTaskWriteGuard(node,out);
     writeGuard.check();
@@ -1165,12 +1172,13 @@ async function runVideoNode(nodeId, opts={}){
         audios:audioRefs.map(ref => tempShUploadedUrlForNode(node, ref.url)),
         enhance_prompt:Boolean(node.enhancePrompt),
         enable_upsample:Boolean(node.enableUpsample),
-        watermark:Boolean(node.watermark),
+        watermark:kling ? false : Boolean(node.watermark),
         camerafixed:Boolean(node.cameraFixed),
         generate_audio:Boolean(node.generateAudio),
         multimodal:Boolean(node.multimodal),
         trusted_asset:usesTrustedVolcengineAssets,
         task_mode:node.taskMode || 'auto',
+        audio_setting:kling && (videoRefs.length || manualVideoUrlForNode(node)) && (['reference','auto'].includes(node.taskMode || 'auto') || (node.taskMode==='edit' && node.model.toLowerCase()==='kling-v4')) ? node.audioSetting || '' : '',
         ...(node.draft && window.SeedanceDrafts.supported(apiProviders.find(p=>p.id===providerId),node.model) ? {draft:true, resolution:'480p'} : {})
     };
     run.providerId = payload.provider_id;

@@ -2654,7 +2654,7 @@ async def wait_for_video_task(client, provider, task_id, submit_url=""):
     deadline = time.monotonic() + VIDEO_POLL_TIMEOUT
     delay = max(2.0, IMAGE_POLL_INTERVAL)
     last_payload = {}
-    while time.monotonic() < deadline:
+    while is_apimart_provider(provider) or time.monotonic() < deadline:
         await asyncio.sleep(delay)
         raw = None
         last_error = None

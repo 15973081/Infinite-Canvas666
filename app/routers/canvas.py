@@ -13,7 +13,8 @@ from app.services.canvas import *
 from app.services.assets import *
 from app.services.prompt import *
 from app.services.media import *
-from app.services.apimart_video import build_apimart_video_request, apimart_image_role
+from app.services.apimart_video import (build_apimart_video_request, apimart_image_role,
+    is_apimart_kling, kling_image_roles, kling_video_info, kling_accounting)
 from app.services.chat import *
 from app.services.canvas_tasks import (
     ACTIVE_CANVAS_TASK_STATUSES,
@@ -33,6 +34,9 @@ _canvas_video_recovery_tasks = set()
 
 def _canvas_video_payload_dict(payload: CanvasVideoRequest) -> dict:
     data = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload.dict()
+    for key in ("duration", "aspect_ratio"):
+        if key not in payload.model_fields_set:
+            data.pop(key, None)
     for key in ("draft", "draft_source_task_id"):
         if not data.get(key):
             data.pop(key, None)
@@ -276,6 +280,11 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     if not api_key:
         raise HTTPException(status_code=400, detail=f"未配置 {provider.get('name') or provider['id']} 的 API Key，请在 API 平台管理中填写。")
     is_apimart = is_apimart_provider(provider)
+    is_kling = is_apimart_kling(provider, payload.model)
+    if not is_kling and not payload.prompt.strip():
+        raise HTTPException(400, "提示词不能为空。")
+    if not is_kling and payload.duration is None:
+        payload.duration = 5
     is_volcengine = is_volcengine_provider(provider)
     video_pricing = _volcengine_video_pricing(payload, provider) if is_volcengine else None
     is_yuli = is_yuli_provider(provider)
@@ -323,7 +332,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                 invalid_images = []  # 每项为 (原始 URL, 失败原因)
                 video_payload = []
                 invalid_videos = []
-                for ref_url in payload.videos[:3]:
+                for ref_url in payload.videos[:5 if is_kling else 3]:
                     ref_url = str(ref_url or "").strip()
                     if not ref_url:
                         continue
@@ -343,12 +352,13 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                 apimart_model = apimart_veo31_model(requested_model) if is_veo31 else ""
                 if apimart_model == "veo3.1-lite" and payload.images:
                     raise HTTPException(status_code=400, detail="veo3.1-lite 不支持图片输入，请改用 veo3.1-fast 或 veo3.1-quality。")
-                image_limit = 0 if apimart_model == "veo3.1-lite" else (3 if is_veo31 else 9)
-                for ref in payload.images[:image_limit]:
+                image_limit = 10 if is_kling else 0 if apimart_model == "veo3.1-lite" else (3 if is_veo31 else 9)
+                kling_roles = kling_image_roles(payload) if is_kling else []
+                for index, ref in enumerate(payload.images[:image_limit]):
                     if not ref.url:
                         continue
-                    role = apimart_image_role(ref.role) if apimart_model_body else str(ref.role or "").strip()
-                    if not is_veo31 and role in {"first_frame", "last_frame", "reference_image"}:
+                    role = kling_roles[index] if is_kling else apimart_image_role(ref.role) if apimart_model_body else str(ref.role or "").strip()
+                    if not is_veo31 and role in ({"first_frame", "last_frame", "reference_image", "keyframe"} if is_kling else {"first_frame", "last_frame", "reference_image"}):
                         up_url = await upload_image_for_apimart(client, provider, ref.url)
                         if valid_apimart_video_image_input(up_url):
                             image_with_roles.append({"url": up_url, "role": role})
@@ -407,7 +417,10 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                     elif image_payload:
                         body["image_urls"] = image_payload[:9]
                     if video_payload:
-                        body["video_urls"] = video_payload
+                        if is_kling and payload.task_mode in {"edit", "extend"}:
+                            body["video_url"] = video_payload[0]
+                        else:
+                            body["video_urls"] = video_payload
                     audio_payload = []
                     invalid_audios = []
                     for ref_url in (payload.audios or [])[:3]:
@@ -608,6 +621,17 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                     if payload.generate_audio:
                         body["generate_audio"] = True
             # --- 发起视频生成请求 ---
+            kling_context = None
+            if is_kling:
+                info = await kling_video_info(body)
+                task = load_durable_canvas_task(payload.client_task_id) if payload.client_task_id else {}
+                from app.services.canvas_ledger import historical_price
+                price = task.get("billing_price") if task else historical_price(
+                    {"providerId": provider["id"], "kind": "video", "model": payload.model},
+                    int(time.time() * 1000), [provider], info)
+                kling_context = {"info": info, "price": price}
+                if payload.client_task_id:
+                    _update_video_task_record(payload.client_task_id, apimart_kling_context=kling_context)
             raw = None
             html_response = None
             last_response = None
@@ -690,7 +714,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                 on_submitted(str(task_id), submit_url, "video")
             if task_id and not video_output_urls(raw):
                 result = await wait_for_video_task(client, provider, task_id, submit_url)
-            return await _finish_canvas_video(payload, provider, result, task_id, video_pricing)
+            return await _finish_canvas_video(payload, provider, result, task_id, video_pricing, kling_context)
     except httpx.HTTPStatusError as exc:
         text = exc.response.text
         try:
@@ -766,9 +790,11 @@ def _volcengine_video_pricing(payload, provider):
     return context
 
 
-async def _finish_canvas_video(payload, provider, raw, upstream_task_id, context=None):
+async def _finish_canvas_video(payload, provider, raw, upstream_task_id, context=None, kling_context=None):
     result = {"videos": [], "task_id": upstream_task_id, "raw": raw}
     result.update(seedance_drafts.result_metadata(payload, raw, upstream_task_id, provider))
+    if kling_context:
+        result.update(kling_accounting(kling_context["info"], provider, kling_context["price"]))
     if context is not None:
         result.update(video_accounting(raw, seedance_drafts.accounting_request(payload), provider, context))
         # Save usage and the price snapshot before any local download can fail.
@@ -811,7 +837,7 @@ async def resume_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
                 raw = await wait_for_video_task(
                     client, provider, upstream_task_id, submit_url
                 )
-            result = await _finish_canvas_video(payload, provider, raw, upstream_task_id, context)
+            result = await _finish_canvas_video(payload, provider, raw, upstream_task_id, context, task.get("apimart_kling_context"))
         _update_video_task_record(
             task_id,
             status="succeeded",

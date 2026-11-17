@@ -2598,6 +2598,8 @@ function renderVideoBody(node){
     const imageInputs = ordered.filter(src => src.refs?.length);
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
     const isSeedance25 = isVolcengineSeedance25VideoNode(node);
+    const klingRule=window.ApimartVideoPolicy.capabilities(apiProviders.find(p=>p.id===resolveVideoProviderId(node.apiProvider || 'comfly')),node.model);
+    const isKling=klingRule?.family==='kling';
     const supportsDraft = window.SeedanceDrafts.supported(apiProviders.find(p=>p.id===node.apiProvider),node.model);
     const durationRange = videoNodeDurationRange(node);
     wrap.innerHTML = `
@@ -2609,14 +2611,14 @@ function renderVideoBody(node){
             <div class="gen-settings-row">
                 <select class="select-lite video-provider" style="flex:1">${videoProviderOptions(node.apiProvider)}</select>
                 <select class="select-lite video-model" style="flex:2">${videoModelOptions(node.model, node.apiProvider)}</select>
-                ${isSeedance25 ? `<select class="select-lite video-task-mode" style="flex:1">
+                ${isKling ? `<select class="select-lite video-task-mode" style="flex:1">${window.ApimartVideoPolicy.taskModes.map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select>` : isSeedance25 ? `<select class="select-lite video-task-mode" style="flex:1">
                     <option value="auto">自动判断</option><option value="edit">视频编辑</option>
                     <option value="extend_backward">向后延长</option><option value="extend_forward">向前延长</option>
                 </select>` : ''}
             </div>
             <div class="gen-settings-row">
                 <label class="field" style="flex:1">
-                    <div class="setting-title">时长 · ${durationRange.min}–${durationRange.max} 秒</div>
+                    <div class="setting-title">时长 · ${durationRange.min}–${durationRange.max} 秒${durationRange.auto ? '（-1 跟随输入）' : ''}</div>
                     <input class="setting-input video-duration" type="number" min="${durationRange.auto ? -1 : durationRange.min}" max="${durationRange.max}" title="${durationRange.min}–${durationRange.max} 秒" step="1" value="${Number(node.duration ?? 5)}">
                 </label>
                 <label class="field" style="flex:1">
@@ -2625,11 +2627,10 @@ function renderVideoBody(node){
                         <option value="16:9">16:9</option>
                         <option value="9:16">9:16</option>
                         <option value="1:1">1:1</option>
-                        <option value="4:3">4:3</option>
-                        <option value="3:4">3:4</option>
+                        ${isKling ? '' : '<option value="4:3">4:3</option><option value="3:4">3:4</option>'}
                         <option value="21:9">21:9</option>
-                        ${isSeedance25 ? '' : '<option value="9:21">9:21</option><option value="keep_ratio">keep</option>'}
-                        <option value="adaptive">adapt</option>
+                        ${isSeedance25 || isKling ? '' : '<option value="9:21">9:21</option><option value="keep_ratio">keep</option>'}
+                        <option value="${isKling ? 'auto' : 'adaptive'}">自动</option>
                     </select>
                 </label>
                 <label class="field" style="flex:1">
@@ -2640,6 +2641,8 @@ function renderVideoBody(node){
                 </label>
             </div>
         </div>
+        ${isKling ? `<p class="kling-mode-hint">${node.taskMode==='extend' ? (klingRule.keyframes ? '返回原视频与新增片段的完整视频；可连接一张目标尾帧。' : '只返回新增片段；不接受图片。') : node.taskMode==='image' ? (klingRule.keyframes ? '按素材顺序：首帧 → 中间帧 → 尾帧；最多 10 张，比例跟随首帧。' : '只连接一张首帧，比例跟随首帧。') : '自动模式下，图片作为参考图；仅首帧生成请选择图生视频。'}</p>
+        ${['auto','reference'].includes(node.taskMode || 'auto') || (node.taskMode==='edit' && klingRule.keyframes) ? `<label class="field">视频声音<select class="select-lite video-audio-setting"><option value="">默认</option><option value="auto">重新生成</option><option value="origin">保留原声</option></select></label>` : ''}` : ''}
         <div class="gen-run-row">
             <button class="gen-btn ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="clapperboard" class="w-4 h-4"></i>${node.running ? '生成中' : supportsDraft && node.draft ? '生成 480p 样片' : '视频生成'}</button>
             ${cascadeBtnHtml(node)}
@@ -2653,6 +2656,9 @@ function renderVideoBody(node){
     const aspectSelect = wrap.querySelector('.video-aspect');
     const resolutionSelect = wrap.querySelector('.video-resolution');
     const taskModeSelect = wrap.querySelector('.video-task-mode');
+    const audioSelect=wrap.querySelector('.video-audio-setting');
+    if(audioSelect){audioSelect.value=node.audioSetting || '';audioSelect.onchange=e=>{node.audioSetting=e.target.value;scheduleSave();};}
+    if(isKling && ['image','extend'].includes(node.taskMode)){aspectSelect.disabled=true;}
     providerSelect.value = node.apiProvider;
     durationSelect.value = String(node.duration || 5);
     aspectSelect.value = node.aspectRatio || '16:9';
@@ -2666,7 +2672,7 @@ function renderVideoBody(node){
         draftToggle.onchange=e=>{node.draft=e.target.checked;if(node.draft){node.resolution='480p';node.duration=5;}refreshNodes([node.id]);scheduleSave();};
     }
     if(taskModeSelect) taskModeSelect.value = node.taskMode || 'auto';
-    [providerSelect, modelSelect, durationSelect, aspectSelect, resolutionSelect, taskModeSelect].filter(Boolean).forEach(input => {
+    [providerSelect, modelSelect, durationSelect, aspectSelect, resolutionSelect, taskModeSelect,audioSelect].filter(Boolean).forEach(input => {
         input.onmousedown = e => e.stopPropagation();
         input.onclick = e => e.stopPropagation();
     });
@@ -2693,8 +2699,10 @@ function renderVideoBody(node){
     if(taskModeSelect) taskModeSelect.onchange = e => {
         e.stopPropagation();
         node.taskMode = e.target.value;
-        if(node.taskMode !== 'auto') node.aspectRatio = 'adaptive';
+        if(node.taskMode !== 'auto') node.aspectRatio = isKling ? 'auto' : 'adaptive';
         if(node.taskMode === 'edit') node.duration = -1;
+        node.audioSetting='';
+        normalizeVideoNodeSelection(node);
         refreshNodes([node.id]);
         scheduleSave();
     };

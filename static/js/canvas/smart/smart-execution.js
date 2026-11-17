@@ -183,9 +183,11 @@ function volcengineProvider(){
     };
 }
 
-function smartRunNeedsPrompt(sourceSettings=settings){
+function smartRunNeedsPrompt(sourceSettings=settings,refs=[]){
     sourceSettings = sourceSettings || settings;
     if(sourceSettings.engine === 'comfy' && sourceSettings.comfyMode === 'enhance') return false;
+    if(sourceSettings.apiKind==='video' && window.ApimartVideoPolicy.kling((apiProviders || []).find(p=>p.id===sourceSettings.videoProvider),sourceSettings.videoModel)
+        && !manualSmartVideoLink(sourceSettings)?.url && window.ApimartVideoPolicy.canOmitPrompt(sourceSettings.videoTaskMode || 'auto',sourceSettings.videoUseFrameRoles,imageRefsOnly(refs),videoRefsOnly(refs),audioRefsOnly(refs))) return false;
     return true;
 }
 
@@ -274,7 +276,7 @@ function isSeedance20VideoModel(model=settings.videoModel){
 
 function smartVideoDurationRange(value=settings){
     const seedance=isSeedance25VideoModel(value.videoModel);
-    return window.VideoDurationPolicy.bounds((apiProviders || []).find(p=>p.id===(value.videoProvider || 'comfly')),value.videoModel,{min:seedance?4:1,max:seedance?30:60,auto:seedance});
+    return window.ApimartVideoPolicy.durationBounds((apiProviders || []).find(p=>p.id===(value.videoProvider || 'comfly')),value.videoModel,value.videoTaskMode,{min:seedance?4:1,max:seedance?30:60,auto:seedance});
 }
 
 function smartVideoResolutions(value=settings){
@@ -2086,7 +2088,7 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=sma
     catch(error){ settings = previousSettings; throw error; }
     const prompt = (request.prompt || '').trim();
     const displayPrompt = (request.displayPrompt || '').trim();
-    if((!prompt || !displayPrompt) && smartRunNeedsPrompt(runSettings)){
+    if((!prompt || !displayPrompt) && smartRunNeedsPrompt(runSettings,request.refs)){
         settings = previousSettings;
         throw new Error('链路节点缺少提示词');
     }
@@ -2199,7 +2201,7 @@ async function runLoopRoundIntoSlot(loopNode, rootNode, outputSlot, loopIndex, c
         const request = buildPromptRequestForNode(rootNode, refsForRequest.length ? refsForRequest : null, ctx);
         const prompt = (request.prompt || '').trim();
         const displayPrompt = (request.displayPrompt || '').trim();
-        if((!prompt || !displayPrompt) && smartRunNeedsPrompt(runSettings)) throw new Error('链路节点缺少提示词');
+        if((!prompt || !displayPrompt) && smartRunNeedsPrompt(runSettings,request.refs)) throw new Error('链路节点缺少提示词');
         const meta = {
             prompt,
             displayPrompt:request.displayPrompt || '',
@@ -2659,7 +2661,7 @@ async function runGeneration(options={}){
     catch(error){ settings = previousSettings; toast(error.message || '素材引用无效'); return; }
     const prompt = request.prompt.trim();
     const refs = request.refs;
-    if(!prompt && smartRunNeedsPrompt(settings)){
+    if(!prompt && smartRunNeedsPrompt(settings,refs)){
         settings = previousSettings;
         toast('请输入提示词');
         return;
@@ -2879,7 +2881,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             .map(ref => smartFaceAuthState(ref,targetProvider)).find(state => state.blocked);
         if(unreadyVolcengineAsset) throw new Error(window.CanvasAssetAuth.error(unreadyVolcengineAsset.status));
         const useFrameRoles = targetPlatform !== 'volcengine' && runSettings.videoUseFrameRoles;
-        const refImages = imageRefsOnly(uploadedRefs).map((ref, i) => {
+        let refImages = imageRefsOnly(uploadedRefs).map((ref, i) => {
             const item = {url:effUrl(ref), name:ref.name || `图${i + 1}`};
             if(useFrameRoles){
                 if(i === 0) item.role = 'first_frame';
@@ -2887,6 +2889,8 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             }
             return item;
         });
+        const kling=window.ApimartVideoPolicy.kling((apiProviders || []).find(p=>p.id===runSettings.videoProvider),runSettings.videoModel);
+        if(kling) refImages=window.ApimartVideoPolicy.imageRoles(refImages,runSettings.videoTaskMode || 'auto',useFrameRoles);
         const manualVideo = draftSource ? '' : manualSmartVideoLink(runSettings)?.url || '';
         const refVideos = manualVideo ? manualSmartMediaLinks(runSettings).map(item => item.url).filter(Boolean) : videoRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean);
         const refAudios = audioRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean);
@@ -2904,12 +2908,13 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             audios: refAudios,
             enhance_prompt: Boolean(runSettings.videoEnhancePrompt),
             enable_upsample: Boolean(runSettings.videoEnableUpsample),
-            watermark: Boolean(runSettings.videoWatermark),
+            watermark: kling ? false : Boolean(runSettings.videoWatermark),
             camerafixed: Boolean(runSettings.videoCameraFixed),
             generate_audio: Boolean(runSettings.videoGenerateAudio),
             multimodal: Boolean(runSettings.videoMultimodal),
             trusted_asset: usesTrustedVolcengineAssets,
             task_mode: runSettings.videoTaskMode || 'auto',
+            audio_setting: kling && (['auto','reference'].includes(runSettings.videoTaskMode || 'auto') || (runSettings.videoTaskMode==='edit' && runSettings.videoModel.toLowerCase()==='kling-v4')) && refVideos.length ? runSettings.videoAudioSetting || '' : '',
             ...(runSettings.videoDraft && window.SeedanceDrafts.supported((apiProviders || []).find(p=>p.id===runSettings.videoProvider),runSettings.videoModel) ? {draft:true,resolution:'480p'} : {})
         };
         if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}

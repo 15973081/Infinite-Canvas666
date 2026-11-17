@@ -940,8 +940,9 @@ function renderVideoModelControl(models){
 }
 
 function renderSeedance25TaskModeControl(){
-    if(!isSeedance25VideoModel()) return '';
-    const options = [['auto','自动判断'], ['edit','视频编辑'], ['extend_backward','向后延长'], ['extend_forward','向前延长']];
+    const kling=window.ApimartVideoPolicy.kling((apiProviders || []).find(p=>p.id===settings.videoProvider),settings.videoModel);
+    if(!isSeedance25VideoModel() && !kling) return '';
+    const options = kling ? window.ApimartVideoPolicy.taskModes : [['auto','自动判断'], ['edit','视频编辑'], ['extend_backward','向后延长'], ['extend_forward','向前延长']];
     const value = settings.videoTaskMode || 'auto';
     return `<div class="smart-control model-control">
         <button class="smart-pill" type="button"><i data-lucide="route"></i><span class="sub">${escapeHtml(Object.fromEntries(options)[value] || '自动判断')}</span></button>
@@ -957,7 +958,7 @@ function renderVideoDurationControl(){
     const range = smartVideoDurationRange();
     const {min,max} = range;
     const v = window.VideoDurationPolicy.clamp(settings.videoDuration,range);
-    const quick = window.VideoDurationPolicy.choices(range,seedance25 ? [-1,4,5,6,8,10,12,15,20,30] : [3,4,5,6,8,10,12,15]);
+    const quick = window.VideoDurationPolicy.choices(range,range.auto ? [-1,4,5,6,8,10,12,15,20,30] : [3,4,5,6,8,10,12,15]);
     return `<div class="smart-control duration-control" title="${escapeHtml('时长（秒）')}">
         <button class="smart-pill" type="button"><i data-lucide="timer"></i><span>${v === -1 ? '自动' : `${v}s`}</span></button>
         <div class="smart-popover compact-popover">
@@ -989,11 +990,14 @@ function renderSeedanceDraftControl(){
 }
 
 function renderVideoAspectControl(){
+    const kling=window.ApimartVideoPolicy.kling((apiProviders || []).find(p=>p.id===settings.videoProvider),settings.videoModel);
+    if(kling && ['image','extend'].includes(settings.videoTaskMode)) return '<div class="smart-control"><button class="smart-pill" disabled>跟随输入比例</button></div>';
     let options = [
         ['16:9','16:9'], ['9:16','9:16'], ['1:1','1:1'], ['4:3','4:3'], ['3:4','3:4'],
         ['21:9','21:9'], ['9:21','9:21'], ['keep_ratio', '原图比例'], ['adaptive', '自适应']
     ];
     if(isSeedance25VideoModel()) options = options.filter(([v]) => !['9:21','keep_ratio'].includes(v));
+    if(kling) options=[['auto','自动'],['16:9','16:9'],['9:16','9:16'],['1:1','1:1'],['21:9','21:9']];
     const value = settings.videoAspect || '16:9';
     const labelMap = Object.fromEntries(options);
     return `<div class="smart-control aspect-control">
@@ -1031,6 +1035,13 @@ function renderVideoToggleControl(key, label){
 }
 
 function renderVideoAdvancedControl(includeFrameRoles=false){
+    const rule=window.ApimartVideoPolicy.capabilities((apiProviders || []).find(p=>p.id===settings.videoProvider),settings.videoModel);
+    if(rule?.family==='kling'){
+        const mode=settings.videoTaskMode || 'auto';
+        const hint=mode==='extend' ? (rule.keyframes ? '返回原视频与新增片段的完整视频，可连接一张目标尾帧。' : '只返回新增片段，不接受图片。') : mode==='image' ? (rule.keyframes ? '图片顺序：首帧 → 中间帧 → 尾帧，最多 10 张。' : '只连接一张首帧。') : '图片作为参考图；仅首帧生成请选择图生视频。';
+        const audio=['auto','reference'].includes(mode) || (mode==='edit' && rule.keyframes);
+        return `<details class="smart-control composer-advanced"><summary>更多设置</summary><div class="composer-advanced-panel"><p>${hint}</p>${audio ? `<p>声音策略（有输入视频时生效）</p>${[['','默认'],['auto','重新生成'],['origin','保留原声']].map(([v,l])=>`<button type="button" class="direct-option ${v===(settings.videoAudioSetting || '') ? 'active' : ''}" data-smart-param="videoAudioSetting" data-smart-value="${v}">${l}</button>`).join('')}` : ''}</div></details>`;
+    }
     let options=[
         ['videoEnhancePrompt','提示词增强'],['videoEnableUpsample','高清'],
         ['videoGenerateAudio','生成音频'],['videoCameraFixed','镜头固定'],
@@ -1549,19 +1560,25 @@ function setDynamicSetting(key, value){
         persistActiveSmartSettings();renderDynamicParams();scheduleSave();return;
     }
     const numericKeys = new Set(['count','width','height','videoDuration','enhanceStrength','enhanceUpscaleRes','editUpscaleRes','customRatioWidth','customRatioHeight','customWidth','customHeight','msCustomRatioWidth','msCustomRatioHeight','msCustomWidth','msCustomHeight']);
-    const layoutKeys = new Set(['provider_id','model','resolution','ratio','msgenModel','msCustomModel','msResolution','msRatio','videoProvider','videoModel','videoTaskMode','videoAspect','videoResolution','comfyMode','comfyWorkflow','quality','count','enhanceUpscaleRes','editUpscaleRes']);
+    const layoutKeys = new Set(['provider_id','model','resolution','ratio','msgenModel','msCustomModel','msResolution','msRatio','videoProvider','videoModel','videoTaskMode','videoAudioSetting','videoAspect','videoResolution','comfyMode','comfyWorkflow','quality','count','enhanceUpscaleRes','editUpscaleRes']);
     settings[key] = numericKeys.has(key) && value !== '' ? Number(value) : value;
     if(key === 'provider_id') settings.model = '';
     if(key === 'videoProvider') settings.videoModel = '';
+    const kling=window.ApimartVideoPolicy.kling((apiProviders || []).find(p=>p.id===settings.videoProvider),settings.videoModel);
+    if(['videoModel','videoProvider'].includes(key)){
+        settings.videoTaskMode='auto';settings.videoAudioSetting='';settings.videoUseFrameRoles=false;
+        if(kling && !['auto','16:9','9:16','1:1','21:9'].includes(settings.videoAspect)) settings.videoAspect='auto';
+    }
     if(key === 'videoModel' && isSeedance25VideoModel()){
 
         if(!['', '480p', '720p', '1080p'].includes(settings.videoResolution)) settings.videoResolution = '';
         if(['9:21', 'keep_ratio'].includes(settings.videoAspect)) settings.videoAspect = 'adaptive';
     }
     if(key === 'videoTaskMode' && settings.videoTaskMode !== 'auto'){
-        settings.videoAspect = 'adaptive';
+        settings.videoAspect = kling ? 'auto' : 'adaptive';
         if(settings.videoTaskMode === 'edit') settings.videoDuration = -1;
     }
+    if(key==='videoTaskMode'){settings.videoAudioSetting='';if(kling)settings.videoUseFrameRoles=false;}
     if(['videoDuration','videoModel','videoProvider','videoTaskMode'].includes(key)) settings.videoDuration=window.VideoDurationPolicy.clamp(settings.videoDuration,smartVideoDurationRange());
     if(key === 'videoMultimodal' && settings.videoMultimodal) settings.videoUseFrameRoles = false;
     if(key === 'videoUseFrameRoles' && settings.videoUseFrameRoles) settings.videoMultimodal = false;
