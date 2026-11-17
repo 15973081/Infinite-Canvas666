@@ -20,6 +20,10 @@ def bind_entry(conn, entry_id, canvas_id, task_id):
 
 BASE = ''' FROM ledger_entries e
  LEFT JOIN ledger_owners o ON o.entry_id=e.id AND o.workspace_id=e.workspace_id
+ LEFT JOIN tasks t ON t.id=o.task_id AND t.workspace_id=e.workspace_id
+ LEFT JOIN credit_holds h ON ((h.source_type='canvas_task' AND h.source_id=o.task_id)
+    OR (h.source_type='chat_call' AND h.source_id=o.chat_call_id))
+    AND h.member_id=o.member_id AND h.workspace_id=e.workspace_id
  LEFT JOIN ledger_account_assignments a ON a.entry_id=e.id AND a.workspace_id=e.workspace_id
  LEFT JOIN members m ON m.id=coalesce(a.member_id,o.member_id)
  JOIN workspaces w ON w.id=e.workspace_id
@@ -92,17 +96,30 @@ def report(actor, *, personal=False, workspace=None, tenant=None, member_id='', 
             e.cost_json->>'unit_price' AS unit_price,e.cost_json->>'quantity' AS quantity,
             e.cost_json->>'resolution' AS resolution,e.cost_json->>'price_effective_from' AS price_effective_from,
             e.cost_json->>'billing_type' AS billing_type,e.cost_json->'usage' AS token_usage,
+            coalesce(nullif(t.result->'raw_usage','null'::jsonb),nullif(t.result->'usage','null'::jsonb),
+                nullif(e.log_json->'raw_usage','null'::jsonb),e.log_json->'usage') AS reported_usage,
+            coalesce(nullif(t.result->'video_info'->'duration','null'::jsonb),
+                nullif(t.result->'mediakit_duration','null'::jsonb),nullif(t.result->'duration_seconds','null'::jsonb),
+                e.log_json->'durationSeconds') AS duration_seconds,
             e.cost_json->>'input_price' AS input_price,e.cost_json->>'output_price' AS output_price,
             e.cost_json->>'cached_input_price' AS cached_input_price,e.cost_json->>'reason' AS cost_reason,
             e.log_json->>'conversation_id' AS conversation_id,
             coalesce(e.log_json->>'providerId','') AS provider,
             coalesce(e.log_json->>'billingModel',e.log_json->>'model','') AS model,
             o.task_id,o.chat_call_id,coalesce(a.member_id,o.member_id) AS member_id,o.member_id AS original_member_id,a.reason AS assignment_reason,a.actor_id AS assigned_by,o.username AS account_at_creation,o.display_name AS name_at_creation,
+            h.id AS credit_hold_id,h.status AS credit_status,h.model_code AS credit_model_code,
+            h.quote_version AS credit_quote_version,h.frozen_credits::text AS credit_frozen,
+            h.settled_credits::text AS credit_settled,h.released_credits::text AS credit_released,
             coalesce(m.username,o.username,'') AS username,
             coalesce(m.display_name,nullif(o.display_name,''),'待归属') AS display_name,
             CASE WHEN a.entry_id IS NOT NULL THEN 'manual' ELSE coalesce(o.attribution,'unassigned') END AS attribution
             ''' + scope + ' ORDER BY e.created_at DESC,e.id DESC LIMIT %s OFFSET %s',
             (*args,page_size,(page-1)*page_size)).fetchall()
+        from app.services.chat_billing import usage_counts
+        for row in rows:
+            reported = row.pop('reported_usage')
+            if row['kind'] == 'chat' and row['token_usage'] is None:
+                row['token_usage'] = usage_counts(reported)
         spaces = []
         if personal:
             spaces=conn.execute('''SELECT DISTINCT w.id,w.name FROM ledger_entries e

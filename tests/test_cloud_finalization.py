@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from cloud_fixtures import fake_supplier_catalog
+from test_cloud_member_gateway import operator
 from fastapi import HTTPException
 from PIL import Image
 
@@ -168,15 +169,22 @@ def test_checkpoint_survives_lost_task_status_commit(fake_supplier_catalog):
     assert_committed(tid, cid, 1)
 
 
-def test_video_with_known_result_resumes_without_poll_or_submission(tmp_path):
-    from app.storage import worker, tasks, media
+def test_video_with_known_result_resumes_without_poll_or_submission(tmp_path, operator):
+    from app.storage import worker, tasks, media, database
+    from app.services import credit_wallet, members
     from app.routers import canvas
     from app.services import media as helpers, canvas_ledger
     from app.services.volcengine_billing import pricing_context, timestamp_ms
     model = "doubao-seedance-2-5-260628"
     provider = {"id": "volcengine", "protocol": "volcengine", "base_url": "https://ark.cn-beijing.volces.com/api/v3"}
     context = pricing_context(provider, timestamp_ms("2026-09-09T12:00:00+08:00"))
-    tid, cid = new_task("video", provider_id="volcengine", model_name=model)
+    with database.connection() as conn:
+        credit_wallet.record_grant(conn, operator.member_id, source='PLATFORM_GIFT', amount=1000,
+                                   reference=uuid.uuid4().hex, validity='PERMANENT')
+        username = conn.execute('SELECT username FROM members WHERE id=%s', (operator.member_id,)).fetchone()['username']
+    login = members.login(username, 'test-only-password-12345', audience='workbench', source=uuid.uuid4().hex)
+    principal = members.resolve_session(login['token'], 'workbench')
+    tid, cid = new_task("video", provider_id="volcengine", model_name=model, principal=principal)
     paid = []
 
     async def generated(payload, on_submitted=None):
@@ -206,6 +214,10 @@ def test_video_with_known_result_resumes_without_poll_or_submission(tmp_path):
     assert task["result"]["usage"]["completion_tokens"] == 108900
     assert task["result"]["cost"]["amount_micros"] == 7623000
     assert canvas_ledger.read_page(cid)["totals"]["total"] == 7623000
+    with database.connection() as conn:
+        hold = conn.execute("SELECT * FROM credit_holds WHERE source_type='canvas_task' AND source_id=%s", (tid,)).fetchone()
+        assert hold['status'] == 'SETTLED' and hold['settled_credits'] == 210
+        assert conn.execute('SELECT count(*) n FROM credit_transactions WHERE hold_id=%s', (hold['id'],)).fetchone()['n'] == 1
 
 
 def test_expired_source_enters_review_and_retains_checkpoint():

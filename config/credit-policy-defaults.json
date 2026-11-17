@@ -2540,6 +2540,146 @@
       "activityStartTime": null,
       "activityEndTime": null,
       "enabled": true
+    },
+    {
+      "modelCode": "SEEDANCE_1_0_PRO",
+      "modelName": "Seedance 1.0 Pro",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "480P": 4,
+          "720P": 10,
+          "1080P": 22
+        },
+        "isPerSecond": true
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "SEEDANCE_1_0_LITE",
+      "modelName": "Seedance 1.0 Lite",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "selectedParams": [
+          "resolution"
+        ],
+        "combinationPrices": {
+          "480P": 2,
+          "720P": 5,
+          "1080P": 11
+        },
+        "isPerSecond": true
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MEDIAKIT_VIDEO_UPSCALE",
+      "modelName": "MediaKit 视频超分",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "selectedParams": [
+          "tool_version",
+          "resolution"
+        ],
+        "combinationPrices": {
+          "standard||720P": 1,
+          "standard||1080P": 1,
+          "standard||2K": 2,
+          "standard||4K": 3,
+          "standard||8K": 5,
+          "professional||720P": 2,
+          "professional||1080P": 2,
+          "professional||2K": 3,
+          "professional||4K": 5,
+          "professional||8K": 8
+        },
+        "isPerSecond": true
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MEDIAKIT_SMART_ERASE",
+      "modelName": "MediaKit 字幕擦除",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 2,
+      "pricingConfig": {
+        "selectedParams": [],
+        "combinationPrices": {},
+        "isPerSecond": true
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MEDIAKIT_SMART_ERASE_PRO",
+      "modelName": "MediaKit 字幕擦除 Pro",
+      "nodeType": "GENERATE_VIDEO",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 4,
+      "pricingConfig": {
+        "selectedParams": [],
+        "combinationPrices": {},
+        "isPerSecond": true
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
+    },
+    {
+      "modelCode": "MEDIAKIT_VIDEO_UNDERSTAND",
+      "modelName": "MediaKit 视频理解",
+      "nodeType": "GENERATE_TEXT",
+      "billingType": "TASK_PARAMS",
+      "basePrice": 0,
+      "pricingConfig": {
+        "selectedParams": [
+          "level"
+        ],
+        "combinationPrices": {
+          "Economy": 2,
+          "Balanced": 4,
+          "Quality": 8
+        },
+        "isPerSecond": false
+      },
+      "discountType": "NONE",
+      "discountRate": null,
+      "returnDiscountedPrice": false,
+      "activityStartTime": null,
+      "activityEndTime": null,
+      "enabled": true
     }
   ]
 }

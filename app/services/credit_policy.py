@@ -16,6 +16,9 @@ from app.services import authorization as az
 PERMISSION = 'credits.configure.platform'
 DEFAULTS = Path(__file__).resolve().parents[2] / 'config' / 'credit-policy-defaults.json'
 LIMIT = 1_000_000_000
+MODE = 'active'
+MEDIA_RULE_CODES = {'SEEDANCE_1_0_PRO', 'SEEDANCE_1_0_LITE', 'MEDIAKIT_VIDEO_UPSCALE',
+                    'MEDIAKIT_SMART_ERASE', 'MEDIAKIT_SMART_ERASE_PRO', 'MEDIAKIT_VIDEO_UNDERSTAND'}
 
 
 def defaults():
@@ -146,7 +149,23 @@ def authorize(conn, actor, *, write=False):
 
 def read(conn):
     row = conn.execute('SELECT config,version FROM credit_policy WHERE id=1').fetchone()
-    return dict(row) if row else {'config': defaults(), 'version': 0}
+    if not row:
+        return {'config': defaults(), 'version': 0}
+    current = json.loads(json.dumps(row['config']))
+    codes = {r['modelCode'] for r in current['rules']}
+    current['rules'].extend(r for r in defaults()['rules'] if r['modelCode'] in MEDIA_RULE_CODES and r['modelCode'] not in codes)
+    return {'config': current, 'version': row['version']}
+
+
+def account_policy(actor):
+    with az.policy_transaction() as conn:
+        az.active_member(conn, actor)
+        if actor.audience != 'workbench':
+            az.fail('workbench_entry_required')
+        current = read(conn)
+        return {'config': {key: current['config'][key] for key in
+                           ('creditsPerCNY', 'tiers', 'rewards', 'validity')},
+                'version': current['version'], 'mode': MODE}
 
 
 def management(actor, *, config=None, expected_version=None, reason=''):
@@ -167,7 +186,7 @@ def management(actor, *, config=None, expected_version=None, reason=''):
                               'before': current['config'], 'after': clean})
             current = read(conn)
         return {**current, 'reference': 'Pixmax 2026-10-16',
-                'mode': 'configuration_only'}
+                'mode': MODE}
 
 
 def topup_quote(config, amount, first_recharge=False):
@@ -205,7 +224,10 @@ def model_quote(config, model_code, params, *, count=1, prompt='', input_image_c
         units = math.ceil(Decimal(chars) / Decimal(str(p.get('unitChars', 100))))
         raw = max(Decimal(str(p.get('minPrice', 0))), units * Decimal(str(rule['basePrice']))) * count + extra
     elif not p.get('selectedParams'):
-        raw = Decimal(str(rule['basePrice'])) * count + extra
+        unit = Decimal(str(rule['basePrice']))
+        if p.get('isPerSecond'):
+            unit *= number(params.get('duration'), '输出时长', minimum=1, maximum=86400)
+        raw = unit * count + extra
     else:
         def parameter(key):
             if key not in params or not isinstance(params[key], (str, int, float, bool)):
@@ -231,9 +253,12 @@ def model_quote(config, model_code, params, *, count=1, prompt='', input_image_c
     active = rule['discountType'] == 'USER' and rule['returnDiscountedPrice']
     if rule['discountType'] == 'ACTIVITY':
         active = rule['activityStartTime'] is None or rule['activityStartTime'] <= timestamp < rule['activityEndTime']
-    result = max(Decimal(1), (raw * Decimal(str(rule['discountRate']))).quantize(Decimal(1), rounding=ROUND_HALF_UP)) if active else raw
-    return {'modelCode': model_code, 'original': float(raw), 'credits': float(result),
-            'discountApplied': bool(active), 'extraCredits': float(extra), 'estimated': True}
+    # Round task totals once, after quantity, extras and any discount.
+    def rounded(value):
+        return max(1, int(Decimal(value).quantize(Decimal(1), rounding=ROUND_HALF_UP))) if value > 0 else 0
+    result = raw * Decimal(str(rule['discountRate'])) if active else raw
+    return {'modelCode': model_code, 'original': rounded(raw), 'credits': rounded(result),
+            'discountApplied': bool(active), 'extraCredits': rounded(extra), 'estimated': True}
 
 
 def preview(actor, data):

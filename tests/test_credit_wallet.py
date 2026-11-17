@@ -33,13 +33,13 @@ def grant(conn, actor, amount=10, source='PLATFORM_GIFT', reference='test', **kw
 
 def test_credit_wallet_zero_and_classified_idempotent_grants(world):
     conn, (a, b) = world
-    assert report(a)['wallet'] == {'total_balance':'0','recharge_balance':'0','gift_balance':'0'}
+    assert report(a)['wallet'] == {'total_balance':'0','recharge_balance':'0','gift_balance':'0','frozenBalance':'0','availableBalance':'0'}
     first = grant(conn, a, 1035, 'RECHARGE', 'verified-order:base')
     assert grant(conn, a, 1035, 'RECHARGE', 'verified-order:base') == first
     grant(conn, a, 155, 'RECHARGE_GIFT', 'verified-order:bonus')
     grant(conn, a, 500, reference='explicit-gift')
     data = report(a)
-    assert data['wallet'] == {'total_balance':'1690','recharge_balance':'1035','gift_balance':'655'}
+    assert data['wallet'] == {'total_balance':'1690','recharge_balance':'1035','gift_balance':'655','frozenBalance':'0','availableBalance':'1690'}
     assert data['records'] == 3
     assert [e['balance_after'] for e in data['entries']] == ['1690','1190','1035']
     assert report(b)['records'] == 0

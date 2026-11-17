@@ -269,3 +269,13 @@ def test_staged_webp_keeps_image_type_and_fixed_version(client):
     assert response.headers['content-type'] == 'image/webp'
     assert client.post(base + '/complete').json() == ready.json()
     assert media.get_asset(upload['media_asset_id'])['object_version_id'] == asset['object_version_id']
+
+
+def test_staged_video_persists_measured_integer_seconds(client):
+    from app.storage import media
+    raw=(Path(__file__).parent/'fixtures'/'pixmax-audio-source.mp4').read_bytes()
+    base,upload=start(client,raw,name='video.mp4')
+    send_part(client,base,raw)
+    response=client.post(base+'/complete')
+    assert response.status_code==200,response.text
+    assert media.get_asset(upload['media_asset_id'])['metadata']['duration_seconds']==2

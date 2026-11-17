@@ -17,7 +17,7 @@
     const root = el('section', undefined, 'credit-policy');
     const form = el('form'), status = el('p', '', 'muted'), error = el('p', '', 'error');
     status.setAttribute('role', 'status'); error.setAttribute('role', 'alert');
-    root.append(el('p', '积分规则用于充值和任务价格试算。自动支付入账、奖励发放和任务扣费尚未接入。', 'credit-policy-notice'),
+    root.append(el('p', '已绑定的图片、视频、MediaKit 理解和普通对话均支持积分预冻结与结算。视频按实际时长核算；普通对话完整回复保存后按次实扣，中断或保存失败退回。充值仍为方案预览，自动支付入账和奖励发放尚未接入。', 'credit-policy-notice'),
       el('p', `参考数据：${data.reference} · ${draft.rules.length} 条模型规则。积分有效期：永久。`, 'muted'), status, form, error);
     const versionText = () => status.textContent = data.version ? `已保存版本 ${data.version}` : '尚未保存 · 当前显示参考配置';
     versionText();

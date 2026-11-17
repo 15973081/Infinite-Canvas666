@@ -145,7 +145,10 @@ def price_log(log, providers=(), frozen_price=None):
                  if isinstance(saved.get('price_snapshot'), dict) else
                  historical_price(info, log.get('createdAt', 0), providers, log.get('request')))
         outcome = 'rejected' if log.get('status') == 'failed' else 'succeeded' if log.get('status') == 'success' else 'uncertain'
-        return {**info, **calculate(price, log.get('raw_usage'), outcome)}
+        usage = log.get('raw_usage')
+        if usage is None:
+            usage = log.get('usage')
+        return {**info, **calculate(price, usage, outcome)}
     if log.get("status") == "failed" and saved.get("billing_source") != "volcengine_usage":
         return {**unknown, "status": "excluded", "reason": "failed"}
     if saved.get("status") == "priced":
@@ -164,7 +167,7 @@ def price_log(log, providers=(), frozen_price=None):
     if billing_type == "per_image":
         quantity = max(1, len(log.get("outputs") or []))
     elif billing_type == "per_second":
-        quantity = log.get("durationSeconds") or (log.get("request") or {}).get("duration") or (log.get("video_info") or {}).get("duration") or 0
+        quantity = log.get("durationSeconds") or (log.get("video_info") or {}).get("duration") or log.get("mediakit_duration") or (log.get("request") or {}).get("duration") or 0
     elif billing_type == "per_10k_characters" and info['kind'] == 'audio':
         characters = (log.get('audio_info') or {}).get('usage_characters')
         if type(characters) is not int or characters <= 0:
@@ -433,7 +436,7 @@ def task_run_ms(task):
 
 def task_log(task):
     result = task.get("result") or {}
-    if task.get("status") not in ("succeeded", "failed") and task.get("upstream_status") != "succeeded" and not (task.get('type') in {'llm','audio','model'} and task.get('status') == 'needs_review'):
+    if task.get("status") not in ("succeeded", "failed") and task.get("upstream_status") != "succeeded" and not (task.get('status') == 'needs_review' and (task.get('type') in {'llm','audio','model'} or task.get('type') == 'video' and result.get('videos'))):
         return None
     request = task.get("billing_request") or {}
     kind = "chat" if task.get("type") == "llm" else "audio" if task.get("type") == "audio" else "model" if task.get('type') == 'model' else "video" if task.get("type") == "video" else "image"
@@ -446,10 +449,11 @@ def task_log(task):
            "billingModel": task.get("model", ""), "model": task.get("model", ""),
            "request": {**request, "canvas_task_id": task["id"], "task_id": result.get("task_id") or task.get("upstream_task_id") or ""},
            "prompt": request.get("prompt", ""), "outputs": result.get("videos") or result.get("images") or result.get('audios') or result.get('models') or [],
-           "error": task.get("error", ""), "durationSeconds": (result.get("video_info") or {}).get("duration") or request.get("duration") or 0}
+           "error": task.get("error", ""), "durationSeconds": (result.get("video_info") or {}).get("duration") or result.get("mediakit_duration") or request.get("duration") or 0}
     if kind == "chat":
         log["text"] = result.get("text", "")
-        log["raw_usage"] = copy.deepcopy(result.get("raw_usage"))
+        usage = result.get("raw_usage")
+        log["raw_usage"] = copy.deepcopy(result.get("usage") if usage is None else usage)
         if result.get('billing_outcome') == 'uncertain' and log['status'] == 'success':
             log['status'] = 'uncertain'
     log["runMs"] = task_run_ms(task)

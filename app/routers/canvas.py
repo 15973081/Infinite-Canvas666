@@ -86,8 +86,8 @@ def _update_video_task_record(task_id: str, **changes) -> dict:
             return {}
         current.update(changes)
         current["updated_at"] = float(changes.get("updated_at") or time.time())
+        current = save_durable_canvas_task(current)
         CANVAS_TASKS[task_id] = current
-        save_durable_canvas_task(current)
         return dict(current)
 
 @router.post("/api/canvas-image-tasks")

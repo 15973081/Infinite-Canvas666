@@ -199,6 +199,8 @@ async def run_task(task_id, request):
     if not isinstance(result, dict):
         raise HTTPException(502, 'MediaKit 完成结果为空，已保留原任务')
     info = {'model': payload.model, 'mediakit_task_id': task['upstream_task_id']}
+    if isinstance(result.get('resolution'), str):
+        info['resolution'] = result['resolution']
     duration = result.get('duration')
     if type(duration) in {int, float} and math.isfinite(duration) and duration > 0:
         info['mediakit_duration'] = duration

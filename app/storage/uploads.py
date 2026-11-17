@@ -311,13 +311,20 @@ def complete(asset_id):
                   "object_version_id": version, "size_bytes": row["size_bytes"]}
         media.store().download(staged, path)
         size, digest = _verify(path, row, uploaded)
+        duration_metadata = {}
+        if row['content_type'].startswith('video/'):
+            from app.services.video_duration import probe
+            duration = probe(path)
+            if duration is not None:
+                duration_metadata['duration_seconds'] = duration
         key = "media/" + current_workspace() + "/" + asset_id + "/" + uuid.uuid4().hex
         final_version = media.store().put(key, path, row["content_type"])
         with connection() as conn:
             if not conn.execute("SELECT 1 FROM media_uploads WHERE asset_id=%s AND lease_token=%s AND lease_until>now() FOR UPDATE", (asset_id, token)).fetchone():
                 raise HTTPException(409, "上传确认租约已失效")
-            conn.execute("UPDATE assets SET status='ready',object_key=%s,object_version_id=%s,size_bytes=%s,sha256=%s,updated_at=now() WHERE id=%s",
-                         (key, final_version, size, digest, asset_id))
+            from psycopg.types.json import Jsonb
+            conn.execute("UPDATE assets SET status='ready',object_key=%s,object_version_id=%s,size_bytes=%s,sha256=%s,metadata=metadata || %s,updated_at=now() WHERE id=%s",
+                         (key, final_version, size, digest, Jsonb(duration_metadata), asset_id))
             conn.execute("UPDATE media_uploads SET status='ready',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE asset_id=%s", (asset_id,))
         return result(asset_id)
     finally:

@@ -392,6 +392,12 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
     # Every attempt owns a separate key. Failed attempts cannot overwrite ready data.
     workspace = current_workspace()
     metadata = dict(metadata or {})
+    if kind == 'video':
+        from app.services.video_duration import probe
+        duration = probe(path)
+        metadata.pop('duration_seconds', None)
+        if duration is not None:
+            metadata['duration_seconds'] = duration
     key = "media/" + workspace + "/" + media_id + "/" + uuid.uuid4().hex + (Path(name).suffix[:12] or ".bin")
     bucket = os.getenv("TOS_BUCKET", "local-simulation") if media_backend() == "tos" else "local-simulation"
     region = os.getenv("TOS_REGION", "local") if media_backend() == "tos" else "local"

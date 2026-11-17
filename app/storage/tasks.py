@@ -122,6 +122,9 @@ def save(task, request_payload=None, *, historical=False):
         if status not in ACTIVE + TERMINAL:
             value["legacy_status"] = status
             status = "needs_review"
+        if value.get('type') == 'online-image' and status == 'succeeded' and not (value.get('result') or {}).get('images'):
+            status = value['status'] = 'failed'
+            value['error'] = '图片任务未返回可交付结果'
         now = float(value.get("updated_at") or time.time())
         if old:
             if status == "succeeded":
@@ -179,6 +182,12 @@ def save(task, request_payload=None, *, historical=False):
                 row = conn.execute('UPDATE tasks SET canvas_revision=%s,canvas_edit_generation=%s WHERE workspace_id=%s AND id=%s RETURNING *',
                                    (canvas['revision'], edit_lease['generation'], workspace, task_id)).fetchone()
         if not historical:
+            from app.services import image_credits, media_credits
+            if not old:
+                image_credits.reserve(conn, row)
+                media_credits.reserve(conn, row)
+            image_credits.settle(conn, row)
+            row = media_credits.settle(conn, row)
             from app.storage.generation_outputs import record
             record(conn, row)
         return decode(row)

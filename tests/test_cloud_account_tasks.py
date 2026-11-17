@@ -26,7 +26,9 @@ def test_account_tasks_are_private_paged_and_do_not_return_task_payloads(world):
     second=c.get(path,params={'page_size':1,'page':2}).json()
     assert second['entries'][0]['id']!=data['entries'][0]['id']
     assert 'private prompt' not in first.text and 'api_key' not in first.text
-    assert set(data['entries'][0])=={'id','kind','model','status','canvas_id','created_at'}
+    assert set(data['entries'][0])=={'id','kind','model','status','canvas_id','created_at','source_type',
+        'credit_hold_id','credit_status','credit_model_code','credit_quote_version','credit_frozen','credit_settled','credit_released'}
+    assert data['entries'][0]['credit_status'] is None
     assert c.get(path,params={'status':'failed'}).json()['records']==1
     assert c.get(path,params={'page':999}).json()['page']==1
     assert world['viewer'].get(path,params={'member_id':owner}).json()['records']==1

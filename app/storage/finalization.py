@@ -105,6 +105,9 @@ async def resume(task_id):
         finally:
             media.result_slot.reset(token)
     result[packet["field"]] = urls
+    if packet['field'] == 'videos':
+        from app.services.video_duration import complete_result
+        result = await asyncio.to_thread(complete_result, result)
     return result
 
 
@@ -145,5 +148,7 @@ def retry(task_id):
             raise HTTPException(409, "只允许重试无执行租约的待核对结果入库任务")
         if not has_source(task_id):
             raise HTTPException(409, "没有已保存的结果来源，禁止自动重新生成")
+        from app.services.image_credits import require_recoverable
+        require_recoverable(conn, task_id)
         conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,completed_at=NULL,available_at=now(),updated_at=now(),lease_owner=NULL,lease_token=NULL,lease_until=NULL,legacy_metadata=jsonb_set(legacy_metadata,'{finalization_failures}','0') || jsonb_build_object('error','') WHERE workspace_id=%s AND id=%s", (current_workspace(), task_id))
     return {"task_id": task_id, "status": "finalizing"}

@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 
 _sys_d = os.path.dirname(os.path.abspath(__file__))
@@ -65,10 +66,13 @@ async def lifespan(_app: FastAPI):
         database.check()
         from app.storage.media import cleanup_orphaned_operations
         cleanup_orphaned_operations()
+        from app.services.chat_billing import recover_pending
+        await asyncio.to_thread(recover_pending)
         handle = worker.start() if os.getenv("CLOUD_EMBEDDED_WORKER", "true").lower() == "true" else None
         try:
             from app.services.maintenance_control import scheduler, service_presence
-            async with scheduler(), service_presence('workbench'):
+            from app.services.chat_billing import recovery_scheduler
+            async with scheduler(), service_presence('workbench'), recovery_scheduler():
                 yield
         finally:
             if handle:

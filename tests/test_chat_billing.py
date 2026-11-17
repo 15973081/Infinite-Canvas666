@@ -5,12 +5,31 @@ from copy import deepcopy
 import pytest
 from app.services.chat_billing import calculate, usage_counts
 from app.providers.registry import normalize_model_prices, merge_model_price_history
-from app.services.canvas_ledger import price_log, historical_price
+from app.services.canvas_ledger import price_log, historical_price, task_log
 
 TOKEN = {'kind':'chat','model':'m','billing_type':'per_million_tokens','input_price':'2',
          'output_price':'8','cached_input_price':'0.5'}
 USAGE = {'prompt_tokens':1000,'completion_tokens':500,'prompt_tokens_details':{'cached_tokens':200},
          'completion_tokens_details':{'reasoning_tokens':100}}
+
+
+@pytest.mark.parametrize('raw,expected', [
+    (None, 6000), ({'input_tokens': 10, 'output_tokens': 5}, 60),
+    ({'input_tokens': 0, 'output_tokens': 0}, 0), ({}, None),
+])
+def test_mediakit_usage_fallback_preserves_explicit_raw_usage(raw, expected):
+    result = {'text': 'summary', 'usage': {'input_tokens': 1000, 'output_tokens': 500}}
+    if raw is not None:
+        result['raw_usage'] = raw
+    task = {'id': 'mediakit-llm', 'type': 'llm', 'status': 'succeeded',
+            'created_at': 100, 'result': result, 'billing_price': TOKEN}
+    item = task_log(task)
+    assert item['cost'].get('amount_micros') == expected
+    assert price_log({'billingKind': 'chat', 'status': 'success', **result}, [], TOKEN).get('amount_micros') == expected
+    # Nullable raw usage is also absent, but an explicit invalid object stays invalid.
+    if raw is None:
+        result['raw_usage'] = None
+        assert task_log(task)['cost']['amount_micros'] == 6000
 
 
 def test_token_price_counts_cache_once_and_reasoning_is_not_added_again():

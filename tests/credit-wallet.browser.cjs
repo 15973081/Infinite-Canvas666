@@ -12,7 +12,7 @@ async function setup(t){
   await page.addScriptTag({content:fs.readFileSync('static/js/credit-wallet.js','utf8')});
   await page.evaluate(()=>{
     window.active=true;window.pending=[];window.requests=[];
-    window.report=(page=1)=>({wallet:{total_balance:'9007199254740993',recharge_balance:'9007199254740000',gift_balance:'993'},
+    window.report=(page=1)=>({wallet:{total_balance:'9007199254740993',recharge_balance:'9007199254740000',gift_balance:'993',frozenBalance:'100',availableBalance:'9007199254740893'},
       page,pages:3,records:51,entries:[{id:String(page),type:'ADD',amount:'5',balance_after:'9007199254740993',remaining_amount:'5',
         category:'gift',source:'RECHARGE_GIFT',validity:'PERMANENT',created_at:1792000000000,note:'<img src=x onerror=alert(1)>'}]});
     window.view=CanvasCreditWallet.create({isActive:()=>active,fetchReport:(params,signal)=>{
@@ -53,7 +53,7 @@ test('credit wallet request failures clear stale balances and remain retryable',
   assert.equal(await page.locator('.billing-total').count(),0);
   assert.equal(await page.locator('.credit-wallet').getAttribute('aria-busy'),'false');
   await page.getByRole('button',{name:'刷新'}).click();
-  await page.evaluate(()=>pending[2].resolve({...report(),entries:[],records:0,pages:1,wallet:{total_balance:'0',recharge_balance:'0',gift_balance:'0'}}));
+  await page.evaluate(()=>pending[2].resolve({...report(),entries:[],records:0,pages:1,wallet:{total_balance:'0',recharge_balance:'0',gift_balance:'0',frozenBalance:'0',availableBalance:'0'}}));
   await page.getByText('暂无积分流水',{exact:true}).waitFor();
   assert.equal(await page.locator('.billing-total strong').first().textContent(),'0');
 });
@@ -80,4 +80,27 @@ test('credit wallet modal binds the displayed account and aborts when closed',as
   assert.equal(await page.evaluate(()=>fetchCalls[0].options.signal.aborted),true);
   await page.evaluate(()=>reply({ok:true,json:async()=>report()}));
   assert.equal(await page.locator('dialog').count(),0);
+});
+
+test('credit wallet shows frozen and available balances and a mixed-batch spend',async t=>{
+  const {page,errors}=await setup(t);
+  await page.evaluate(()=>pending[0].resolve({...report(),entries:[{
+    id:'2',type:'SPEND',amount:'60',balance_after:'9007199254740993',category:'mixed',
+    source:'canvas_task',hold_id:'hold-1',grant_id:null,remaining_amount:null,validity:null,
+    created_at:1792000000000,note:'部分成功结算'
+  }]}));
+  await page.getByText('赠送及充值积分 / 消费',{exact:true}).waitFor();
+  assert.equal(await page.getByText('−60',{exact:true}).count(),1);
+  const cards=await page.locator('.billing-total').allTextContents();
+  assert.ok(cards.includes('冻结中积分100'));assert.ok(cards.includes('可用积分9,007,199,254,740,893'));
+  assert.equal(await page.locator('td').nth(4).textContent(),'—');
+  assert.equal(await page.locator('td').nth(5).textContent(),'—');
+  assert.equal(await page.evaluate(()=>CanvasCreditBalance.value.availableBalance),'9007199254740893');
+  assert.deepEqual(errors,[]);
+  for(const width of [1440,390]){
+    await page.setViewportSize({width,height:900});
+    assert.ok(await page.locator('.credit-wallet').evaluate(n=>n.getBoundingClientRect().width<=innerWidth));
+    fs.mkdirSync('.local/credit-consumption',{recursive:true});
+    await page.screenshot({path:'.local/credit-consumption/wallet-'+width+'.png',fullPage:true});
+  }
 });

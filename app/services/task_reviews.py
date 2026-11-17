@@ -42,7 +42,7 @@ def account_status(conn, row):
         return 'unavailable'
 
 
-def capabilities(row, checkpoint, submissions, account, images=None):
+def capabilities(row, checkpoint, submissions, account, images=None, credit_status=None):
     if row['leased']:
         return []
     actions = []
@@ -56,9 +56,16 @@ def capabilities(row, checkpoint, submissions, account, images=None):
             and row['provider_account_ref'].startswith('managed:')
             and not row['legacy_metadata'].get('submission_unknown')):
         actions.append('cancel_unsubmitted')
-    if row['status'] == 'needs_review' and not checkpoint:
+    if row['status'] == 'needs_review' and (not checkpoint or credit_status == 'FROZEN'):
         actions.append('confirm_failed')
+    if credit_status in {'SETTLED', 'RELEASED'}:
+        actions = [action for action in actions if action not in {'retry_finalization', 'resume_polling'}]
     return actions
+
+
+def image_credit_status(conn, row):
+    hold = conn.execute("SELECT status FROM credit_holds WHERE source_type='canvas_task' AND source_id=%s", (row['id'],)).fetchone()
+    return hold['status'] if hold else None
 
 
 def public(row):
@@ -99,7 +106,7 @@ def detail(actor, workspace, task_id):
             WHERE workspace_id=%s AND task_id=%s ORDER BY created_at DESC LIMIT 20""", (workspace, task_id)).fetchall()
         return {**public(row), 'result_checkpoint': checkpoint, 'submission_counts': submissions,
                 'account_status': account, 'image_receipts': image_receipts.summary(row, conn),
-                'actions': capabilities(row, checkpoint, submissions, account, image_receipts.summary(row, conn)),
+                'actions': capabilities(row, checkpoint, submissions, account, image_receipts.summary(row, conn), image_credit_status(conn, row)),
                 'reviews': reviews}
 
 
@@ -126,8 +133,11 @@ def review(actor, workspace, task_id, request_id, expected_version, action, note
         if row['leased']:
             az.fail('task_review_busy', 409)
         checkpoint, submissions, account = result_source(conn, row), submission_counts(conn, row), account_status(conn, row)
-        if action not in capabilities(row, checkpoint, submissions, account, image_receipts.summary(row, conn)):
+        if action not in capabilities(row, checkpoint, submissions, account, image_receipts.summary(row, conn), image_credit_status(conn, row)):
             az.fail('task_review_action_unavailable', 409)
+        if action in {'retry_finalization', 'resume_polling'}:
+            from app.services.image_credits import require_recoverable
+            require_recoverable(conn, task_id)
         if action == 'retry_finalization':
             with workspace_scope(workspace):
                 finalization.retry(task_id)
@@ -138,6 +148,16 @@ def review(actor, workspace, task_id, request_id, expected_version, action, note
                 lease_owner=NULL,lease_token=NULL,lease_until=NULL,
                 legacy_metadata=legacy_metadata || jsonb_build_object('error', '') WHERE workspace_id=%s AND id=%s""",
                 (status, status in {'failed', 'cancelled'}, workspace, task_id))
+            if status in {'failed', 'cancelled'}:
+                from app.services.image_credits import settle
+                from app.services.canvas_ledger import record_task
+                completed = conn.execute('SELECT * FROM tasks WHERE id=%s', (task_id,)).fetchone()
+                if completed['kind'] in {'online-image','video','llm'}:
+                    with workspace_scope(workspace):
+                        settle(conn, completed)
+                        from app.services.media_credits import settle as settle_media
+                        settle_media(conn, completed)
+                        record_task(tasks.decode(completed))
         updated = conn.execute('SELECT status,review_version FROM tasks WHERE workspace_id=%s AND id=%s', (workspace, task_id)).fetchone()
         result = {'request_id': str(request_id), 'task_id': task_id, 'workspace_id': workspace,
                   'action': action, **updated}

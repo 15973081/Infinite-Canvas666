@@ -5,8 +5,8 @@ from app.services.credit_policy import defaults, normalize, topup_quote, model_q
 
 def test_imported_rules_are_complete_and_valid():
     config = normalize(defaults())
-    assert len(config['rules']) == 78
-    assert len({r['modelCode'] for r in config['rules']}) == 78
+    assert len(config['rules']) == 84
+    assert len({r['modelCode'] for r in config['rules']}) == 84
 
 
 @pytest.mark.parametrize('amount,base,gift,total', [
@@ -52,6 +52,40 @@ def test_discount_boundaries_and_rounding_after_batch():
     assert model_quote(*args,now=rule['activityStartTime'])['credits']==5
     assert model_quote(*args,now=rule['activityStartTime'],count=3)['credits']==14
     assert model_quote(*args,now=rule['activityEndTime'])['credits']==8
+
+
+@pytest.mark.parametrize('discount,now,expected', [
+    ('NONE', 15, 3), ('ACTIVITY', 9, 3), ('ACTIVITY', 10, 1),
+    ('ACTIVITY', 19, 1), ('ACTIVITY', 20, 3), ('USER', 15, 1),
+])
+def test_fractional_totals_round_once_with_or_without_discount(discount, now, expected):
+    c = defaults()
+    rule = next(r for r in c['rules'] if r['modelCode'] == 'BANANA')
+    rule.update(basePrice=0.6, discountType=discount, discountRate=0.5,
+                returnDiscountedPrice=True, activityStartTime=10, activityEndTime=20)
+    rule['pricingConfig']['imageExtraPrice'] = 0.7
+    q = model_quote(normalize(c), 'BANANA', {}, count=3, input_image_count=1, now=now)
+    assert q['original'] == 3  # 0.6 * 3 + 0.7 = 2.5
+    assert q['credits'] == expected  # Discount uses 2.5, not the rounded original 3.
+    assert q['extraCredits'] == 1
+    assert all(type(q[k]) is int for k in ('original', 'credits', 'extraCredits'))
+
+
+@pytest.mark.parametrize('code,params,prompt', [
+    ('BANANA', {}, ''), ('GPT_IMAGE_2', {'quality': 'low', 'resolution': '1K'}, ''),
+    ('ELEVENLABS_V2', {}, 'hello'),
+])
+def test_every_quote_branch_has_a_minimum_integer_total(code, params, prompt):
+    c = defaults()
+    rule = next(r for r in c['rules'] if r['modelCode'] == code)
+    rule.update(basePrice=0.1, discountType='NONE')
+    rule['pricingConfig'].update(minPrice=0.1, imageExtraPrice=0)
+    if params:
+        rule['pricingConfig']['combinationPrices']['low||1K'] = 0.1
+    q = model_quote(normalize(c), code, params, prompt=prompt)
+    assert (q['original'], q['credits'], q['extraCredits']) == (1, 1, 0)
+    rule.update(discountType='USER', returnDiscountedPrice=True, discountRate=0.01)
+    assert model_quote(c, code, params, prompt=prompt)['credits'] == 1
 
 
 @pytest.mark.parametrize('code,params,kwargs', [

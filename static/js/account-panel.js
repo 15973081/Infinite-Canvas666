@@ -108,34 +108,60 @@
         catch(error){message.textContent=error.message;}finally{saving=false;[save,input,color,close].forEach(n=>n.disabled=false);}};
       input.addEventListener('input',()=>input.setCustomValidity(''));body.append(form);
     }
-    function topup(){
+    async function topup(stamp){
+      body.replaceChildren(el('p','正在读取充值方案…','account-status'));
+      let policy;
+      try{policy=await request('/api/account/credit-policy',{signal:controller.signal});}
+      catch(error){
+        if(active()&&stamp===version)body.replaceChildren(el('p','充值方案读取失败，请重试。','account-status'),button('重试',()=>void select('topup')));
+        return;
+      }
+      if(!active()||stamp!==version)return;
+      const config=policy.config,plans=[...config.tiers].sort((a,b)=>a.minAmount-b.minAmount);
+      // Match Decimal's decimal-value multiplication before flooring the gift.
+      function giftFor(base,rate){
+        const [coefficient,exponent='0']=String(rate).split('e'),[whole,fraction='']=coefficient.split('.');
+        const scale=fraction.length-Number(exponent),product=base*BigInt(whole+fraction);
+        return scale>=0?product/(10n**BigInt(scale)):product*(10n**BigInt(-scale));
+      }
+      function quote(value){
+        const rate=[...plans].reverse().find(p=>value>=p.minAmount)?.bonusRate||0;
+        const base=BigInt(value)*BigInt(config.creditsPerCNY);
+        return {base,gift:giftFor(base,rate)};
+      }
       const block=el('div'),note=el('p','充值方案预览 · 支付暂未开放，选择金额不会创建订单或增加余额。','account-muted'),grid=el('div',undefined,'account-topup-grid'),left=el('div'),cards=el('div',undefined,'account-plans'),right=el('aside',undefined,'account-topup-summary');
-      const plans=[[69,15],[399,30],[2499,50],[4999,70]];
-      const amountLabel=el('label','其他金额'),amount=el('input');amount.type='number';amount.min='1';amount.max='1000000';amount.step='1';amount.value='69';amount.setAttribute('aria-label','其他金额');amountLabel.append(amount);
+      const amountLabel=el('label','其他金额'),amount=el('input');amount.type='number';amount.min='1';amount.max='1000000';amount.step='1';amount.value=String(plans[0].minAmount);amount.setAttribute('aria-label','其他金额');amountLabel.append(amount);
       function render(){
         const value=Number(amount.value);right.replaceChildren();
-        cards.querySelectorAll('button').forEach((b,i)=>{const on=value===plans[i][0];b.classList.toggle('selected',on);b.setAttribute('aria-pressed',String(on));});
+        cards.querySelectorAll('button').forEach((b,i)=>{const on=value===plans[i].minAmount;b.classList.toggle('selected',on);b.setAttribute('aria-pressed',String(on));});
         if(!Number.isInteger(value)||value<1||value>1000000){right.append(el('p','请输入 1 至 1,000,000 元的整数进行预览。'));return;}
-        const rate=[...plans].reverse().find(p=>value>=p[0])?.[1]||0,base=BigInt(value)*15n,gift=base*BigInt(rate)/100n;
-        for(const [label,text] of [['充值积分',points(base)],['赠送积分',points(gift)],['首充加赠','资格未接入，暂不计入'],['预计到账积分',points(base+gift)],['预览金额','¥'+value]]){const item=el('div');item.append(el('span',label),el('strong',text));right.append(item);}
+        const {base,gift}=quote(value);
+        const reward=config.rewards,first=reward.firstRechargeEnabled?`满 ¥${reward.firstRechargeMinimum} 可加赠 ${points(reward.firstRechargeCredits)} 积分；资格未接入，暂不计入`:'首充加赠未开启';
+        for(const [label,text] of [['充值积分',points(base)],['赠送积分',points(gift)],['首充加赠',first],['预计到账积分',points(base+gift)],['预览金额','¥'+value]]){const item=el('div');item.append(el('span',label),el('strong',text));right.append(item);}
         const unavailable=el('div',undefined,'account-payment-unavailable');const paymentIcon=el('span');paymentIcon.append(icon('lock'));unavailable.append(paymentIcon,el('strong','支付暂未开放'),el('small','开放后可在此查看支付方式。'));right.append(unavailable);
       }
-      for(const [price,rate] of plans){const total=BigInt(price)*15n*(100n+BigInt(rate))/100n,b=button('',()=>{amount.value=String(price);render();},'account-plan');const credits=el('span',undefined,'account-plan-credits');credits.append(icon('zap'),document.createTextNode(points(total)+' 积分'));b.append(el('span','加赠 '+rate+'%','account-bonus'),credits,el('strong','¥'+price));b.setAttribute('aria-label',price+' 元充值方案');cards.append(b);}
+      for(const {minAmount:price,bonusRate:rate} of plans){const {base,gift}=quote(price),b=button('',()=>{amount.value=String(price);render();},'account-plan');const credits=el('span',undefined,'account-plan-credits');credits.append(icon('zap'),document.createTextNode(points(base+gift)+' 积分'));b.append(el('span','加赠 '+new Intl.NumberFormat('zh-CN',{style:'percent',maximumFractionDigits:10}).format(rate),'account-bonus'),credits,el('strong','¥'+price));b.setAttribute('aria-label',price+' 元充值方案');cards.append(b);}
       amount.oninput=render;const other=el('div',undefined,'account-topup-other'),coupon=button('优惠码 ',null);coupon.append(icon('chevron-right'));coupon.disabled=true;coupon.title='优惠码暂未开放';other.append(amountLabel,coupon);
-      left.append(cards,other,el('p','¥1＝15 积分\n当前方案充值积分永久有效','account-muted'));grid.append(left,right);block.append(note,grid);body.append(block);render();
+      left.append(cards,other,el('p',`¥1＝${points(config.creditsPerCNY)} 积分\n${config.validity==='PERMANENT'?'当前方案充值积分永久有效':'有效期以充值方案为准'}`,'account-muted'));grid.append(left,right);block.append(note,button('刷新充值方案',()=>void select('topup')),grid);body.replaceChildren(block);render();
     }
     async function credits(stamp){
       const switches=el('div',undefined,'account-tabs'),content=el('div');body.append(switches,content);let tabVersion=0;
       async function choose(id){const generation=++tabVersion;dispose();dispose=()=>{};content.replaceChildren();switches.querySelectorAll('button').forEach(b=>{b.classList.toggle('active',b.dataset.tab===id);b.setAttribute('aria-selected',String(b.dataset.tab===id));});
-        if(id!=='grants'){content.append(el('div',id==='usage'?'积分消费结算尚未接入，暂无可查询的扣分流水。':'创作助手积分结算尚未接入。已有调用费用可在任务明细中查看。','account-empty'));return;}
+        if(id==='assistant'){content.append(el('div','创作助手积分结算尚未接入。已有调用费用可在任务明细中查看。','account-empty'));return;}
         await import('/static/js/credit-wallet.js');if(!active()||version!==stamp||generation!==tabVersion)return;
-        const view=window.CanvasCreditWallet.create({isActive:active,fetchReport:(params,signal)=>request('/api/account/credits?'+new URLSearchParams(params),{signal})});dispose=view.dispose;content.append(view.element);
+        const view=window.CanvasCreditWallet.create({isActive:active,transactionType:id==='usage'?'SPEND':'ADD',fetchReport:(params,signal)=>request('/api/account/credits?'+new URLSearchParams(params),{signal})});dispose=view.dispose;content.append(view.element);
       }
       for(const [id,label] of [['usage','消耗明细'],['assistant','创作助手'],['grants','充值明细']]){const b=button(label,()=>void choose(id));b.dataset.tab=id;b.setAttribute('role','tab');switches.append(b);}switches.setAttribute('role','tablist');await choose('grants');
     }
     function tasks(stamp){
+      function creditText(row){
+        if(row.credit_status==='FROZEN')return '冻结中 '+points(row.credit_frozen)+' 积分';
+        if(row.credit_status==='RELEASED')return '已退回 '+points(row.credit_released)+' 积分 / 未扣费';
+        if(row.credit_status==='SETTLED')return '已实扣 -'+points(row.credit_settled)+' 积分'+(BigInt(row.credit_released)>0n?'（释放 '+points(row.credit_released)+' 积分）':'');
+        return '未接入积分结算';
+      }
       const toolbar=el('div',undefined,'account-tabs'),status=el('select');status.setAttribute('aria-label','任务状态');
-      const states={'':'全部状态',queued:'排队中',running:'执行中',submitting:'提交中',polling:'等待结果',finalizing:'保存结果',succeeded:'完成',failed:'失败',cancelled:'已取消',needs_review:'待核对'};
+      const states={'':'全部状态',queued:'排队中',running:'执行中',submitting:'提交中',polling:'等待结果',finalizing:'保存结果',succeeded:'完成',failed:'失败',cancelled:'已取消',needs_review:'待核对',pending:'等待回复',uncertain:'回复中断',rejected:'请求失败'};
       for(const [v,l]of Object.entries(states))status.append(new Option(l,v));
       const results=el('div'),message=el('p','','account-status'),pager=el('div',undefined,'account-pager');message.setAttribute('role','status');let page=1,pages=1,seq=0;
       const prev=button('上一页',()=>load(page-1)),next=button('下一页',()=>load(page+1)),position=el('span');pager.append(prev,position,next);
@@ -143,7 +169,7 @@
       async function load(target=1){const n=++seq;prev.disabled=next.disabled=true;message.textContent='正在读取任务…';results.replaceChildren();
         try{const data=await request('/api/account/tasks?'+new URLSearchParams({status:status.value,page:target,page_size:25}),{signal:controller.signal});if(!active()||stamp!==version||n!==seq)return;
           page=data.page;pages=data.pages;position.textContent=page+' / '+pages;const table=el('table'),tr=el('tr'),thead=el('thead'),tbody=el('tbody');for(const t of ['任务 ID','模型 / 类型','创建时间','状态','积分消耗'])tr.append(el('th',t));thead.append(tr);table.append(thead,tbody);
-          for(const row of data.entries){const line=el('tr');for(const value of [row.id,(row.model||'—')+' / '+row.kind,new Date(row.created_at).toLocaleString('zh-CN'),states[row.status]||row.status,'未接入积分结算'])line.append(el('td',value));tbody.append(line);}const scroll=el('div',undefined,'account-table-scroll');scroll.append(table);results.append(data.entries.length?scroll:el('div','暂无任务记录','account-empty'));message.textContent='共 '+data.records+' 个本人发起的任务';
+          for(const row of data.entries){const line=el('tr');for(const value of [row.id,(row.model||'—')+' / '+row.kind,new Date(row.created_at).toLocaleString('zh-CN'),states[row.status]||row.status,creditText(row)])line.append(el('td',value));tbody.append(line);}const scroll=el('div',undefined,'account-table-scroll');scroll.append(table);results.append(data.entries.length?scroll:el('div','暂无任务记录','account-empty'));message.textContent='共 '+data.records+' 个本人发起的任务';
         }catch(error){if(active()&&stamp===version&&n===seq)message.textContent=error.message+' 请点击刷新重试。';}finally{if(n===seq){prev.disabled=page<=1;next.disabled=page>=pages;}}}
       status.onchange=()=>load(1);void load();
     }
@@ -156,7 +182,7 @@
       if(!active()||saving)return;if(dirty&&!window.confirm('资料尚未保存，确定切换栏目？'))return;dirty=false;
       selected=tabs.some(t=>t[0]===id)?id:'profile';const stamp=++version;controller?.abort();controller=new AbortController();dispose();dispose=()=>{};body.replaceChildren();
       nav.querySelectorAll('button').forEach(b=>{const on=b.dataset.tab===selected;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
-      if(selected==='profile')profile();else if(selected==='topup')topup();else if(selected==='credits')await credits(stamp);else if(selected==='tasks')tasks(stamp);
+      if(selected==='profile')profile();else if(selected==='topup')await topup(stamp);else if(selected==='credits')await credits(stamp);else if(selected==='tasks')tasks(stamp);
       else {const title=selected==='invoice'?'账单发票':'企业认证';const empty=el('div',selected==='invoice'?'真实支付和开票服务尚未开放，暂无可申请的充值发票。':'企业认证服务尚未开放，暂不收集营业执照或认证材料。','account-empty'),mark=el('span',undefined,'account-empty-icon');mark.append(icon(selected==='invoice'?'file-text':'building-2'));empty.prepend(mark);body.append(el('h3',title),empty);if(selected==='invoice')body.append(button('查看使用费用',()=>void billing(stamp)));}
     }
     for(const [id,label] of tabs){const b=button('',()=>void select(id));b.dataset.tab=id;b.append(icon(id),el('span',label));nav.append(b);}

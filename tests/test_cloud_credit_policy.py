@@ -1,7 +1,7 @@
 import os
 import pytest
 from test_cloud_management import platform
-from test_cloud_member_gateway import operator
+from test_cloud_member_gateway import operator, world
 
 pytestmark=pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST')!='1',reason='Use tools/cloud_test.py')
 
@@ -12,7 +12,7 @@ def test_policy_roundtrip_conflict_audit_and_no_wallet_mutation(platform):
     response=c.get('/api/credits/policy')
     assert response.status_code==200,response.text
     original=response.json()
-    assert len(original['config']['rules'])==78
+    assert len(original['config']['rules'])==84
     with connection() as conn:
         before=conn.execute('SELECT count(*) AS n FROM credit_transactions').fetchone()['n']
     body={'config':original['config'],'expected_version':original['version'],'reason':'验证积分规则'}
@@ -55,3 +55,56 @@ def test_policy_auditor_can_read_and_quote_but_not_write(platform):
     members.assign_roles(platform['operator'],target['id'],[])
     with pytest.raises(HTTPException):
         credit_policy.management(actor)
+
+
+def test_member_credit_policy_public_projection_auth_and_management_updates(platform, world):
+    from fastapi.testclient import TestClient
+    from main import app
+    from app.storage.database import connection
+    from app.services.credit_policy import defaults, account_policy
+    from fastapi import HTTPException
+
+    path = '/api/account/credit-policy'
+    member = world['people'][1]['id']
+    client = world['viewer']
+    with connection() as conn:
+        conn.execute('DELETE FROM credit_policy')
+        before = conn.execute('SELECT count(*) AS n FROM credit_transactions').fetchone()['n']
+    response = client.get(path, headers={'X-Member-ID': member})
+    assert response.status_code == 200, response.text
+    assert response.headers['cache-control'] == 'private, no-store'
+    initial = response.json()
+    public_keys = {'creditsPerCNY', 'tiers', 'rewards', 'validity'}
+    assert set(initial) == {'config', 'version', 'mode'}
+    assert initial['config'] == {k: defaults()[k] for k in public_keys}
+    assert initial['version'] == 0 and initial['mode'] == 'active'
+    assert client.get(path, headers={'X-Member-ID': world['people'][0]['id']}).status_code == 409
+    assert client.get('/api/credits/policy').status_code == 403
+    for method in ('post', 'put', 'delete'):
+        assert getattr(client, method)(path).status_code == 405
+    with TestClient(app) as anonymous:
+        assert anonymous.get(path).status_code == 401
+    with pytest.raises(HTTPException) as exc:
+        account_policy(platform['operator'])
+    assert exc.value.status_code == 403
+
+    config = defaults()
+    config.update(creditsPerCNY=23, tiers=[{'minAmount': 10, 'bonusRate': 0.29}])
+    config['rewards']['firstRechargeEnabled'] = False
+    admin = platform['client']
+    try:
+        saved = admin.put('/api/credits/policy', json={
+            'config': config, 'expected_version': 0, 'reason': '充值配置同步验收'})
+        assert saved.status_code == 200, saved.text
+        updated = client.get(path).json()
+        assert updated['version'] == saved.json()['version']
+        assert updated['config'] == {k: config[k] for k in public_keys}
+        with connection() as conn:
+            assert conn.execute('SELECT count(*) AS n FROM credit_transactions').fetchone()['n'] == before
+            conn.execute("UPDATE members SET status='disabled' WHERE id=%s", (member,))
+        assert client.get(path).status_code == 401
+    finally:
+        current = admin.get('/api/credits/policy').json()
+        restored = admin.put('/api/credits/policy', json={
+            'config': defaults(), 'expected_version': current['version'], 'reason': '恢复测试默认配置'})
+        assert restored.status_code == 200

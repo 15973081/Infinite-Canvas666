@@ -20,8 +20,8 @@
   }
   function publish(value, ticket) {
     if (!ticket.memberId || ticket.memberId !== currentMember() || ticket.memberId !== memberId || ticket.sequence !== sequence) return false;
-    const {total_balance,recharge_balance,gift_balance} = value;
-    wallet = {total_balance,recharge_balance,gift_balance}; notify(); return true;
+    const {total_balance,recharge_balance,gift_balance,frozenBalance,availableBalance} = value;
+    wallet = {total_balance,recharge_balance,gift_balance,frozenBalance,availableBalance}; notify(); return true;
   }
   async function refresh() {
     const ticket = beginRead();

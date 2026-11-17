@@ -2,6 +2,13 @@
 # Isolated cloud simulation (secrets, database and objects)
 .local/
 
+# Local backups, smoke reports and tooling caches
+*.dump
+*.log
+local-smoke.json
+.codegraph/
+.reasonix/
+
 # Python bytecode and test caches
 __pycache__/
 *.py[cod]

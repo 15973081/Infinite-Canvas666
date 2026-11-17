@@ -1,0 +1,19 @@
+{
+  "providers": {},
+  "models": {
+    "doubao-seed-2.1-pro": "DOUBAO_SEED_2_1_PRO",
+    "MiniMax-M3": "MINIMAX_M3",
+    "minimax-m3": "MINIMAX_M3",
+    "gemini-2.5-pro": "GEMINI_25_PRO",
+    "doubao-seed-2.0-pro": "DOUBAO_SEED_2_PRO",
+    "glm-5.2": "GLM_52",
+    "deepseek-v4-flash": "DEEPSEEK_V4_FLASH",
+    "doubao-seed-2.0-lite": "DOUBAO_SEED_2_LITE",
+    "doubao-seed-2.1-turbo": "DOUBAO_SEED_2_1_TURBO",
+    "gemini-3.1-flash": "GEMINI_31_FLASH",
+    "gemini-3-flash": "GEMINI_3_FLASH",
+    "gemini-3.1-pro": "GEMINI_31_PRO",
+    "gemini-2.5-flash": "GEMINI_25_FLASH",
+    "deepseek-v4-pro": "DEEPSEEK_V4_PRO"
+  }
+}

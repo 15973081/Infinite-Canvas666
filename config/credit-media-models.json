@@ -1,0 +1,18 @@
+{
+  "volcengine": {
+    "doubao-seedance-2-5-260628": {"default": "PIXDANCE_2_5", "draft": "PIXDANCE_2_5_DRAFT"},
+    "doubao-seedance-2-0-260128": "PIXDANCE_2",
+    "doubao-seedance-2-0-fast-260128": "PIXDANCE_2_FAST",
+    "doubao-seedance-2-0-mini-260615": "PIXDANCE_2_MINI",
+    "doubao-seedance-1-5-pro-251215": "SEEDANCE_1_5",
+    "doubao-seedance-1-0-pro-250528": "SEEDANCE_1_0_PRO",
+    "doubao-seedance-1-0-lite-t2v-250428": "SEEDANCE_1_0_LITE",
+    "doubao-seedance-1-0-lite-i2v-250428": "SEEDANCE_1_0_LITE"
+  },
+  "mediakit": {
+    "enhance-video": "MEDIAKIT_VIDEO_UPSCALE",
+    "erase-video-subtitle": "MEDIAKIT_SMART_ERASE",
+    "erase-video-subtitle-pro": "MEDIAKIT_SMART_ERASE_PRO",
+    "video-understand-router": "MEDIAKIT_VIDEO_UNDERSTAND"
+  }
+}

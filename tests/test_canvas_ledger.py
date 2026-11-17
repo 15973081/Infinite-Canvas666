@@ -44,6 +44,26 @@ class LedgerTests(unittest.TestCase):
     def write_canvas(self, logs):
         (self.root / "c.json").write_text(json.dumps({"id": "c", "nodes": [{"id": "keep-layout"}], "logs": logs}), encoding="utf-8")
 
+    def test_mediakit_duration_priority_and_durable_ledger(self):
+        price = {'billing_type': 'per_second', 'unit_price': '0.2'}
+        for index, (result, expected) in enumerate([
+            ({'video_info': {'duration': 4}, 'mediakit_duration': 8}, 4),
+            ({'mediakit_duration': 8.5}, 8.5), ({}, 12),
+        ]):
+            with self.subTest(result=result):
+                task = {'id': 'mediakit-' + str(index), 'canvas_id': 'c', 'type': 'video',
+                        'status': 'succeeded', 'created_at': AT / 1000, 'provider_id': 'mediakit',
+                        'model': 'enhance-video', 'billing_request': {'duration': 12},
+                        'billing_price': price, 'result': {**result, 'videos': ['saved.mp4']}}
+                item = ledger.task_log(task)
+                self.assertEqual(item['durationSeconds'], expected)
+                self.assertEqual(item['cost']['amount_micros'], int(expected * 200000))
+                self.assertEqual(ledger.price_log({'billingKind': 'video', 'status': 'success',
+                    'request': {'duration': 12}, **result}, [], price)['quantity'], expected)
+                ledger.record_task(task)
+                ledger.record_task(task)
+        self.assertEqual(ledger.read_page('c')['totals']['records'], 3)
+
     def test_task_duration_uses_completion_not_last_update_or_browser_wait(self):
         task = {"id": "duration", "type": "online-image", "status": "succeeded",
                 "created_at": AT / 1000, "completed_at": AT / 1000 + 129,

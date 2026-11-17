@@ -68,6 +68,7 @@ def main(argv=None):
             suites.append("test_cloud_online_imports.py")
             suites.append("test_cloud_skills.py")
             suites.append("test_cloud_chat_billing.py")
+            suites.append("test_cloud_chat_credits.py")
             suites.append("test_cloud_online_inbox.py")
             suites.append("test_cloud_pixmax_tags.py")
             suites.append("test_cloud_pixmax_annotation.py")
@@ -90,6 +91,10 @@ def main(argv=None):
             suites.extend(["test_credit_wallet.py", "test_cloud_credit_wallet.py", "test_cloud_credit_gifts.py", "test_cloud_account_tasks.py"])
             suites.append("test_cloud_tenants.py")
             suites.append("test_cloud_credit_policy.py")
+            suites.append("test_cloud_credit_consumption.py")
+            suites.append("test_cloud_image_credits.py")
+            suites.append("test_cloud_media_credits.py")
+            suites.append("test_cloud_mediakit_tasks.py")
             return pytest.main([*(str(ROOT / "tests" / name) for name in suites), "-q", *(argv or [])])
         finally:
             try:

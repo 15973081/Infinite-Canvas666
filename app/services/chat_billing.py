@@ -7,6 +7,7 @@ from copy import deepcopy
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 MAX_AMOUNT = 9007199254740991
 
@@ -96,7 +97,7 @@ def calculate(price, raw_usage, outcome='succeeded'):
             'discount_amount_micros': 0, 'discount_rate': '1'}
 
 
-def begin(provider, model, conversation, user_id):
+def begin(provider, model, conversation, user_id, messages=()):
     from app.services.canvas_ledger import historical_price
     from app.storage.settings import postgres_enabled
     from app.storage.workspace import current_workspace
@@ -113,6 +114,8 @@ def begin(provider, model, conversation, user_id):
     access = current_access.get()
     member = access.principal.member_id if access else None
     with connection() as conn:
+        from app.services import chat_credits
+        chat_credits.reserve(conn, context, member, messages)
         person = conn.execute('SELECT username,display_name FROM members WHERE id=%s', (member,)).fetchone() or {}
         cost = calculate(context['price'], None, 'uncertain')
         log = {'id': 'chat:' + context['id'], 'createdAt': at, 'billingKind': 'chat',
@@ -132,13 +135,16 @@ def begin(provider, model, conversation, user_id):
     return context
 
 
-def finish(context, raw_usage=None, outcome='uncertain'):
+def finish(context, raw_usage=None, outcome='uncertain', *, delivered=False, cost_outcome=None):
     from app.storage.settings import postgres_enabled
     if outcome not in {'succeeded', 'rejected', 'uncertain'}:
         raise ValueError('invalid chat outcome')
+    cost_outcome = cost_outcome or outcome
+    if cost_outcome not in {'succeeded', 'rejected', 'uncertain'}:
+        raise ValueError('invalid upstream chat outcome')
     if not postgres_enabled():
         from app.services.canvas_ledger import append_logs
-        cost = calculate(context['price'], raw_usage, outcome)
+        cost = calculate(context['price'], raw_usage, cost_outcome)
         append_logs('__account_chats__', [{'id': 'chat:' + context['id'], 'createdAt': context['at'],
             'billingKind': 'chat', 'providerId': context['provider'], 'billingModel': context['model'],
             'status': 'success' if outcome == 'succeeded' else outcome, 'cost': cost}], 'chat', providers=[])
@@ -158,7 +164,9 @@ def finish(context, raw_usage=None, outcome='uncertain'):
                 raise RuntimeError('Chat call record missing')
             if row['status'] != 'pending':
                 return conn.execute('SELECT cost_json FROM ledger_entries WHERE id=%s', (row['entry_id'],)).fetchone()['cost_json']
-            cost = calculate(row['price_snapshot'], raw_usage, outcome)
+            cost = calculate(row['price_snapshot'], raw_usage, cost_outcome)
+            from app.services import chat_credits
+            chat_credits.finish(conn, row['id'], delivered and outcome == 'succeeded')
             now = int(time.time() * 1000)
             status = 'success' if outcome == 'succeeded' else 'failed' if outcome == 'rejected' else 'uncertain'
             conn.execute('UPDATE ai_chat_calls SET status=%s,raw_usage=%s,completed_at=%s WHERE id=%s',
@@ -171,3 +179,43 @@ def finish(context, raw_usage=None, outcome='uncertain'):
             return cost
     finally:
         current_access.reset(token)
+
+
+def recover_pending(*, now=None, limit=100):
+    """Close expired calls; message persistence and successful settlement commit together."""
+    from app.config import AI_REQUEST_TIMEOUT
+    from app.storage.database import connection
+    from app.services.member_context import current_access
+    from app.storage.workspace import workspace_scope
+    cutoff = (int(time.time() * 1000) if now is None else now) - int((AI_REQUEST_TIMEOUT + 120) * 1000)
+    token = current_access.set(None)
+    try:
+        with connection() as conn:
+            rows = conn.execute('''SELECT id,workspace_id,raw_usage FROM ai_chat_calls
+                WHERE status='pending' AND started_at<%s ORDER BY started_at,id LIMIT %s''',
+                (cutoff, limit)).fetchall()
+        for row in rows:
+            with workspace_scope(row['workspace_id']):
+                finish({'workspace': row['workspace_id'], 'id': row['id']}, row['raw_usage'], 'uncertain')
+        return len(rows)
+    finally:
+        current_access.reset(token)
+
+
+@asynccontextmanager
+async def recovery_scheduler():
+    import asyncio
+    import logging
+    async def run():
+        while True:
+            await asyncio.sleep(60)
+            try:
+                await asyncio.to_thread(recover_pending)
+            except Exception:
+                logging.exception('Pending chat recovery failed; retrying next minute')
+    task = asyncio.create_task(run())
+    try:
+        yield
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)

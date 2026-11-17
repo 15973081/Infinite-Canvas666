@@ -445,6 +445,13 @@ def create_app(static_dir=None):
         from app.services.credit_policy import preview
         return preview(actor(request), data)
 
+    @app.get('/api/credits/wallets/{member_id}')
+    def credit_wallet_read(request: Request, member_id: str, category: str = Query('', max_length=20),
+                           page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100),
+                           transaction_type: str = Query('', max_length=10)):
+        from app.services.credit_wallet import management_report
+        return management_report(actor(request), member_id, category=category, page=page, page_size=page_size, transaction_type=transaction_type)
+
     @app.get('/api/credits/gifts')
     def credit_gift_history(request: Request, username: str = Query('', max_length=64),
                             request_id: UUID | None = None,

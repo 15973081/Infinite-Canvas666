@@ -254,7 +254,7 @@ class CanvasMediaKitTaskRequest(BaseModel):
     prompt: str = Field(default='', max_length=10000)
     resolution: Literal['', '720p', '1080p', '2k', '4k', '8k'] = ''
     tool_version: Literal['standard', 'professional'] = 'standard'
-    level: Literal['Economy', 'Balanced', 'Quality'] = 'Economy'
+    level: Literal['', 'Economy', 'Balanced', 'Quality'] = ''
 
     @model_validator(mode='after')
     def validate_tool_inputs(self):
@@ -264,8 +264,9 @@ class CanvasMediaKitTaskRequest(BaseModel):
             raise ValueError('请填写视频理解要求')
         if self.model != 'enhance-video' and (self.resolution or self.tool_version != 'standard'):
             raise ValueError('当前工具不支持超分参数')
-        if self.model != 'video-understand-router' and self.level != 'Economy':
+        if self.model != 'video-understand-router' and self.level not in ('', 'Economy'):
             raise ValueError('当前工具不支持理解档位')
+        self.level = self.level or ('Balanced' if self.model == 'video-understand-router' else 'Economy')
         return self
 
 

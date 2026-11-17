@@ -8,7 +8,7 @@
   };
   const points = value => BigInt(value).toLocaleString('zh-CN');
   const sources = {RECHARGE:'充值', RECHARGE_GIFT:'充值赠送', PLATFORM_GIFT:'平台赠送'};
-  function create({fetchReport, isActive = () => true}) {
+  function create({fetchReport, isActive = () => true, transactionType = ''}) {
     const walletStore=window.CanvasCreditBalance;
     const root = el('section', undefined, 'billing-view credit-wallet');
     const summary = el('div', undefined, 'billing-overview');
@@ -23,7 +23,7 @@
     const message = el('p','','billing-note'); message.setAttribute('role','status');
     const rows = el('div',undefined,'billing-scroll'), pager = el('div',undefined,'billing-pager');
     const position = el('span','','billing-page-number'); pager.append(previous,position,next);
-    root.append(summary, el('p','余额包含全部积分；下方按充值与赠送来源筛选。','billing-note'),toolbar,message,rows,pager);
+    root.append(summary, el('p','总积分包含冻结中积分；可用积分可用于新任务。分类筛选展示涉及该分类的完整流水金额。','billing-note'),toolbar,message,rows,pager);
     let version=0, page=1, pages=1, busy=false, stopped=false, controller;
     function controls() {
       previous.disabled=stopped || busy || page<=1;
@@ -40,7 +40,7 @@
     function renderWallet(wallet) {
       if(!wallet||stopped||!isActive())return;
       const cards = el('div',undefined,'billing-totals');
-      for (const [key,title] of [['total_balance','总积分'],['recharge_balance','充值积分'],['gift_balance','赠送积分']]) {
+      for (const [key,title] of [['total_balance','总积分'],['recharge_balance','充值积分'],['gift_balance','赠送积分'],['frozenBalance','冻结中积分'],['availableBalance','可用积分']]) {
         const card=el('div',undefined,'billing-total');card.append(el('span',title),el('strong',points(wallet[key])));cards.append(card);
       }
       summary.replaceChildren(cards);
@@ -54,9 +54,9 @@
       for(const entry of data.entries){
         const row=el('tr');
         const values=[new Date(entry.created_at).toLocaleString('zh-CN'),
-          (entry.category==='recharge'?'充值积分':'赠送积分')+' / '+(sources[entry.source]||entry.source),
-          (entry.type==='ADD'?'+':'−')+points(entry.amount),points(entry.balance_after),points(entry.remaining_amount),
-          entry.validity==='PERMANENT'?'永久有效':'待核实',entry.note||'—'];
+          ({recharge:'充值积分',gift:'赠送积分',mixed:'赠送及充值积分'}[entry.category]||'积分')+' / '+(entry.type==='SPEND'?'消费':sources[entry.source]||entry.source),
+          (entry.type==='ADD'?'+':'−')+points(entry.amount),points(entry.balance_after),entry.remaining_amount==null?'—':points(entry.remaining_amount),
+          entry.type==='SPEND'?'—':entry.validity==='PERMANENT'?'永久有效':'待核实',entry.note||'—'];
         for(const value of values)row.append(el('td',value));body.append(row);
       }
       rows.replaceChildren(table);
@@ -71,7 +71,7 @@
       busy=true;controls();summary.replaceChildren();rows.replaceChildren();position.textContent='';message.textContent='正在读取积分…';
       const walletRead=walletStore.beginRead();
       try{
-        const data=await fetchReport({category:category.value,page:target,page_size:25},controller.signal);
+        const data=await fetchReport({category:category.value,page:target,page_size:25,...(transactionType?{transaction_type:transactionType}:{})},controller.signal);
         if(stopped||stamp!==version)return;
         if(!isActive()){pause();return;}
         walletStore.publish(data.wallet,walletRead);

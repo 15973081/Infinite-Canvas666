@@ -18,7 +18,7 @@ async function setup(t){
  await page.evaluate(()=>{
   window.reads=[];const transport=window.fetch;
   window.fetch=(url,options)=>String(url).startsWith('/api/account/credits')?new Promise(resolve=>reads.push({url,options,resolve})):transport(url,options);
-  window.completeRead=(index,total)=>reads[index].resolve({ok:true,json:async()=>({wallet:{total_balance:String(total),recharge_balance:String(total),gift_balance:'0'},entries:[],page:1,pages:1,records:0})});
+  window.completeRead=(index,total)=>reads[index].resolve({ok:true,json:async()=>({wallet:{total_balance:String(total),recharge_balance:String(total),gift_balance:'0',frozenBalance:'0',availableBalance:String(total)},entries:[],page:1,pages:1,records:0})});
  });
  return {page,errors};
 }
@@ -43,7 +43,7 @@ test('menu, account header and ledger share ordered wallet snapshots and release
  assert.equal(await page.locator('.account-balance').textContent(),'积分余额： 600');
  await page.evaluate(()=>{window.closedBalance=document.querySelector('.account-balance');window.closedSummary=document.querySelector('.billing-total strong');});
  await page.getByLabel('关闭账户管理',{exact:true}).click();await page.locator('.account-panel').waitFor({state:'detached'});
- await page.evaluate(()=>{const ticket=CanvasCreditBalance.beginRead();CanvasCreditBalance.publish({total_balance:'700',recharge_balance:'700',gift_balance:'0'},ticket);});
+ await page.evaluate(()=>{const ticket=CanvasCreditBalance.beginRead();CanvasCreditBalance.publish({total_balance:'700',recharge_balance:'700',gift_balance:'0',frozenBalance:'0',availableBalance:'700'},ticket);});
  assert.equal(await page.locator('.member-account-balance').textContent(),'积分余额 700 · 查看明细');
  assert.equal(await page.evaluate(()=>closedBalance.textContent),'积分余额： 600');
  assert.equal(await page.evaluate(()=>closedSummary.textContent),'600');

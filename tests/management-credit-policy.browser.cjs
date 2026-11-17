@@ -19,7 +19,7 @@ async function setup(t, canEdit=true){
         if(state.conflict)return route.fulfill({status:409,json:{detail:{code:'credit_policy_changed'}}});
         state.config=body.config;state.version++;
       }
-      return route.fulfill({json:{config:state.config,version:state.version,reference:'Pixmax 2026-10-16',mode:'configuration_only'}});
+      return route.fulfill({json:{config:state.config,version:state.version,reference:'Pixmax 2026-10-16',mode:'active'}});
     }
     if(path==='/api/credits/policy/preview'){
       const body=req.postDataJSON();state.quotes.push(body);
@@ -32,7 +32,7 @@ async function setup(t, canEdit=true){
   await page.getByText('尚未保存 · 当前显示参考配置',{exact:true}).waitFor();
   return {page,state,errors};
 }
-test('credit policy edits, previews and persists all 78 rules',async t=>{
+test('credit policy edits, previews and persists all 84 rules',async t=>{
   const {page,state,errors}=await setup(t);
   await page.getByLabel('符合首充资格',{exact:true}).check();
   await page.getByRole('button',{name:'计算积分',exact:true}).click();
@@ -45,7 +45,7 @@ test('credit policy edits, previews and persists all 78 rules',async t=>{
   await page.getByRole('button',{name:'保存积分规则',exact:true}).click();
   await page.getByText('已保存版本 1',{exact:true}).waitFor();
   assert.equal(state.saves.length,1);
-  assert.equal(state.saves[0].config.rules.length,78);
+  assert.equal(state.saves[0].config.rules.length,84);
   assert.equal(state.saves[0].config.creditsPerCNY,20);
   assert.equal(state.saves[0].config.rules.find(r=>r.modelCode==='PIXDANCE_2_5').pricingConfig.combinationPrices['720P'],43);
   await page.getByLabel('试算类型',{exact:true}).selectOption('model');

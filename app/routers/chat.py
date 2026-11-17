@@ -18,9 +18,40 @@ from app.services.chat import *
 router = APIRouter()
 
 
+def admit_chat(provider, model, conversation, user_id, messages):
+    from contextlib import nullcontext
+    from app.storage.database import connection
+    from app.storage.settings import postgres_enabled
+    from app.services import chat_billing
+    with connection() if postgres_enabled() else nullcontext():
+        billing = chat_billing.begin(provider, model, conversation, user_id, messages)
+        save_conversation(user_id, conversation)
+        return billing
+
+
+def deliver_reply(billing, user_id, conversation, model, content, raw_usage):
+    from contextlib import nullcontext
+    from app.storage.database import connection
+    from app.storage.settings import postgres_enabled
+    from app.services import chat_billing
+    message = {'id': uuid.uuid4().hex, 'role': 'assistant', 'content': content,
+               'created_at': now_ms(), 'model': model, 'raw_usage': raw_usage,
+               'chat_call_id': billing['id'], 'cost': chat_billing.calculate(billing['price'], raw_usage, 'succeeded')}
+    conversation['messages'].append(message)
+    conversation['updated_at'] = now_ms()
+    with connection() if postgres_enabled() else nullcontext():
+        save_conversation(user_id, conversation)
+        chat_billing.finish(billing, raw_usage, 'succeeded', delivered=True)
+    return message
+
+
 def prepare_chat(payload):
     """Resolve the assigned provider and validate before writing conversation history."""
+    if payload.provider == 'mediakit' or payload.model == 'video-understand-router':
+        raise HTTPException(400, '该模型需通过 MediaKit 视频理解任务接口调用。')
     provider = get_api_provider(payload.provider)
+    if provider.get('protocol') == 'mediakit':
+        raise HTTPException(400, '该模型需通过 MediaKit 视频理解任务接口调用。')
     model = selected_model(payload.model, preferred_chat_model(provider))
     if managed_providers_enabled():
         from app.services.model_commercial import enforce
@@ -82,12 +113,12 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
             upstream_messages.append(msg)
     from app.services.chat_context_budget import enforce
     enforce(_conv_provider,model,upstream_messages)
-    save_conversation(user_id, conversation)
     from app.services import chat_billing
-    billing = await asyncio.to_thread(chat_billing.begin, _conv_provider, model, conversation, user_id)
+    billing = await asyncio.to_thread(admit_chat, _conv_provider, model, conversation, user_id, upstream_messages)
     raw_usage, outcome = None, 'uncertain'
+    upstream_outcome = None
     try:
-        async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
+        async with asyncio.timeout(AI_REQUEST_TIMEOUT), httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
             conv_req_body = {"model": model, "messages": upstream_messages}
             if _conv_is_apimart:
                 conv_req_body["stream"] = False
@@ -101,8 +132,11 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
             raw_data = unwrap_apimart_response(raw) if isinstance(raw, dict) else raw
             raw_usage = raw_data.get('usage') if isinstance(raw_data, dict) else None
             content = text_from_chat_response(raw).strip()
-            if content:
-                outcome = 'succeeded'
+            if not content:
+                raise HTTPException(502, '上游返回空回复，积分已退回。')
+            upstream_outcome = 'succeeded'
+            assistant_message = deliver_reply(billing, user_id, conversation, model, content, raw_usage)
+            outcome = 'succeeded'
     except httpx.HTTPStatusError as exc:
         outcome = 'rejected' if exc.response.status_code < 500 else 'uncertain'
         body = exc.response.text or ""
@@ -110,23 +144,12 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
         raise HTTPException(status_code=exc.response.status_code, detail=friendly or f"上游接口错误：{body}") from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"请求上游接口失败：{exc}") from exc
+    except TimeoutError as exc:
+        raise HTTPException(504, '对话超过最大等待时间，积分已退回。') from exc
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=502, detail='上游回复格式无效，费用待核对。') from exc
     finally:
-        cost = chat_billing.finish(billing, raw_usage, outcome)
-    assistant_message = {
-        "id": uuid.uuid4().hex,
-        "role": "assistant",
-        "content": content or "接口返回了空回复。",
-        "created_at": now_ms(),
-        "model": model,
-        "raw_usage": raw_usage,
-        "cost": cost,
-    }
-
-    conversation["messages"].append(assistant_message)
-    conversation["updated_at"] = now_ms()
-    save_conversation(user_id, conversation)
+        chat_billing.finish(billing, raw_usage, outcome, cost_outcome=upstream_outcome)
     return {"conversation": conversation, "message": assistant_message}
 
 @router.post("/api/chat/stream")
@@ -163,21 +186,20 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
             upstream_messages.append(msg)
     from app.services.chat_context_budget import enforce
     enforce(_stream_provider,model,upstream_messages)
-    save_conversation(user_id, conversation)
-
     from app.services import chat_billing
-    billing = await asyncio.to_thread(chat_billing.begin, _stream_provider, model, conversation, user_id)
+    billing = await asyncio.to_thread(admit_chat, _stream_provider, model, conversation, user_id, upstream_messages)
     async def stream():
         content_parts = []
         raw_usage = None
         outcome, completed = 'uncertain', False
+        upstream_outcome = None
         try:
             yield sse_event({"type": "meta", "conversation": conversation})
             body = {"model": model, "messages": upstream_messages, "stream": True}
             price = billing['price'] or {}
             if price.get('billing_type') == 'per_million_tokens' and price.get('stream_usage', True) and _stream_provider.get('protocol', 'openai') == 'openai':
                 body['stream_options'] = {'include_usage': True}
-            async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
+            async with asyncio.timeout(AI_REQUEST_TIMEOUT), httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
                 async with client.stream(
                     "POST",
                     f"{chat_base}/chat/completions",
@@ -217,27 +239,24 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
             if not completed:
                 yield sse_event({'type': 'error', 'detail': '回复连接中断，费用待核对；未自动重试。'})
                 return
-            if ''.join(content_parts).strip():
-                outcome = 'succeeded'
+            content = ''.join(content_parts).strip()
+            if not content:
+                yield sse_event({'type': 'error', 'detail': '上游返回空回复，积分已退回。'})
+                return
+            upstream_outcome = 'succeeded'
+            assistant_message = deliver_reply(billing, user_id, conversation, model, content, raw_usage)
+            outcome = 'succeeded'
         except httpx.HTTPError as exc:
             log_net_error("对话(流式) 网络/TLS错误", exc)
             yield sse_event({"type": "error", "detail": f"请求上游接口失败：{exc}"})
             return
+        except Exception as exc:
+            import logging
+            logging.exception('Chat reply could not be delivered')
+            yield sse_event({'type': 'error', 'detail': '回复未能完整保存，积分将退回。'})
+            return
         finally:
-            cost = chat_billing.finish(billing, raw_usage, outcome)
-
-        assistant_message = {
-            "id": uuid.uuid4().hex,
-            "role": "assistant",
-            "content": "".join(content_parts).strip() or "接口返回了空回复。",
-            "created_at": now_ms(),
-            "model": model,
-            "raw_usage": raw_usage,
-            "cost": cost,
-        }
-        conversation["messages"].append(assistant_message)
-        conversation["updated_at"] = now_ms()
-        save_conversation(user_id, conversation)
+            chat_billing.finish(billing, raw_usage, outcome, cost_outcome=upstream_outcome)
         yield sse_event({"type": "done", "conversation": conversation, "message": assistant_message})
 
     return StreamingResponse(stream(), media_type="text/event-stream")

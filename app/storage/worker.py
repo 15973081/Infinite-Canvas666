@@ -135,6 +135,8 @@ async def _consume(stop):
                 next_reconciliation = time.monotonic() + 60
                 from app.services.canvas_task_results import reconcile_pending
                 reconciliation_after = await asyncio.to_thread(reconcile_pending, reconciliation_after)
+                from app.services.chat_billing import recover_pending
+                await asyncio.to_thread(recover_pending)
             await asyncio.to_thread(tasks.recover_expired, all_workspaces=True)
             row = await asyncio.to_thread(tasks.claim, owner, all_workspaces=True)
             if row:
