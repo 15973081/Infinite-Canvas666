@@ -452,7 +452,7 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
 }
 
 function smartLogPreviewNode(url, kind='image'){
-    if(kind==='image')return window.PixmaxImagePreview.open({item:{url,name:fileNameFromUrl(url)||'图片',kind:'image'}});
+    if(kind==='image')return window.ShadoxAIImagePreview.open({item:{url,name:fileNameFromUrl(url)||'图片',kind:'image'}});
     const node = {id:'__smart_log_preview__', type:'smart-image', images:[{url, name:'log-preview', kind}], title:kind === 'video' ? 'Video' : 'Image'};
     smartSelection.withLogPreview(() => {
         nodes.push(node);
@@ -1002,7 +1002,7 @@ function openImagePreview(nodeId, imageIndex=0){
         return window.MemberCanvasEdit.active.mediaPreview.open({nodeId:node.id,index:Math.max(0,Number(imageIndex)||0),url:image.url});
     }
     if(mediaKindForItem(image || {}) === 'audio') return openSmartAudioLightbox(nodeId, imageIndex);
-    if(['image','video'].includes(mediaKindForItem(image || {})))return window.PixmaxImagePreview.openNode(node,Math.max(0,Number(imageIndex)||0));
+    if(['image','video'].includes(mediaKindForItem(image || {})))return window.ShadoxAIImagePreview.openNode(node,Math.max(0,Number(imageIndex)||0));
     openImageEditor(nodeId, imageIndex);
     setImageEditMode('preview');
 }

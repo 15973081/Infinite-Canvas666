@@ -96,14 +96,14 @@ for(const kind of ['classic','smart']) {
         owner.viewportChanged();tick();assert.equal(calls.measurements,2);
         assert.equal(owner.dragging,false);
     });
-    test(`${kind} minimap: binding is idempotent, saving timing remains unchanged and cleanup preserves other listeners`,()=>{
+    test(`${kind} minimap: binding is idempotent, classic viewport saves on drag end and smart navigation stays local and cleanup preserves other listeners`,()=>{
         const {owner,root,win,calls,mouse}=setup(kind);let unrelated=0;
         const onMove=()=>unrelated++;win.addEventListener('mousemove',onMove);
         owner.bind();owner.bind();owner.bind();assert.equal(root.handlers('mousedown').length,1);
-        root.emit('mousedown',mouse());assert.equal(calls.saves,kind==='classic'?0:1);
-        owner.move(mouse(100,80));assert.equal(calls.saves,kind==='classic'?0:2);
-        owner.endDrag();assert.equal(calls.saves,kind==='classic'?1:2);
-        owner.endDrag();assert.equal(calls.saves,kind==='classic'?1:2);
+        root.emit('mousedown',mouse());assert.equal(calls.saves,0);
+        owner.move(mouse(100,80));assert.equal(calls.saves,0);
+        owner.endDrag();assert.equal(calls.saves,kind==='classic'?1:0);
+        owner.endDrag();assert.equal(calls.saves,kind==='classic'?1:0);
         root.emit('mousedown',mouse());owner.destroy();owner.destroy();owner.bind();
         const saves=calls.saves;win.emit('mousemove',mouse());win.emit('mouseup',mouse());
         root.emit('mousedown',mouse());assert.equal(unrelated,1);assert.equal(calls.saves,saves);

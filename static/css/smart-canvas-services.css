@@ -1,4 +1,4 @@
-/* Service dialogs and business controls. Canvas surface lives in pixmax-canvas.css. */
+/* Service dialogs and business controls. Canvas surface lives in shadoxai-canvas.css. */
 @import url('/static/css/canvas-media.css');
 button { border:0; cursor:pointer; }
 .smart-title { color:var(--text); font-size:12px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

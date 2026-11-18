@@ -7,11 +7,11 @@ test('pure text node edits, scrolls, connects, resizes and saves without templat
     await page.reload();await page.waitForFunction(()=>canvas?.id==='canvas-test');
     await page.evaluate(()=>{window.textNode=createPromptNode(100,160);window.imageNode=createGenerationNodeAt({x:750,y:280},'image');connectInputNode(textNode.id,imageNode.id);});
     const editor=page.getByRole('textbox',{name:'节点文本'});
-    assert.equal(await page.locator('.prompt-smart-node .pixmax-node-name').inputValue(),'文本生成节点');
+    assert.equal(await page.locator('.prompt-smart-node .shadoxai-node-name').inputValue(),'文本生成节点');
     assert.equal(await page.locator('.prompt-node-tools,.prompt-node-llm,#composerTemplateBtn,#promptTemplatePanel,#promptPresetPanel').count(),0);
     assert.deepEqual(await page.evaluate(()=>[typeof runPromptLLMNode,typeof smartPromptPanels,typeof loadPromptTemplates]),['undefined','undefined','undefined']);
     const content='城市雨夜，霓虹灯映在湿润的街道上。\n'.repeat(40);
-    await page.locator('.pixmax-text-view').dblclick();
+    await page.locator('.shadoxai-text-view').dblclick();
     await editor.fill(content);
     assert.equal(await page.evaluate(()=>textNode.text),content);
     assert.equal(await editor.evaluate(el=>getComputedStyle(el).borderWidth),'0px');
@@ -34,7 +34,7 @@ test('pure text node edits, scrolls, connects, resizes and saves without templat
     assert.equal(record.nodes.find(n=>n.type==='smart-prompt').llmEnabled,undefined);
     assert.equal(record.connections.length,1);
     await page.reload();await page.waitForFunction(()=>nodes.length===2);
-    assert.equal(await page.locator('.pixmax-text-view').textContent(),content);
+    assert.equal(await page.locator('.shadoxai-text-view').textContent(),content);
     assert.equal(requests.some(p=>/prompt-libraries|prompt-templates|canvas-llm/.test(p)),false);
     assert.deepEqual(errors,[]);
 });
@@ -45,8 +45,8 @@ test('legacy LLM prompt remains editable plain text and readonly input cannot ch
         nodes=[{id:'old',type:'smart-prompt',x:150,y:150,w:316,h:344,text:'已有文本',llmEnabled:true,llmInstruction:'旧指令',llmSystemEnabled:true}];canvas.nodes=nodes;render();
     });
     const editor=page.getByRole('textbox',{name:'节点文本'});
-    assert.equal(await page.locator('.pixmax-text-view').isVisible(),true);
-    await page.locator('.pixmax-text-view').dblclick();
+    assert.equal(await page.locator('.shadoxai-text-view').isVisible(),true);
+    await page.locator('.shadoxai-text-view').dblclick();
     assert.equal(await editor.getAttribute('readonly'),null);
     await editor.fill('已有文本继续编辑');
     await page.evaluate(()=>MemberCanvasEdit.setEditable(false));

@@ -30,8 +30,8 @@ ACCOUNT.add('/api/account/credits')
 ACCOUNT.add('/api/account/credit-policy')
 ACCOUNT.add('/api/account/tasks')
 ACCOUNT.update({'/api/account/email','/api/account/email/start','/api/account/email/confirm','/api/account/invitations/accept'})
-PIXMAX_STAGE_ASSET = re.compile(r'^/static/vendor/pixmax/previs/(?:characters/x-bot\.fbx|animations/catalog\.runtime\.v1\.json|animations/clips/[0-9a-f-]{36}\.anim)$')
-PIXMAX_PARAMETER_SCHEMAS = {'/static/vendor/pixmax/generation-schema.json', '/static/vendor/pixmax/reshoot-schema.json'}
+SHADOXAI_STAGE_ASSET = re.compile(r'^/static/vendor/shadoxai/previs/(?:characters/x-bot\.fbx|animations/catalog\.runtime\.v1\.json|animations/clips/[0-9a-f-]{36}\.anim)$')
+SHADOXAI_PARAMETER_SCHEMAS = {'/static/vendor/shadoxai/generation-schema.json', '/static/vendor/shadoxai/reshoot-schema.json'}
 MANAGEMENT_PREFIXES = ('/api/shared-folders', '/api/comfyui/', '/api/workflows',
                        '/api/providers/', '/api/config/token', '/api/maintenance/start', '/api/maintenance/cancel')
 
@@ -323,8 +323,8 @@ async def dispatch(app, scope, receive, send):
         if path == '/' or path.startswith('/static/'):
             if path.startswith('/static/runninghub/') or path in {'/static/api-settings.html', '/static/comfyui-settings.html'}:
                 az.fail('management_entry_required')
-            parameter_schema = method in {'GET', 'HEAD'} and path in PIXMAX_PARAMETER_SCHEMAS
-            if path != '/' and not path.endswith(('.html', '.js', '.mjs', '.css', '.svg', '.png', '.jpg', '.webp', '.ico', '.woff', '.woff2', '.ttf')) and not PIXMAX_STAGE_ASSET.fullmatch(path) and not parameter_schema:
+            parameter_schema = method in {'GET', 'HEAD'} and path in SHADOXAI_PARAMETER_SCHEMAS
+            if path != '/' and not path.endswith(('.html', '.js', '.mjs', '.css', '.svg', '.png', '.jpg', '.webp', '.ico', '.woff', '.woff2', '.ttf')) and not SHADOXAI_STAGE_ASSET.fullmatch(path) and not parameter_schema:
                 az.fail('static_resource_forbidden')
             return await app(scope, receive, send)
         actions = permissions(path, method)

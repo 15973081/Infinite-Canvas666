@@ -21,7 +21,7 @@ function snapshotForUndo(){
     return {
         nodes: JSON.parse(JSON.stringify(nodes)),
         connections: JSON.parse(JSON.stringify(canvas?.connections || [])),
-        nodeTags: window.PixmaxTags?.definitions(),
+        nodeTags: window.ShadoxAITags?.definitions(),
         selectedId: smartSelection.nodeId,
         selectedIds: smartSelection.ids.slice(),
         selectedImage: {...smartSelection.image}
@@ -129,7 +129,7 @@ function serializableSmartNode(node){
 }
 
 function selectedSmartWorkflowPayload(){
-    const ids = window.PixmaxCanvasFrames?.expand(selectedNodeIds())||selectedNodeIds();
+    const ids = window.ShadoxAICanvasFrames?.expand(selectedNodeIds())||selectedNodeIds();
     const idSet = new Set(ids);
     const selectedNodes = nodes.filter(node => idSet.has(node.id)).map(serializableSmartNode).filter(Boolean);
     selectedNodes.forEach(node=>{if(node.videoAnalysis)delete node.videoAnalysis.taskId;});
@@ -143,7 +143,7 @@ function selectedSmartWorkflowPayload(){
         canvas_type:'smart',
         exported_at:Date.now(),
         nodes:selectedNodes,
-        node_tags:window.PixmaxTags?.definitions(),
+        node_tags:window.ShadoxAITags?.definitions(),
         connections:selectedConnections
     };
 }
@@ -218,7 +218,7 @@ async function exportSelectedSmartWorkflow(includeResources=false){
 
 function insertSmartWorkflowIntoCanvas(imported){
     if(isSmartCanvasLocked())throw new Error('请先开始编辑画布');
-    if(window.PixmaxWorkflow?.isNative(imported))imported=window.PixmaxWorkflow.convert(imported);
+    if(window.ShadoxAIWorkflow?.isNative(imported))imported=window.ShadoxAIWorkflow.convert(imported);
     const sourceDocument = JSON.parse(JSON.stringify(imported));
     removeRetiredSmartLoopNodes(sourceDocument);
     const srcNodes = sourceDocument.nodes;
@@ -246,15 +246,15 @@ function insertSmartWorkflowIntoCanvas(imported){
         .map(conn => ({...JSON.parse(JSON.stringify(conn)), from:idMap.get(conn.from), to:idMap.get(conn.to)}))
         .filter(conn => conn.from && conn.to);
     newNodes.forEach(node=>{if(node.inputNodeIds)node.inputNodeIds=node.inputNodeIds.map(id=>idMap.get(id)).filter(Boolean);});
-    newNodes.forEach(node=>window.PixmaxVideoAnnotation?.remapReferences(node,idMap,{referenceNodes:newNodes}));
-    newNodes.forEach(node=>{window.PixmaxSegmentReshoot?.remapReferences(node,idMap,{referenceNodes:newNodes,preservePrepared:true});window.PixmaxNativePrompt?.remap(node,idMap);});
-    newNodes.forEach(node=>window.PixmaxStoryboardAssets?.remapReferences(node,idMap));
-    newNodes.forEach(node=>window.PixmaxStoryboardMedia?.remapReferences(node,idMap,{referenceNodes:newNodes}));
-    newNodes.forEach(node=>window.PixmaxCanvasFrames?.remapReferences(node,idMap));
-    window.PixmaxTags?.mergeImported(imported,newNodes);
+    newNodes.forEach(node=>window.ShadoxAIVideoAnnotation?.remapReferences(node,idMap,{referenceNodes:newNodes}));
+    newNodes.forEach(node=>{window.ShadoxAISegmentReshoot?.remapReferences(node,idMap,{referenceNodes:newNodes,preservePrepared:true});window.ShadoxAINativePrompt?.remap(node,idMap);});
+    newNodes.forEach(node=>window.ShadoxAIStoryboardAssets?.remapReferences(node,idMap));
+    newNodes.forEach(node=>window.ShadoxAIStoryboardMedia?.remapReferences(node,idMap,{referenceNodes:newNodes}));
+    newNodes.forEach(node=>window.ShadoxAICanvasFrames?.remapReferences(node,idMap));
+    window.ShadoxAITags?.mergeImported(imported,newNodes);
     nodes.push(...newNodes);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
-    window.PixmaxReshootReferences?.project(newNodes);
+    window.ShadoxAIReshootReferences?.project(newNodes);
     smartSelection.insertedNodes(newNodes.filter(node=>!node.hidden).map(node => node.id));
     smartComposer.documentImported();
     render();
@@ -267,8 +267,8 @@ async function importSmartWorkflowFile(file){
     try {
         if(/\.json$/i.test(file.name)){
             const native=JSON.parse(await file.text());
-            if(window.PixmaxWorkflow?.isNative(native)){
-                const converted=window.PixmaxWorkflow.convert(native);
+            if(window.ShadoxAIWorkflow?.isNative(native)){
+                const converted=window.ShadoxAIWorkflow.convert(native);
                 insertSmartWorkflowIntoCanvas(converted);
                 if(converted.warnings.length)toast(converted.warnings.join('；'));
                 closeSmartWorkflowTransferModal();return;
@@ -383,7 +383,7 @@ function createImageNodeAt(point, images=[], options={}){
 function restoreSmartMemberDraft(draft){
     if(!canvas || draft.id!==canvas.id || draft.kind!=='smart' || !Array.isArray(draft.nodes) || !Array.isArray(draft.connections)) throw new Error('智能画布草稿格式不完整，请先导出保留。');
     const restoredDocument=JSON.parse(JSON.stringify(draft));
-    const restoredTags=Object.hasOwn(restoredDocument,'node_tags')?window.PixmaxTags.normalize(restoredDocument.node_tags):undefined;
+    const restoredTags=Object.hasOwn(restoredDocument,'node_tags')?window.ShadoxAITags.normalize(restoredDocument.node_tags):undefined;
     removeRetiredSmartLoopNodes(restoredDocument);
     const restoredNodes=restoredDocument.nodes.map(serializableSmartNode).filter(Boolean);
     clearTimeout(saveTimer); saveTimer=null;
@@ -509,7 +509,7 @@ function scheduleSave(){
     }
     smartCanvasDirty = true;
     window.MemberCanvasEdit?.markDirty();
-    syncPixmaxSaveStatus();
+    syncShadoxAISaveStatus();
     // Keep the idle deadline even when an earlier save is still in flight.
     scheduleSave.lastEditAt = Date.now();
     clearTimeout(saveTimer);
@@ -560,7 +560,7 @@ async function saveCanvas(options={}){
                 icon:storageCanvas.icon || 'sparkles',
                 cover:storageCanvas.cover || null,
                 nodes:storageCanvas.nodes || [],
-                node_tags:window.PixmaxTags?.definitions(),
+                node_tags:window.ShadoxAITags?.definitions(),
                 connections:storageCanvas.connections || [],
                 viewport:storageCanvas.viewport || {x:0,y:0,scale:1},
                 logs:storageCanvas.logs || [],
@@ -585,8 +585,8 @@ async function saveCanvas(options={}){
                     smartCanvasDirty = true;
                 }
                 smartSaveErrorNotified = false;
-                window.PixmaxMediaTools?.confirmSaved(data.canvas);
-                window.PixmaxVideoAnnotation?.confirmSaved(data.canvas);
+                window.ShadoxAIMediaTools?.confirmSaved(data.canvas);
+                window.ShadoxAIVideoAnnotation?.confirmSaved(data.canvas);
                 return true;
             }
             if(window.CanvasSession?.enabled){
@@ -627,12 +627,12 @@ async function saveCanvas(options={}){
         }
     })();
     smartSaveInFlight = operation;
-    syncPixmaxSaveStatus();
+    syncShadoxAISaveStatus();
     try {
         return await operation;
     } finally {
         if(smartSaveInFlight === operation) smartSaveInFlight = null;
-        syncPixmaxSaveStatus();
+        syncShadoxAISaveStatus();
         // 请求结束后统一安排后续保存，每次执行仍会重新检查权限和锁。
         if((smartSaveAgain || smartCanvasDirty) && !isSmartCanvasLocked()){
             clearTimeout(saveTimer);
@@ -668,7 +668,7 @@ function createNode(x, y, images=[], options={}){
     if(options.mediaKind==='video'){node.outputKind='video';node.title='视频节点';}
     const generationKind = newSmartMediaKind(nodeImages, options);
     if(nodeImages.length===1&&nodeImages[0].name)node.label=nodeImages[0].name.replace(/\.[^.]+$/,'');
-    else if(!nodeImages.length&&generationKind)node.label=pixmaxUniqueNodeLabel(generationKind==='video'?'视频生成节点':'图像生成节点');
+    else if(!nodeImages.length&&generationKind)node.label=shadoxaiUniqueNodeLabel(generationKind==='video'?'视频生成节点':'图像生成节点');
     if(generationKind){
         node.generationKind = generationKind;
         node.title = node.generationKind === 'video' ? '视频节点' : '图片节点';
@@ -705,7 +705,7 @@ function createPromptNode(x, y, options={}){
         w:240,
         h:240,
         title:'文本节点',
-        label:pixmaxUniqueNodeLabel('文本生成节点'),
+        label:shadoxaiUniqueNodeLabel('文本生成节点'),
         text:'',
         created_at:Date.now()
     };
@@ -738,15 +738,15 @@ function cloneSmartNode(node, dx=0, dy=0){
 
 function copySelectedNodes(){
     if(!canvas || isEditableTarget(document.activeElement)) return;
-    const selected = window.PixmaxCanvasFrames?.expand(selectedNodeIds())||selectedNodeIds();
-    const ids = window.PixmaxReshootReferences?.expandHidden(selected)||selected;
+    const selected = window.ShadoxAICanvasFrames?.expand(selectedNodeIds())||selectedNodeIds();
+    const ids = window.ShadoxAIReshootReferences?.expandHidden(selected)||selected;
     const copiedNodes = ids.map(id => nodes.find(n => n.id === id)).filter(Boolean);
     if(!copiedNodes.length) return;
     const idSet = new Set(copiedNodes.map(n => n.id));
     const copiedConnections = (canvas.connections || []).filter(c => idSet.has(c.from) && idSet.has(c.to));
     nodeClipboard = {
         nodes:JSON.parse(JSON.stringify(copiedNodes)),
-        node_tags:window.PixmaxTags?.definitions(),
+        node_tags:window.ShadoxAITags?.definitions(),
         connections:JSON.parse(JSON.stringify(copiedConnections))
     };
     toast(`已复制 ${copiedNodes.length} 个节点`);
@@ -775,22 +775,22 @@ function pasteNodes({includeConnections=true}={}){
             copy.inputNodeIds = includeConnections ? copy.inputNodeIds.map(id => idMap.get(id)).filter(Boolean) : [];
         }
         if(copy.sourceNodeId) copy.sourceNodeId = includeConnections ? idMap.get(copy.sourceNodeId) || '' : '';
-        window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
-        window.PixmaxSegmentReshoot?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
-        window.PixmaxNativePrompt?.remap(copy,idMap);
-        window.PixmaxStoryboardAssets?.remapReferences(copy,idMap,{connected:includeConnections});
-        window.PixmaxStoryboardMedia?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
-        window.PixmaxCanvasFrames?.remapReferences(copy,idMap);
+        window.ShadoxAIVideoAnnotation?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
+        window.ShadoxAISegmentReshoot?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
+        window.ShadoxAINativePrompt?.remap(copy,idMap);
+        window.ShadoxAIStoryboardAssets?.remapReferences(copy,idMap,{connected:includeConnections});
+        window.ShadoxAIStoryboardMedia?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
+        window.ShadoxAICanvasFrames?.remapReferences(copy,idMap);
     });
     const newConnections = (includeConnections ? nodeClipboard.connections || [] : []).map(conn => ({
         ...conn,
         from:idMap.get(conn.from),
         to:idMap.get(conn.to)
     })).filter(conn => conn.from && conn.to && conn.from !== conn.to);
-    window.PixmaxTags?.mergeImported(nodeClipboard,copies);
+    window.ShadoxAITags?.mergeImported(nodeClipboard,copies);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     nodes.push(...copies);
-    window.PixmaxReshootReferences?.project(copies);
+    window.ShadoxAIReshootReferences?.project(copies);
     smartSelection.insertedNodes(copies.filter(node=>!node.hidden).map(n => n.id));
     render();
     scheduleSave();
@@ -798,8 +798,8 @@ function pasteNodes({includeConnections=true}={}){
 
 function duplicateForAltDrag(node){
     const duplicateIds = (isNodeSelected(node.id) ? selectedNodeIds() : [node.id]);
-    const expanded = window.PixmaxCanvasFrames?.expand(duplicateIds)||duplicateIds;
-    const ids = window.PixmaxReshootReferences?.expandHidden(expanded)||expanded;
+    const expanded = window.ShadoxAICanvasFrames?.expand(duplicateIds)||duplicateIds;
+    const ids = window.ShadoxAIReshootReferences?.expandHidden(expanded)||expanded;
     const sourceNodes = ids.map(id => nodes.find(n => n.id === id)).filter(Boolean);
     if(!sourceNodes.length) return node;
     pushUndo();
@@ -812,19 +812,19 @@ function duplicateForAltDrag(node){
     copies.forEach(copy => {
         if(Array.isArray(copy.inputNodeIds)) copy.inputNodeIds = copy.inputNodeIds.map(id => idMap.get(id)).filter(Boolean);
         if(copy.sourceNodeId) copy.sourceNodeId = idMap.get(copy.sourceNodeId) || '';
-        window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{referenceNodes:copies});
-        window.PixmaxSegmentReshoot?.remapReferences(copy,idMap,{referenceNodes:copies});
-        window.PixmaxNativePrompt?.remap(copy,idMap);
-        window.PixmaxStoryboardAssets?.remapReferences(copy,idMap);
-        window.PixmaxStoryboardMedia?.remapReferences(copy,idMap,{referenceNodes:copies});
-        window.PixmaxCanvasFrames?.remapReferences(copy,idMap);
+        window.ShadoxAIVideoAnnotation?.remapReferences(copy,idMap,{referenceNodes:copies});
+        window.ShadoxAISegmentReshoot?.remapReferences(copy,idMap,{referenceNodes:copies});
+        window.ShadoxAINativePrompt?.remap(copy,idMap);
+        window.ShadoxAIStoryboardAssets?.remapReferences(copy,idMap);
+        window.ShadoxAIStoryboardMedia?.remapReferences(copy,idMap,{referenceNodes:copies});
+        window.ShadoxAICanvasFrames?.remapReferences(copy,idMap);
     });
     const idSet = new Set(sourceNodes.map(n => n.id));
     const copiedConnections = (canvas.connections || []).filter(c => idSet.has(c.from) && idSet.has(c.to));
     const newConnections = copiedConnections.map(conn => ({...conn, from:idMap.get(conn.from), to:idMap.get(conn.to)})).filter(conn => conn.from && conn.to && conn.from !== conn.to);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     nodes.push(...copies);
-    window.PixmaxReshootReferences?.project(copies);
+    window.ShadoxAIReshootReferences?.project(copies);
     smartSelection.duplicating();
     const dragCopy = copies.find(c => c.id === idMap.get(node.id)) || copies[0];
     render();
@@ -852,7 +852,7 @@ function deleteNode(id){
 }
 
 function deleteSmartNodes(ids){
-    const requested = new Set((window.PixmaxCanvasFrames?.deletionIds(ids)||ids).filter(Boolean));
+    const requested = new Set((window.ShadoxAICanvasFrames?.deletionIds(ids)||ids).filter(Boolean));
     const deleteIds = new Set(nodes.filter(node => requested.has(node.id)).map(node => node.id));
     if(!deleteIds.size) return;
     pushUndo();
@@ -862,7 +862,7 @@ function deleteSmartNodes(ids){
     });
     // Capture dependants BEFORE removing the edges that identify them.
     const affected = smartAffectedNodeIds([...deleteIds]);
-    window.PixmaxCanvasFrames?.ancestors([...deleteIds]).forEach(id=>affected.add(id));
+    window.ShadoxAICanvasFrames?.ancestors([...deleteIds]).forEach(id=>affected.add(id));
     nodes = nodes.filter(node => !deleteIds.has(node.id));
     if(canvas) canvas.connections = (canvas.connections || []).filter(c => !deleteIds.has(c.from) && !deleteIds.has(c.to));
     nodes.forEach(node => {
@@ -993,7 +993,7 @@ function addConnection(fromId, toId, kind='flow'){
 function connectInputNode(fromId, toId){
     const from = nodes.find(n => n.id === fromId);
     const to = nodes.find(n => n.id === toId);
-    if(!from || !to || from.id === to.id || window.PixmaxCanvasFrames?.isFrame(from) || window.PixmaxCanvasFrames?.isFrame(to)) return false;
+    if(!from || !to || from.id === to.id || window.ShadoxAICanvasFrames?.isFrame(from) || window.ShadoxAICanvasFrames?.isFrame(to)) return false;
     to.inputNodeIds = Array.from(new Set([...(to.inputNodeIds || []), from.id]));
     addConnection(from.id, to.id, 'input');
     return true;

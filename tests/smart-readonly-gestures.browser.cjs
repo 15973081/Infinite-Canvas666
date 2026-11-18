@@ -32,7 +32,7 @@ const documentState = p => p.evaluate(() => ({nodes:JSON.parse(JSON.stringify(no
 
 test('zoom gestures over canvas controls change the viewport without resizing the UI',async t=>{
     const {page,errors}=await setup(t);
-    const targets=['.pixmax-bottom-controls','.pixmax-topbar'];
+    const targets=['.shadoxai-bottom-controls','.shadoxai-topbar'];
     for(const editable of [true,false]){
         await page.evaluate(value=>MemberCanvasEdit.setEditable(value),editable);
         for(const selector of targets){
@@ -47,7 +47,7 @@ test('zoom gestures over canvas controls change the viewport without resizing th
         }
     }
     const result=await page.evaluate(()=>{
-        const target=document.querySelector('.pixmax-topbar');
+        const target=document.querySelector('.shadoxai-topbar');
         const before={...viewport};
         target.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:80}));
         const ordinary={...viewport};

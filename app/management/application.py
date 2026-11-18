@@ -322,6 +322,10 @@ def create_app(static_dir=None):
     def index():
         return FileResponse(directory / 'index.html')
 
+    @app.get('/favicon.ico', include_in_schema=False)
+    def favicon():
+        return FileResponse(directory / 'shadox-mark.svg', media_type='image/svg+xml')
+
     @app.get('/health')
     def health():
         return {'service': 'management', 'status': 'running'}

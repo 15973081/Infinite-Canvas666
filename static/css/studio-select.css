@@ -22,4 +22,5 @@ html body .studio-select .studio-select-search{width:100%;min-width:0;height:36p
 .canvas-preferences .preference-row .studio-select{width:auto;min-width:88px;max-width:160px;flex-shrink:0}
 .account-panel .account-tabs .studio-select,.billing-toolbar label .studio-select{width:auto;min-width:120px}
 .inbox-filters .studio-select{width:auto;min-width:120px;flex:0 1 auto}
+@media(max-width:760px){.inbox-filters .studio-select{min-width:140px;flex:1 1 calc(50% - 8px)}}
 @media(prefers-reduced-motion:reduce){html body .studio-select button,.studio-select-arrow{transition:none}}

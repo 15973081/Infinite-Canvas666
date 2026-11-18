@@ -25,7 +25,7 @@ function install(context,file,...names){
   context.smartTaskUiGuard ||= ()=>()=>true;
   context.attachSmartTaskBinding ||= (task,binding)=>Object.defineProperty(task,'_inputBinding',{value:binding,enumerable:false});
  }
- if(!vm.isContext(context))vm.createContext(context);
+ context.isSmartVideoAssetNode=()=>false;if(!vm.isContext(context))vm.createContext(context);
  for(const name of names){
   const source=sources[file], match=new RegExp('(?:async )?function '+name+'\\(').exec(source);
   assert.ok(match,name);

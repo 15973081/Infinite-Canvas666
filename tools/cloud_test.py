@@ -38,6 +38,8 @@ def main(argv=None):
         os.environ["DATABASE_BACKEND"] = "postgres"
         os.environ["CLOUD_EMBEDDED_WORKER"] = "false"
         os.environ["CLOUD_INTEGRATION_TEST"] = "1"
+        os.environ["ACCOUNT_BILLING_INTEGRATION"] = "1"
+        os.environ["CANVAS_ASSET_GROUP_INTEGRATION"] = "1"
         from cryptography.fernet import Fernet
         os.environ["PROVIDER_SECRET_KEY"] = Fernet.generate_key().decode("ascii")
         os.environ["APP_RUNTIME_DIR"] = str(Path(directory) / "runtime")
@@ -59,9 +61,10 @@ def main(argv=None):
                       "test_cloud_task_requests.py", "test_cloud_paging.py", "test_cloud_members.py",
                       "test_cloud_workspaces.py", "test_cloud_member_gateway.py", "test_cloud_management.py",
                       "test_cloud_maintenance_control.py", "test_cloud_canvas_leases.py", "test_cloud_draft_copies.py", "test_cloud_page_reports.py", "test_cloud_managed_providers.py", "test_cloud_provider_probes.py", "test_cloud_provider_diagnostics.py", "test_cloud_retired_integrations.py", "test_cloud_provider_imports.py", "test_cloud_task_reviews.py", "test_cloud_backup_control.py", "test_cloud_workbench_management.py", "test_cloud_maintenance_readiness.py", "test_cloud_maintenance_recovery.py", "test_cloud_database_restore.py", "test_cloud_member_presence.py", "test_cloud_canvas_subscriptions.py", "test_cloud_canvas_occupancy.py", "test_cloud_provider_presets.py", "test_cloud_canvas_task_results.py", "test_cloud_task_canvas_bindings.py", "test_cloud_management_overview.py", "test_cloud_llm_tasks.py", "test_cloud_image_receipts.py"]
-            suites.append("test_cloud_workbench_performance.py")
+            suites.extend(["test_account_billing.py", "test_canvas_asset_groups.py", "test_cloud_workbench_performance.py"])
             suites.append("test_cloud_workspace_storage.py")
-            suites.append("test_cloud_canvas_asset_page.py")
+            suites.extend(["test_cloud_canvas_asset_page.py", "test_cloud_canvas_covers.py",
+                           "test_cloud_generation_outputs.py", "test_cloud_seedance_drafts.py"])
             suites.append("test_cloud_chat.py")
             suites.append("test_cloud_chat_attachments.py")
             suites.append("test_cloud_account_data.py")
@@ -70,8 +73,8 @@ def main(argv=None):
             suites.append("test_cloud_chat_billing.py")
             suites.append("test_cloud_chat_credits.py")
             suites.append("test_cloud_online_inbox.py")
-            suites.append("test_cloud_pixmax_tags.py")
-            suites.append("test_cloud_pixmax_annotation.py")
+            suites.append("test_cloud_shadoxai_tags.py")
+            suites.append("test_cloud_shadoxai_annotation.py")
             suites.append("test_cloud_audio_tasks.py")
             suites.append("test_cloud_audio_voices.py")
             suites.append("test_cloud_audio_voice_design.py")
@@ -79,13 +82,13 @@ def main(argv=None):
             suites.append("test_cloud_audio_voice_clone.py")
             suites.append("test_cloud_canvas_folder_deletion.py")
             suites.append("test_cloud_canvas_directory_placement.py")
-            suites.append("test_cloud_pixmax_segment_reshoot.py")
-            suites.append("test_cloud_pixmax_native_prompt.py")
+            suites.append("test_cloud_shadoxai_segment_reshoot.py")
+            suites.append("test_cloud_shadoxai_native_prompt.py")
             suites.append("test_cloud_model_tasks.py")
-            suites.append("test_cloud_pixmax_task_undo.py")
+            suites.append("test_cloud_shadoxai_task_undo.py")
             suites.append("test_cloud_video_analysis.py")
-            suites.append("test_cloud_pixmax_video_parse.py")
-            suites.append("test_cloud_pixmax_storyboard_assets.py")
+            suites.append("test_cloud_shadoxai_video_parse.py")
+            suites.append("test_cloud_shadoxai_storyboard_assets.py")
             suites.append("test_cloud_subject_library.py")
             suites.append("test_cloud_camera_motions.py")
             suites.extend(["test_credit_wallet.py", "test_cloud_credit_wallet.py", "test_cloud_credit_gifts.py", "test_cloud_account_tasks.py"])

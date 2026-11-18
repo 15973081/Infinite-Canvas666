@@ -216,9 +216,9 @@ test('Smart cached page pauses listeners, preserves drawing on return and perman
 
 test('Smart detached log preview remains independent of node selection and cannot become an editable canvas target',async t=>{
     const {page,errors}=await editor(t,'preview');const selected=await page.evaluate(()=>smartSelection.image);
-    await page.evaluate(()=>smartLogPreviewNode('/test-image.svg'));await page.waitForFunction(()=>PixmaxImagePreview.opened);
+    await page.evaluate(()=>smartLogPreviewNode('/test-image.svg'));await page.waitForFunction(()=>ShadoxAIImagePreview.opened);
     assert.deepEqual(await page.evaluate(()=>smartSelection.image),selected);assert.equal(await page.evaluate(()=>nodes.some(n=>n.id==='__smart_log_preview__')),false);
-    await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>PixmaxImagePreview.opened||smartImageEditor.state.open),false);assert.deepEqual(errors,[]);
+    await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>ShadoxAIImagePreview.opened||smartImageEditor.state.open),false);assert.deepEqual(errors,[]);
 });
 
 test('Smart retires mixed editor tabs, outpaint and grid toolbar entries while keeping internal legacy guards',async t=>{

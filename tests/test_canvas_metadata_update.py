@@ -30,7 +30,7 @@ def test_metadata_only_updates_directory_fields_and_preserves_timestamp():
     with patch.object(canvases, 'connection', connection), workspace_scope('isolated'), \
          patch('app.storage.media.normalize_document', side_effect=AssertionError('must not inspect media')):
         canvases.save_metadata(value)
-    query, args = conn.execute.call_args_list[0].args
+    query, args = next(call.args for call in conn.execute.call_args_list if call.args[0].startswith('UPDATE canvases'))
     assert args[1].obj == {'title': 'renamed', 'cover_style': 'sage'}
     assert args[3:] == ('isolated', 'canvas', 7)
     assignment = query.split('WHERE')[0]
@@ -54,7 +54,8 @@ def test_metadata_conflict_does_not_update_asset_group():
     with patch.object(canvases, 'connection', connection), pytest.raises(HTTPException) as error:
         canvases.save_metadata({'id': 'canvas', 'revision': 4, 'cover_style': 'ink'})
     assert error.value.status_code == 409
-    assert conn.execute.call_count == 1
+    assert sum(call.args[0].startswith('UPDATE canvases') for call in conn.execute.call_args_list) == 1
+    assert not any('canvas_asset_groups' in call.args[0] for call in conn.execute.call_args_list)
 
 
 def test_metadata_requires_current_edit_lease_before_update():
@@ -71,6 +72,6 @@ def test_metadata_requires_current_edit_lease_before_update():
              pytest.raises(HTTPException):
             canvases.save_metadata({'id': 'canvas', 'revision': 4, 'cover_style': 'ink'})
         guard.assert_called_once_with(conn, 'canvas')
-        conn.execute.assert_not_called()
+        assert all('pg_advisory_xact_lock_shared' in call.args[0] for call in conn.execute.call_args_list)
     finally:
         current_access.reset(token)

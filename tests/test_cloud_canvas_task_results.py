@@ -12,6 +12,26 @@ from test_cloud_maintenance_control import reset_maintenance
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
+def test_node_fields_and_delivery_registry_save_with_current_names(world):
+    from app.storage import canvases, database
+    from app.storage.workspace import workspace_scope
+    _, canvas = setup_canvas(world, 'smart')
+    node = {'id': 'old-result', 'type': 'smart-prompt', 'text': '旧分镜',
+            'shadoxaiSourceType': 'BASE_TEXT', 'shadoxaiStoryboardSource': {'shotNoList': []}}
+    stored = {'nodes': [node], 'connections': [], '_task_results': {
+        'version': 1, 'entries': {'old-task': {'task_id': 'old-task', 'version': 1, 'node': node}}}}
+    with workspace_scope(world['a']['id']), database.connection() as conn:
+        conn.execute('UPDATE canvases SET document=%s WHERE id=%s', (Jsonb(stored), canvas['id']))
+        current = canvases.get(canvas['id'])
+        assert current['nodes'][0]['shadoxaiSourceType'] == 'BASE_TEXT'
+        assert current['nodes'][0]['shadoxaiStoryboardSource'] == {'shotNoList': []}
+        canvases.save(current)
+        saved = conn.execute('SELECT document FROM canvases WHERE id=%s', (canvas['id'],)).fetchone()['document']
+        for value in (saved['nodes'][0], saved['_task_results']['entries']['old-task']['node']):
+            assert value['shadoxaiSourceType'] == 'BASE_TEXT'
+            assert value['shadoxaiStoryboardSource'] == {'shotNoList': []}
+
+
 def test_generation_history_scopes_filters_deduplicates_and_preserves_task_and_fee_rows(world,tmp_path):
     from app.storage import database,tasks
     from app.storage.workspace import workspace_scope
@@ -62,7 +82,7 @@ def test_generation_history_readonly_zip_preserves_original_media_bytes(world,tm
     items=world['viewer'].get('/api/canvas-generation-history',params={'canvas_id':canvas['id']},headers=headers(world['a'])).json()['items']
     with workspace_scope(world['a']['id']),database.connection() as conn:
         before=conn.execute('SELECT id,status,request,result FROM tasks ORDER BY id').fetchall();fees=conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()
-    response=world['viewer'].post('/api/canvas-assets/download',json={'items':items,'filename':'pixmax-assets.zip'},headers=headers(world['a']));assert response.status_code==200,response.text
+    response=world['viewer'].post('/api/canvas-assets/download',json={'items':items,'filename':'shadoxai-assets.zip'},headers=headers(world['a']));assert response.status_code==200,response.text
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
         assert len(archive.namelist())==2
         assert all(archive.read(name)==b'local result bytes only' for name in archive.namelist())
@@ -78,7 +98,7 @@ def test_generation_history_deduplicates_reused_assets_and_keeps_glb_model_type(
     path,canvas=setup_canvas(world,'smart');tid,image=result_task(world,canvas,tmp_path)
     with workspace_scope(world['a']['id']):
         tasks.save({'id':'duplicate-'+uuid.uuid4().hex,'type':'online-image','status':'succeeded','canvas_id':canvas['id'],'result':{'images':[media.stable_url(image)]}}, {'prompt':'same asset'},historical=True)
-        model=media.publish(Path(__file__).parent/'fixtures/pixmax-generated-model.glb')
+        model=media.publish(Path(__file__).parent/'fixtures/shadoxai-generated-model.glb')
         tasks.save({'id':'model-'+uuid.uuid4().hex,'type':'model','status':'succeeded','canvas_id':canvas['id'],'result':{'models':[media.stable_url(model)]}}, {'prompt':'cube'},historical=True)
     response=world['viewer'].get('/api/canvas-generation-history',params={'canvas_id':canvas['id']},headers=headers(world['a']));assert response.status_code==200,response.text
     assert len(response.json()['items'])==2

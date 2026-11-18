@@ -1,5 +1,5 @@
 // Local, repeatable synchronous geometry benchmark. This is not an FPS or
-// Pixmax-server benchmark; HTTP and membership are isolated by the fixture.
+// ShadoxAI-server benchmark; HTTP and membership are isolated by the fixture.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {fixture}=require('../tests/helpers/canvas-browser.cjs');
 

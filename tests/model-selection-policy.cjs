@@ -53,7 +53,7 @@ test('the generate button rejects incompatible outpaint before creating output n
     const c=outpaintContext({width:4096,height:4096});
     const node={id:'source',outpaintSize:{width:4096,height:4096}};
     const previous=c.settings;
-    Object.assign(c,{nodes:[node],selectedNode:()=>node,isSmartCanvasLocked:()=>false,cloneSmartSettings:x=>({...x}),
+    Object.assign(c,{savePromptDraftForCurrent(){},isSmartVideoAssetNode:()=>false,nodes:[node],selectedNode:()=>node,isSmartCanvasLocked:()=>false,cloneSmartSettings:x=>({...x}),
         smartSettingsForNode:n=>c.withOutpaintDisplaySettings(n,c.settings),smartLoopContext:null,
         buildPromptRequest:()=>({prompt:'expand',refs:[]}),smartRunNeedsPrompt:()=>true,toast:message=>{c.message=message;},
         snapshotRunMeta(){assert.fail('rejected outpaint must stop before creating run metadata or outputs');}});
@@ -221,7 +221,7 @@ test('smart refresh waits for active parameter editing to finish',()=>{
     let refreshes=0,handler;
     const active={matches:()=>true},document={activeElement:active};
     const dynamicParams={dataset:{},contains:target=>target===active,addEventListener:(event,fn)=>{assert.equal(event,'focusout');handler=fn;}};
-    const c=context(smart,['refreshSmartModelControls'],{document,dynamicParams,nodes:[],refreshSmartNodes(){},renderDynamicParams:()=>refreshes++,setTimeout:fn=>fn()});
+    const c=context(smart,['refreshSmartModelControls'],{activeComposerNode:()=>null,document,dynamicParams,nodes:[],refreshSmartNodes(){},renderDynamicParams:()=>refreshes++,setTimeout:fn=>fn()});
     c.refreshSmartModelControls();c.refreshSmartModelControls();assert.equal(refreshes,0);
     document.activeElement=null;handler();assert.equal(refreshes,1);
 });
@@ -229,8 +229,8 @@ test('smart refresh waits for active parameter editing to finish',()=>{
 test('a revoked chat model is not restored through a member-mode fallback',()=>{
     const c=context(classic,['resolveChatModel'],{window:{CanvasSession:{enabled:true}},providerChatModels:()=>[],resolveChatProviderId:x=>x});
     assert.equal(c.resolveChatModel('removed','p'),'');
-    const native=context(fs.readFileSync('static/js/pixmax-creation.js','utf8'),['pixmaxChatProviders'],{apiProviders:[{id:'p',has_key:true,chat_models:[]}]});
-    assert.equal(native.pixmaxChatProviders().length,0);
+    const native=context(fs.readFileSync('static/js/shadoxai-creation.js','utf8'),['shadoxaiChatProviders'],{apiProviders:[{id:'p',has_key:true,chat_models:[]}]});
+    assert.equal(native.shadoxaiChatProviders().length,0);
 });
 
 test('an incompatible video policy presents no usable choices rather than sending a hidden spec',()=>{

@@ -131,13 +131,13 @@ test('image and workflow inspectors open on the right and keep separate collapse
     await page.keyboard.press('Escape');
 
     const assertAlignedActions=async()=>{
-        const row=page.locator('.asset-directory [aria-current="true"]');
+        const row=page.locator('.asset-directory .folder-tree-row:visible').filter({has:page.locator('.folder-tree-actions')}).first();
         await row.hover();
         const name=await row.locator('.tree-row-name').boundingBox();
-        const action=await page.locator('.asset-directory .tree-action-bar button').first().boundingBox();
+        const action=await row.locator('.folder-tree-actions button').first().boundingBox();
         assert.ok(action.x>=name.x+name.width-1,'actions follow the directory name');
         assert.ok(Math.abs(name.y+name.height/2-action.y-action.height/2)<3,'actions share the directory row');
-        const rows=await page.locator('.asset-directory .tree-action-bar button').evaluateAll(
+        const rows=await row.locator('.folder-tree-actions button').evaluateAll(
             buttons=>new Set(buttons.map(button=>button.getBoundingClientRect().top)).size
         );
         assert.equal(rows,1);
@@ -149,7 +149,7 @@ test('image and workflow inspectors open on the right and keep separate collapse
         for(const width of [1024,1440,1920]){
             await page.setViewportSize({width,height:900});
             if(tab==='图片资产'){
-                await page.locator('[data-asset-lib=default]').press('Enter');
+                if(!await folder.isVisible())await page.locator('[data-asset-lib=default]').press('Enter');
                 await assertAlignedActions();
                 await folder.click();
             }

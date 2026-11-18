@@ -1,4 +1,4 @@
-from canvas_source import read_canvas_source
+from canvas_source import read_canvas_source, canvas_function_source
 from pathlib import Path
 import unittest
 
@@ -25,7 +25,7 @@ class SmartCanvasVideoResumeTest(unittest.TestCase):
 
         self.assertIn("fetch('/api/canvas-video-tasks'", video_submit)
         self.assertNotIn("fetch('/api/canvas-video'", video_submit)
-        self.assertIn("const taskId = uid('canvas_vid')", video_submit)
+        self.assertIn("const taskId = options.taskId || uid('canvas_vid')", video_submit)
         self.assertIn("client_task_id:taskId", video_submit)
         self.assertIn("taskIds:[taskId]", video_submit)
         self.assertIn("submission", video_submit)
@@ -54,31 +54,18 @@ class SmartCanvasVideoResumeTest(unittest.TestCase):
             "function resumeSmartPendingTasks(",
         )
 
-        self.assertIn("const taskKind = kind === 'video' ? 'video' : 'image'", poll_task)
+        self.assertIn("const taskKind = ['video','audio','model'].includes(kind) ? kind : 'image'", poll_task)
         self.assertIn("`/api/canvas-${taskKind}-tasks/", poll_task)
         self.assertIn("pollSmartCanvasTask(task.taskId,kind,{inputBinding,returnRecord:Boolean(inputBinding)})", resume_node)
         self.assertIn("kind === 'video' ? resultMediaUrls(result)", resume_node)
 
     def test_regular_and_cascade_video_runs_persist_pending_tasks(self):
-        regular_run = _source_between(
-            self.source,
-            "async function runGeneration(",
-            "async function runPromptLLMNode(",
-        )
-        cascade_step = _source_between(
-            self.source,
-            "async function runCascadeStepIntoNode(",
-            "async function runLoopRoundIntoSlot(",
-        )
-        loop_round = _source_between(
-            self.source,
-            "async function runLoopRoundIntoSlot(",
-            "function appendCascadeRefsToReceiver(",
-        )
+        regular_run = canvas_function_source(self.source, "runGeneration")
+        cascade_step = canvas_function_source(self.source, "runCascadeStepIntoNode")
 
         self.assertIn("queueAndResumeSmartApiTasks(pendingNode", regular_run)
         self.assertIn("queueAndResumeSmartApiTasks(outputNode", cascade_step)
-        self.assertIn("queueAndResumeSmartApiTasks(outputSlot", loop_round)
+        self.assertNotIn("function runLoopRoundIntoSlot(", self.source)
 
     def test_pending_task_metadata_keeps_the_generating_card_visible(self):
         render_node = _source_between(
@@ -93,8 +80,9 @@ class SmartCanvasVideoResumeTest(unittest.TestCase):
         )
 
         self.assertIn("const pendingCount = smartNodePendingCount(node)", render_node)
-        self.assertIn("escapeHtml('生成中')", render_node)
-        self.assertIn("if(pendingCount && imgs.length === 0)", node_body)
+        self.assertIn("escapeHtml(state.label)", node_body)
+        self.assertIn('data-task-recovery=', node_body)
+        self.assertIn("if(pendingCount && imgs.length === 0)", canvas_function_source(self.source, "smartNodeMediaBodyHtml"))
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ test('generation identity, prompt settings and connections survive save/reload a
         return {count:nodes.length,kinds:added.map(n=>n.generationKind),drafts:added.map(n=>n.promptDraftText),settings:added.map(n=>n.runSettings.apiKind),connections:canvas.connections.length};
     });
     assert.deepEqual(imported,{count:4,kinds:['image','video'],drafts:['图片草稿','视频草稿'],settings:['image','video'],connections:2});
-    await page.evaluate(()=>{window.legacy={id:'legacy',type:'smart-image',x:1000,y:600,images:[{url:'/test-image.svg',kind:'image'}]};nodes.push(legacy);smartSelection.createdNode(legacy.id);render();});
+    await page.evaluate(()=>{window.legacy={id:'legacy',type:'smart-image',x:440,y:100,images:[{url:'/test-image.svg',kind:'image'}]};nodes.push(legacy);smartSelection.createdNode(legacy.id);render();});
     assert.equal(await page.locator('#apiKindToggle').isVisible(),true);
     await page.locator('#apiKindToggle [data-kind="video"]').click();
     assert.equal(await page.evaluate(()=>settings.apiKind),'video');

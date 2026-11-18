@@ -21,6 +21,6 @@
 ## 验证
 
 - `python -m pytest tests/test_seedance_drafts.py tests/test_provider_bucket_references.py`
-- `node --test tests/pixmax-seedance-drafts.browser.cjs tests/pixmax-generation-form.browser.cjs`
+- `node --test tests/shadoxai-seedance-drafts.browser.cjs tests/shadoxai-generation-form.browser.cjs`
 
 测试使用模拟接口，不发起付费生成。

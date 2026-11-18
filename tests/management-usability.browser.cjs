@@ -33,7 +33,7 @@ test('member filters, provider sections, dirty guards and error recovery work to
  await page.getByRole('button',{name:'处理待核对任务 · 3'}).click();await page.getByLabel('任务状态').waitFor();assert.equal(await page.getByLabel('任务状态').inputValue(),'needs_review');
  await page.getByLabel('管理范围',{exact:true}).selectOption('');
  await page.getByRole('button',{name:'成员与分配',exact:true}).click();
- await page.getByLabel('账号或名称').fill('many');await page.getByRole('button',{name:'搜索',exact:true}).click();await page.getByRole('button',{name:'下一页',exact:true}).click();
+ await page.getByLabel('搜索成员').fill('many');await page.getByRole('button',{name:'搜索',exact:true}).click();await page.getByRole('button',{name:'下一页',exact:true}).click();
  await page.getByRole('button',{name:'回到首页'}).waitFor();assert.equal(queries.at(-1).after,'cursor-1');assert.equal(queries.at(-1).search,'many');
  await page.getByLabel('成员状态').selectOption('disabled');await page.getByText('没有符合筛选条件的成员',{exact:false}).waitFor();assert.equal(queries.at(-1).after,'');assert.equal(queries.at(-1).status,'disabled');
  await page.getByRole('button',{name:'重置筛选'}).click();await page.getByText('alice',{exact:true}).waitFor();

@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 
 from app.routers import canvas, cloud_media, history, prompt, upload
+from app.storage.workspace import workspace_scope
 
 
 @pytest.mark.parametrize('endpoint,target,path', [
@@ -72,7 +73,7 @@ def test_preview_content_entry_point_shares_bounded_workers_and_single_flight():
          patch.object(upload,'postgres_enabled',return_value=True), \
          patch.object(cloud_media.media,'get_asset',side_effect=lookup), \
          patch.object(cloud_media.media,'browser_url',return_value='https://example.invalid/preview'), \
-         patch.object(cloud_media,'_build_preview',side_effect=build):
+         patch.object(cloud_media,'_build_preview',side_effect=build), workspace_scope('default'):
         asyncio.run(run())
     assert 1 < state['peak'] <= 4
     assert state['builds'] == 12

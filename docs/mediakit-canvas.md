@@ -34,6 +34,6 @@ API 请求使用 `Authorization: Bearer <API Key>`。上传存储地址不携带
 ## 验证
 
 - `tests/test_cloud_mediakit_tasks.py`：真实隔离 PostgreSQL 与成员 HTTP 流程，模拟上游请求，验证三个工具契约、上传密钥隔离、原任务恢复、结果入库、画布交付、权限和不确定提交。
-- `tests/pixmax-mediakit.browser.cjs`：真实 Chrome 中验证三个弹窗的参数提交、缺少配置、失去编辑权限、断线重开查询。
+- `tests/shadoxai-mediakit.browser.cjs`：真实 Chrome 中验证三个弹窗的参数提交、缺少配置、失去编辑权限、断线重开查询。
 
 这些测试不会消费 MediaKit 额度；真实付费处理需配置有效密钥后执行。

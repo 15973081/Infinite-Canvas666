@@ -8,7 +8,7 @@ MAIN_PY = ROOT / "main.py"
 CANVAS_JS = ROOT / "static" / "js" / "canvas.js"
 SMART_CANVAS_JS = ROOT / "static" / "js" / "smart-canvas.js"
 SMART_CANVAS_HTML = ROOT / "static" / "smart-canvas.html"
-SMART_CANVAS_CSS = ROOT / "static" / "css" / "smart-canvas.css"
+SMART_CANVAS_CSS = ROOT / "static" / "css" / "smart-canvas-services.css"
 
 
 def _source_between(source: str, start: str, end: str) -> str:
@@ -38,7 +38,7 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
         )
 
         self.assertIn("smart-audio-open", thumb_media)
-        self.assertIn("pixmaxAudioCardHtml(img)", single_media)
+        self.assertIn("shadoxaiAudioCardHtml(img)", single_media)
         self.assertNotIn("smartAudioWaveformSvg()", single_media)
         self.assertNotIn("<audio", thumb_media)
         self.assertNotIn("<audio", single_media)
@@ -88,7 +88,7 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
 
     def test_page_references_the_audio_lightbox_bundle(self):
         self.assertIn("/static/js/smart-canvas.js", self.page)
-        self.assertIn("/static/css/smart-canvas.css", self.page)
+        self.assertIn("/static/css/smart-canvas-services.css", self.page)
         self.assertIn(".smart-audio-lightbox { position:fixed", self.styles)
 
     def test_leaving_the_page_releases_the_lightbox_player(self):

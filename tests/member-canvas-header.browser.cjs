@@ -17,7 +17,7 @@ async function setup(t){
     await f.page.route('**/static/smart-canvas.html**',canvasPage);
     await f.page.route('**/workspaces/*/canvases/*',canvasPage);
     await f.page.reload();
-    await f.page.locator('.pixmax-topbar .member-session-canvas-controls').waitFor({timeout:2500}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(f.errors)+'; '+JSON.stringify(await f.page.evaluate(()=>({url:location.pathname,classes:document.documentElement.className,notices:document.querySelector('.member-session-panel')?.textContent,bar:document.querySelector('.member-session-bar')?.outerHTML.slice(0,800)}))));});
+    await f.page.locator('.shadoxai-topbar .member-session-canvas-controls').waitFor({timeout:2500}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(f.errors)+'; '+JSON.stringify(await f.page.evaluate(()=>({url:location.pathname,classes:document.documentElement.className,notices:document.querySelector('.member-session-panel')?.textContent,bar:document.querySelector('.member-session-bar')?.outerHTML.slice(0,800)}))));});
     await f.page.getByRole('button',{name:'关闭画布目录',exact:true}).click();
     return f;
 }
@@ -31,7 +31,7 @@ test('smart canvas keeps its full height and places workspace settings inside it
     const account=page.locator('.member-session-account'),summary=account.locator(':scope > summary');
     assert.equal(await summary.getAttribute('aria-label'),'账号：本地管理员');
     assert.equal(await page.locator('.member-session-space').isVisible(),false);
-    await page.screenshot({path:'.local/pixmax-canvas-header.png',clip:{x:0,y:0,width:1280,height:120}});
+    await page.screenshot({path:'.local/shadoxai-canvas-header.png',clip:{x:0,y:0,width:1280,height:120}});
     await summary.click();
     const balance=account.locator('.member-account-balance');
     assert.deepEqual(await balance.evaluate(el=>{
@@ -53,7 +53,7 @@ test('smart canvas keeps its full height and places workspace settings inside it
     assert.equal(await account.getAttribute('open'),null);
     for(const width of [320,390,768,1440]){
         await page.setViewportSize({width,height:844});await summary.click();await page.getByLabel('切换工作空间',{exact:true}).click();
-        const box=await page.locator('.member-session-account-menu').evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight,parents:[el.parentElement,el.parentElement.parentElement,el.closest('.pixmax-topbar')].map(p=>({class:p.className,x:p.getBoundingClientRect().x,width:p.getBoundingClientRect().width,display:getComputedStyle(p).display,right:getComputedStyle(p).right}))};});
+        const box=await page.locator('.member-session-account-menu').evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,bottom:r.bottom,width:innerWidth,height:innerHeight,parents:[el.parentElement,el.parentElement.parentElement,el.closest('.shadoxai-topbar')].map(p=>({class:p.className,x:p.getBoundingClientRect().x,width:p.getBoundingClientRect().width,display:getComputedStyle(p).display,right:getComputedStyle(p).right}))};});
         assert.ok(box.left>=0&&box.right<=box.width&&box.bottom<=box.height,JSON.stringify(box));
         await page.mouse.click(width-1,500);assert.equal(await account.getAttribute('open'),null);
     }
@@ -89,7 +89,8 @@ test('expired account request shows one recovery banner and protects unsaved edi
 
 test('account management uses the reference layout inside the real smart canvas',async t=>{
     const {page,errors}=await setup(t);
-    await page.route('**/api/account/credits**',route=>route.fulfill({json:{wallet:{total_balance:'142',recharge_balance:'100',gift_balance:'42'},entries:[],records:0,page:1,pages:1}}));
+    await page.route('**/api/account/credit-policy**',route=>route.fulfill({json:{config:JSON.parse(fs.readFileSync('config/credit-policy-defaults.json','utf8'))}}));
+    await page.route('**/api/account/credits**',route=>route.fulfill({json:{wallet:{total_balance:'142',recharge_balance:'100',gift_balance:'42',frozenBalance:'0',availableBalance:'142'},entries:[],records:0,page:1,pages:1}}));
     await page.locator('.member-session-account > summary').click();await page.getByRole('button',{name:'账户管理',exact:true}).click();
     const dialog=page.getByRole('dialog',{name:'账户管理',exact:true});
     for(const width of [1600,390]){

@@ -98,6 +98,9 @@ def test_bound_request_persists_input_and_target_under_current_lease(world, tmp_
         else:
             # Omit the new optional format field to retain legacy request hashes.
             assert expected_request.pop('output_format') is None
+            for key in ('draft', 'draft_source_task_id', 'image_tool', 'image_tool_revision'):
+                assert not expected_request.pop(key, None)
+                assert key not in row['request']
             assert 'output_format' not in row['request']
         assert binding['request_sha256'] == row['request_sha256'] == tasks.fingerprint(expected_request)
         assert row['canvas_revision'] == canvas['revision'] and row['canvas_edit_generation'] == lease['generation']

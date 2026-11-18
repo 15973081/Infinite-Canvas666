@@ -319,7 +319,7 @@
         releaseBar();
         bar?.remove();
         if (window.parent !== window && window.parent.CanvasSession?.enabled) return;
-        const canvasTopbar=document.querySelector?.('body.studio-smart-canvas .pixmax-topbar');
+        const canvasTopbar=document.querySelector?.('body.studio-smart-canvas .shadoxai-topbar');
         bar = element('nav', undefined, 'member-session-bar'); bar.setAttribute('aria-label', '成员与空间');
         document.documentElement.classList.add('member-workspace-shell');
         if(canvasTopbar){

@@ -156,6 +156,7 @@ test('invalid references display an error without starting generation',async()=>
     const start=source.indexOf('async function runGeneration(');
     vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
     let message='';
+    ctx.isSmartVideoAssetNode=()=>false;
     ctx.isSmartCanvasLocked=()=>false;
     ctx.selectedNode=()=>node;
     ctx.cloneSmartSettings=value=>plain(value || ctx.settings);

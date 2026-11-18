@@ -8,7 +8,7 @@ const plain=v=>JSON.parse(JSON.stringify(v));
 function setup(){
     const calls={save:0,refresh:[],links:0,composer:0,audio:0,video:0,release:[],correction:[]};
     const elements=new Map();
-    const ctx=vm.createContext({nodes:[],canvas:{connections:[]},canvasUsesConnections:true,
+    const ctx=vm.createContext({isSmartVideoAssetNode:()=>false,window:{},nodes:[],canvas:{connections:[]},canvasUsesConnections:true,
         selectedId:'',selectedIds:[],selectedImage:{nodeId:'',index:-1},undoStack:[],smartRedoStack:[],undoSuppressed:false,UNDO_LIMIT:40,isSmartCanvasLocked:()=>false,
         smartComposer:{documentReplaced(){}},smartImageEditor:{state:{nodeId:'',open:true}},
         smartAudioPreview:{nodeId:'',closeForNodes(ids){if(new Set(ids).has(this.nodeId))calls.audio++;}},smartWorkflowTransferModal:null,

@@ -2,10 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
-const source = fs.readFileSync('static/js/member-session.js', 'utf8');
+const source = fs.readFileSync('static/js/member-session.js', 'utf8')
+    .replace("import('/static/js/credit-balance-store.js')", 'Promise.resolve()');
 
 class Node {
-    constructor(tag) { this.tag = tag; this.children = []; this.events = {}; this.classList = {add(){},remove(){}}; }
+    constructor(tag) { this.tag = tag; this.children = []; this.events = {}; this.classList = {add(){},remove(){},contains(){return false;}}; }
     append(...nodes) { for (const node of nodes) { this.children.push(node); if (node && typeof node === 'object') node.parent = this; } }
     setAttribute() {}
     removeAttribute() {}
@@ -34,6 +35,7 @@ function harness({member='alice', selected='space_a', parent, search='', pathnam
         }
         return failBusiness ? Response.json({detail:{code:'member_identity_changed'}},{status:409}) : Response.json({ok:true});
     }};
+    window.CanvasCreditBalance={subscribe:()=>()=>{},refresh:async()=>null};
     window.parent=parent || window;
     const context={window,document,location,URL,URLSearchParams,Request,Headers,Response,AbortSignal,Promise,
         CustomEvent:class {constructor(type,init){this.type=type;this.detail=init?.detail;}},

@@ -18,7 +18,7 @@ def test_catalog_presets_match_legacy_without_seeding_credentials_or_overwriting
  legacy=default_api_providers()[0]
  for key in ('base_url','protocol','video_models','volcengine_project_name','volcengine_region'):
   assert volc['config'][key]==legacy[key]
- assert [row['id'] for row in presets['quickstart']]==['apimart','yuli','agnes','fhl']
+ assert [row['id'] for row in presets['quickstart']]==['mediakit','apimart','yuli','agnes','fhl']
  with connection() as conn:assert conn.execute('SELECT * FROM managed_providers ORDER BY id').fetchall()==before
  assert all('api_key' not in row['config'] for group in presets.values() for row in group)
  assert all(row['id'] not in {'comfy','comfyui','modelscope','runninghub'} for group in presets.values() for row in group)

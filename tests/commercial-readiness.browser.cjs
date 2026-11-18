@@ -30,7 +30,7 @@ test('occupancy can recover without reloading, acquiring or writing the canvas',
     assert.ok(state.requests.every(request=>request.startsWith('GET ')));
     assert.deepEqual(errors,[]);
 });
-test('smart canvas history uses the Pixmax palette and remains reachable in narrow viewports',async t=>{
+test('smart canvas history uses the ShadoxAI palette and remains reachable in narrow viewports',async t=>{
     const {page,errors}=await setup(t);
     await page.getByRole('button',{name:'画布菜单',exact:true}).click();
     await page.getByRole('menuitem',{name:'查看历史版本',exact:true}).click();
@@ -56,8 +56,8 @@ test('read-only media preview shares the canvas palette without claiming edit ac
     const {page,state,errors}=await setup(t);
     await page.getByRole('button',{name:'预览素材',exact:true}).click();
     const dialog=page.locator('.member-media-preview');await dialog.waitFor();
-    assert.equal(await dialog.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(20, 20, 22)');
-    assert.equal(await page.locator('.member-media-preview-stage').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(0, 0, 0)');
+    assert.equal(await dialog.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(18, 18, 21)');
+    assert.equal(await page.locator('.member-media-preview-stage').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(12, 12, 14)');
     await page.setViewportSize({width:320,height:720});
     const bounds=await dialog.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=320);
     await page.screenshot({path:path.resolve('.local/commercial-kickoff/preview-320.png')});

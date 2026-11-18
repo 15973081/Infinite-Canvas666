@@ -12,7 +12,7 @@ for(const member of [false,true])test(`native H3 form preserves gateway tiers, l
     });
     await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('海边日落，镜头缓缓前移');
     async function schema(){return page.evaluate(async()=>{
-        const form=PixmaxGenerationParameters.formData(h3Node,await PixmaxGenerationParameters.definitions());
+        const form=ShadoxAIGenerationParameters.formData(h3Node,await ShadoxAIGenerationParameters.definitions());
         return form.schema.find(item=>item.modelCode===form.value.model).filedConfig;
     });}
     let fields=await schema();
@@ -26,14 +26,14 @@ for(const member of [false,true])test(`native H3 form preserves gateway tiers, l
     await page.locator('[data-combo-selector-panel]').getByRole('button',{name:'1080P',exact:true}).click();
     await page.keyboard.press('Escape');
     fields=await schema();assert.ok(!fields.some(field=>field.name==='watermark'));
-    let request=await page.evaluate(()=>PixmaxBatchExecution.prepare(h3Node,'video'));
+    let request=await page.evaluate(()=>ShadoxAIBatchExecution.prepare(h3Node,'video'));
     assert.equal(request.model,'MiniMax-H3-Max');assert.equal(request.resolution,'1080p');assert.equal(request.duration,15);assert.equal(request.aspect_ratio,'16:9');
     assert.equal(request.generate_audio,false);assert.equal(request.watermark,false);
     await page.getByRole('button',{name:'生成模型',exact:true}).click();
     await page.locator('[data-select-option]').filter({hasText:'MiniMax-H3'}).filter({hasNotText:'-Max'}).click();
     fields=await schema();assert.deepEqual(fields.find(field=>field.name==='resolution').options.map(option=>option.value),['2k','768p']);
     assert.equal(fields.find(field=>field.name==='duration').min,4);
-    request=await page.evaluate(()=>PixmaxBatchExecution.prepare(h3Node,'video'));
+    request=await page.evaluate(()=>ShadoxAIBatchExecution.prepare(h3Node,'video'));
     assert.equal(request.model,'MiniMax-H3');assert.equal(request.resolution,'2k');assert.equal(request.prompt,'海边日落，镜头缓缓前移');
     assert.deepEqual(errors,[]);
 });
@@ -41,13 +41,13 @@ for(const member of [false,true])test(`native H3 form preserves gateway tiers, l
 test('native Max multimodal admission uses APIMart limits and leaves other gateways unchanged',async t=>{
     const {page,errors}=await fixture(t,'smart',true,{config:memberConfig()});
     const result=await page.evaluate(async()=>{
-        const definitions=await PixmaxGenerationParameters.definitions(),before=JSON.stringify(definitions);
+        const definitions=await ShadoxAIGenerationParameters.definitions(),before=JSON.stringify(definitions);
         const config={apiKind:'video',videoProvider:'gateway-custom',videoModel:'MiniMax-H3-Max'};
         const resources=[...Array.from({length:9},(_,index)=>({id:'i'+index,kind:'image'})),...Array.from({length:3},(_,index)=>({id:'v'+index,kind:'video'})),...Array.from({length:3},(_,index)=>({id:'a'+index,kind:'audio'}))];
-        const gateway=PixmaxGenerationParameters.referenceModel(config,definitions);
+        const gateway=ShadoxAIGenerationParameters.referenceModel(config,definitions);
         apiProviders.push({id:'official',protocol:'openai',base_url:'https://api.minimax.io',video_models:['MiniMax-H3-Max']});
-        const official=PixmaxGenerationParameters.referenceModel({...config,videoProvider:'official'},definitions);
-        return {allowed:PixmaxModelContract.inputIssues(gateway,resources),overflow:PixmaxModelContract.inputIssues(gateway,[...resources,{id:'extra',kind:'video'}]),other:PixmaxModelContract.inputIssues(official,resources),unchanged:before===JSON.stringify(definitions)};
+        const official=ShadoxAIGenerationParameters.referenceModel({...config,videoProvider:'official'},definitions);
+        return {allowed:ShadoxAIModelContract.inputIssues(gateway,resources),overflow:ShadoxAIModelContract.inputIssues(gateway,[...resources,{id:'extra',kind:'video'}]),other:ShadoxAIModelContract.inputIssues(official,resources),unchanged:before===JSON.stringify(definitions)};
     });
     assert.deepEqual(result.allowed,[]);assert.equal(result.overflow[0].expected.max,3);assert.equal(result.overflow[0].actual,4);
     assert.ok(result.other.some(issue=>issue.expected.max===0));assert.equal(result.unchanged,true);assert.deepEqual(errors,[]);

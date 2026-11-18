@@ -194,7 +194,7 @@ $env:ACCOUNT_BILLING_INTEGRATION = '1'
 
 ## 第五轮：2026-10-16 积分钱包、分类与流水
 
-依据 `docs/pixmax-credit-system-20261016.md`，实现三个可独立验收的问题。基线为 `35c7c8fc`，没有把人民币费用换算为历史积分，也没有接入订阅或支付。
+依据 `docs/shadoxai-credit-system-20261016.md`，实现三个可独立验收的问题。基线为 `35c7c8fc`，没有把人民币费用换算为历史积分，也没有接入订阅或支付。
 
 | 优先级 / 问题 | 完成行为 | 提交 |
 | --- | --- | --- |
@@ -274,7 +274,7 @@ node --test tests/management-credit-gifts.browser.cjs tests/credit-wallet.browse
 
 ## 第七轮：2026-10-16 用户菜单、账户管理与偏好面板
 
-按用户截图及 `C:\project\skill-clone\output\pixmax-canvas-1f1b1a95` 的本地页面、中文文案和前端资源对照实现。积分数值沿用 `docs/pixmax-credit-system-20261016.md` 的已核实方案。参考文件仅作为界面和规则证据，没有复制第三方账号、Cookie、支付二维码或私有数据。
+按用户截图及 `C:\project\skill-clone\output\pixmax-canvas-1f1b1a95` 的本地页面、中文文案和前端资源对照实现。积分数值沿用 `docs/shadoxai-credit-system-20261016.md` 的已核实方案。参考文件仅作为界面和规则证据，没有复制第三方账号、Cookie、支付二维码或私有数据。
 
 | 独立验收项 | 实现与参考对应 | 提交 |
 | --- | --- | --- |
@@ -302,7 +302,7 @@ $env:ACCOUNT_BILLING_INTEGRATION='1'
 .\.venv\Scripts\python.exe tools/cloud_test.py tests/test_account_billing.py -k 'account_tasks or credit_wallet or test_cloud_members or test_cloud_member_gateway or test_account_billing or test_cloud_account_data' -ra
 $env:NODE_PATH='C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
 node --test tests/account-panel.browser.cjs tests/canvas-preferences.browser.cjs tests/member-canvas-header.browser.cjs tests/credit-wallet.browser.cjs tests/member-session.cjs tests/member-session-frames.browser.cjs tests/account-billing-ui.cjs tests/account-billing-pagination.browser.cjs tests/test_canvas_node_reconciliation.cjs tests/test_canvas_prompt_dependencies.cjs tests/test_smart_canvas_performance.cjs
-node --test tests/smart-selection.browser.cjs tests/pixmax-connection-refresh.browser.cjs tests/smart-generation-nodes.browser.cjs tests/smart-composer-session.browser.cjs
+node --test tests/smart-selection.browser.cjs tests/shadoxai-connection-refresh.browser.cjs tests/smart-generation-nodes.browser.cjs tests/smart-composer-session.browser.cjs
 ```
 
 ### 与参考的业务差异及上线前提
@@ -314,7 +314,7 @@ node --test tests/smart-selection.browser.cjs tests/pixmax-connection-refresh.br
 
 ## 第八轮：2026-10-16 独立图片预览、裁剪与标记
 
-用户确认上一轮冲突清单后执行。功能提交：`5ef36edc`。参考为本地 `pixmax-canvas-1f1b1a95/browser` 捕获的 `index-Bcq66HVs.js`：媒体详情组件 `Q4`、裁剪组件 `rvt`、标记组件 `fSt`。它们是编译后的前端资源，并非完整开发工程；本轮按已核实的交互和数据边界重新实现，没有复制参考账号接口或私有凭据。
+用户确认上一轮冲突清单后执行。功能提交：`5ef36edc`。参考为本地 `shadoxai-canvas-1f1b1a95/browser` 捕获的 `index-Bcq66HVs.js`：媒体详情组件 `Q4`、裁剪组件 `rvt`、标记组件 `fSt`。它们是编译后的前端资源，并非完整开发工程；本轮按已核实的交互和数据边界重新实现，没有复制参考账号接口或私有凭据。
 
 | 独立验收项 | 完成行为 |
 | --- | --- |
@@ -345,7 +345,7 @@ node --test tests/smart-selection.browser.cjs tests/pixmax-connection-refresh.br
 
 ```powershell
 $env:NODE_PATH='C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
-node --test --test-concurrency=2 tests/pixmax-image-detail.browser.cjs tests/pixmax-generation-history.browser.cjs tests/smart-image-editor.browser.cjs tests/smart-panorama.browser.cjs tests/pixmax-video-toolbar.browser.cjs tests/smart-video-trim.browser.cjs tests/smart-selection.browser.cjs tests/pixmax-card-surface.browser.cjs
+node --test --test-concurrency=2 tests/shadoxai-image-detail.browser.cjs tests/shadoxai-generation-history.browser.cjs tests/smart-image-editor.browser.cjs tests/smart-panorama.browser.cjs tests/shadoxai-video-toolbar.browser.cjs tests/smart-video-trim.browser.cjs tests/smart-selection.browser.cjs tests/shadoxai-card-surface.browser.cjs
 ```
 
 
@@ -368,7 +368,7 @@ node --test --test-concurrency=2 tests/pixmax-image-detail.browser.cjs tests/pix
 
 ```powershell
 $env:NODE_PATH='C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
-node --test --test-concurrency=2 tests/pixmax-video-toolbar.browser.cjs tests/smart-pixmax.browser.cjs tests/smart-image-editor.browser.cjs tests/smart-panorama.browser.cjs tests/canvas-media-palette.browser.cjs
+node --test --test-concurrency=2 tests/shadoxai-video-toolbar.browser.cjs tests/smart-shadoxai.browser.cjs tests/smart-image-editor.browser.cjs tests/smart-panorama.browser.cjs tests/canvas-media-palette.browser.cjs
 ```
 
 人工验收：选择视频节点，工具栏不再显示“剪辑”；双击视频，底部仅保留三种导出帧操作，没有截取区域；从创建菜单进入“剪辑台”，仍可导入画布视频并保存。未推送、未部署，未修改支付、订阅或积分规则。
@@ -386,7 +386,7 @@ node --test --test-concurrency=2 tests/pixmax-video-toolbar.browser.cjs tests/sm
 - 日志：`.local/commercial-kickoff/image-preview-autosave-fix.log`。
 
 ```powershell
-node --test --test-concurrency=2 tests/pixmax-image-detail.browser.cjs tests/pixmax-generation-history.browser.cjs tests/smart-selection.browser.cjs
+node --test --test-concurrency=2 tests/shadoxai-image-detail.browser.cjs tests/shadoxai-generation-history.browser.cjs tests/smart-selection.browser.cjs
 ```
 
 本轮仅修改图片预览及对应回归，没有改动自动保存协议、数据库或积分规则。未推送、未部署。
@@ -413,8 +413,8 @@ node --test --test-concurrency=2 tests/pixmax-image-detail.browser.cjs tests/pix
 
 ```powershell
 $env:NODE_PATH='C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
-node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/pixmax-creation.browser.cjs
-node --test --test-concurrency=2 tests/pixmax-generation-parameters.browser.cjs tests/pixmax-native-prompt.browser.cjs tests/canvas-llm-tasks.cjs tests/pixmax-batch-execution.browser.cjs tests/smart-text-nodes.browser.cjs
+node --test --test-concurrency=2 tests/shadoxai-text-generation.browser.cjs tests/shadoxai-creation.browser.cjs
+node --test --test-concurrency=2 tests/shadoxai-generation-parameters.browser.cjs tests/shadoxai-native-prompt.browser.cjs tests/canvas-llm-tasks.cjs tests/shadoxai-batch-execution.browser.cjs tests/smart-text-nodes.browser.cjs
 ```
 
 人工验收：刷新智能画布，单击文本节点，下方出现原生面板；修改创作要求不改变节点正文，展开全屏再退出保持草稿；选择已配置的文本模型后生成，结果回到原节点；顶部标签和文本下载可独立使用。未推送、未部署。
@@ -429,7 +429,7 @@ node --test --test-concurrency=2 tests/pixmax-generation-parameters.browser.cjs 
 - 文本面板、原生图片／视频参数和提示词浏览器回归 **45/45 通过**；JavaScript 语法和 git diff --check 通过。日志：`.local/commercial-kickoff/text-fullscreen-repro.log`、`text-fullscreen-final.log`。
 
 ```powershell
-node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/pixmax-generation-parameters.browser.cjs tests/pixmax-native-prompt.browser.cjs
+node --test --test-concurrency=2 tests/shadoxai-text-generation.browser.cjs tests/shadoxai-generation-parameters.browser.cjs tests/shadoxai-native-prompt.browser.cjs
 ```
 
 未调用收费模型，未改积分规则，未推送、未部署。
@@ -445,7 +445,7 @@ node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/
 - 文本与创作流程、原生图片／视频参数及提示词回归 **61/61 通过**；JavaScript 语法和 git diff --check 通过。
 
 ```powershell
-node --test --test-concurrency=2 tests/pixmax-text-generation.browser.cjs tests/pixmax-creation.browser.cjs tests/pixmax-generation-parameters.browser.cjs tests/pixmax-native-prompt.browser.cjs
+node --test --test-concurrency=2 tests/shadoxai-text-generation.browser.cjs tests/shadoxai-creation.browser.cjs tests/shadoxai-generation-parameters.browser.cjs tests/shadoxai-native-prompt.browser.cjs
 ```
 
 未修改积分或服务端接口，未推送、未部署。
@@ -494,7 +494,7 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 - 点击 Logo 改为开合菜单；返回画布管理移动到菜单首项，继续使用原有保存和本地未完成任务检查。菜单接入画布目录、重命名及移入回收站，复用既有权限、编辑租约与输入名称确认。版本历史和团队归属没有对应能力，本轮未增加空入口。
 - 支持 Enter／空格开启、方向键选项、Esc 收起并回焦、Tab 离开、点击外部关闭；隔离 Logo 上的空格事件，避免被画布平移快捷键拦截。
 - 关闭目录后仍可能保留回收站浏览状态，顶部菜单删除当前画布因此显式检查当前文档租约，防止套用回收站列表操作语义。弹出确认后租约变化会撤销确认。
-- 窄屏验收发现旧 `smart-top-tools` 定位覆盖新纵向工具栏，将其错误挪到 Logo 上方；排除 `.pixmax-rail` 后恢复居中，Logo 可正常点击。
+- 窄屏验收发现旧 `smart-top-tools` 定位覆盖新纵向工具栏，将其错误挪到 Logo 上方；排除 `.shadoxai-rail` 后恢复居中，Logo 可正常点击。
 - 新增 3 项浏览器回归，并更新既有返回路径用例。菜单、导航、目录及回收站共 **33/33 通过**；JavaScript 语法和 git diff --check 通过。核对 1440、390、320px 截图，无菜单横向溢出。
 - 证据：`.local/commercial-kickoff/project-menu-1440.png`、`project-menu-390.png`、`project-menu-320.png`；日志 `project-menu-final.log` 与 `project-menu-trash.log`。
 
@@ -571,7 +571,7 @@ node --test --test-concurrency=2 tests/member-preview-cards.browser.cjs tests/me
 
 验收：20 项相关浏览器用例通过（模拟接口）：项目首页 3、工作台 6、导航 8、目录封面 1、回收站恢复 2。增加实际卡片尺寸、固定信息区、悬浮/键盘遮罩、操作菜单和减少动效检查。JS 语法及 diff 空白检查通过。
 
-实测数据：`.local/commercial-kickoff/pixmax-home-sizing-comparison.json`；截图 `project-home-1440.png`、`project-home-1920.png`、`project-home-hover-aligned.png`（同目录）。未推送、未部署。
+实测数据：`.local/commercial-kickoff/shadoxai-home-sizing-comparison.json`；截图 `project-home-1440.png`、`project-home-1920.png`、`project-home-hover-aligned.png`（同目录）。未推送、未部署。
 
 ## 2026-10-17 文件夹卡片与内部目录
 

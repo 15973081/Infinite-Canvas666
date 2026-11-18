@@ -4,7 +4,7 @@ const {fixture} = require('./helpers/canvas-browser.cjs');
 
 test('smart editor chrome retains commands and mode switching with stable Lucide icons', async t => {
     const {page, errors, writes} = await fixture(t, 'smart', true);
-    const icons = '.pixmax-rail button svg,.pixmax-bottom-controls button svg';
+    const icons = '.shadoxai-rail button svg,.shadoxai-bottom-controls button svg';
     const inspect = () => page.locator(icons).evaluateAll(elements => elements.map(el => ({
         name:el.dataset.canvasChromeIcon, stroke:el.getAttribute('stroke-width'),
         fill:el.getAttribute('fill'), width:getComputedStyle(el).width
@@ -15,16 +15,16 @@ test('smart editor chrome retains commands and mode switching with stable Lucide
     assert.ok(before.every(icon => ['16px','18px'].includes(icon.width)));
     await page.evaluate(() => refreshIcons());
     assert.deepEqual(await inspect(),before,'icon refresh must not replace the standard chrome icons');
-    const mode = page.locator('[data-pixmax-mode]');
+    const mode = page.locator('[data-shadoxai-mode]');
     await mode.click();
-    assert.equal(await page.evaluate(() => pixmaxCanvasMode),'preview');
+    assert.equal(await page.evaluate(() => shadoxaiCanvasMode),'preview');
     assert.equal(await mode.locator('svg').getAttribute('data-canvas-chrome-icon'),'eye');
     await mode.click();
-    assert.equal(await page.evaluate(() => pixmaxCanvasMode),'normal');
+    assert.equal(await page.evaluate(() => shadoxaiCanvasMode),'normal');
     assert.equal(await mode.locator('svg').getAttribute('data-canvas-chrome-icon'),'mouse-pointer-2');
     assert.equal(await mode.evaluate(el => getComputedStyle(el).backgroundColor),'rgb(39, 39, 42)');
     await page.getByRole('button',{name:'更多工具',exact:true}).click();
-    const menu = page.locator('#pixmaxSettingsMenu');
+    const menu = page.locator('#shadoxaiSettingsMenu');
     assert.equal(await menu.locator('button').count(),10);
     assert.equal(await menu.locator('[role="separator"]').count(),3);
     assert.ok((await menu.locator('button').evaluateAll(nodes => nodes.map(el => ({
@@ -75,8 +75,8 @@ test('command menu follows the dock when the directory opens, closes and resizes
     const {page, errors} = await fixture(t, 'smart', true, {navigatorOpen:true});
     await page.getByRole('button',{name:'更多工具',exact:true}).click();
     const gap = () => page.evaluate(() => {
-        const dock = document.querySelector('.pixmax-rail').getBoundingClientRect();
-        const menu = document.querySelector('#pixmaxSettingsMenu').getBoundingClientRect();
+        const dock = document.querySelector('.shadoxai-rail').getBoundingClientRect();
+        const menu = document.querySelector('#shadoxaiSettingsMenu').getBoundingClientRect();
         return menu.left - dock.right;
     });
     for (const width of [1440,1024]) {
@@ -87,9 +87,9 @@ test('command menu follows the dock when the directory opens, closes and resizes
         await page.getByRole('button',{name:'画布目录',exact:true}).click();
         assert.equal(await gap(),8);
     }
-    assert.equal(await page.locator('#pixmaxNavigator [role=tab][aria-selected=true]').evaluate(el => getComputedStyle(el).backgroundColor),'rgb(39, 39, 42)');
+    assert.equal(await page.locator('#shadoxaiNavigator [role=tab][aria-selected=true]').evaluate(el => getComputedStyle(el).backgroundColor),'rgb(39, 39, 42)');
     assert.equal(await page.locator('[data-directory-close] svg').getAttribute('stroke-width'),'1.75');
-    const topColors = await page.locator('.pixmax-topbar>.pixmax-control').evaluateAll(nodes => nodes.map(el => getComputedStyle(el).backgroundColor));
+    const topColors = await page.locator('.shadoxai-topbar>.shadoxai-control').evaluateAll(nodes => nodes.map(el => getComputedStyle(el).backgroundColor));
     assert.ok(topColors.every(color => color === 'rgba(18, 18, 21, 0.9)'));
     assert.deepEqual(errors,[]);
 });

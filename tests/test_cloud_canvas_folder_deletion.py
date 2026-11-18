@@ -141,7 +141,7 @@ def test_folder_delete_tree_actual_browser_saves_collects_private_leases_and_ato
     root,_,_,outside,canvases=setup(world);item=canvases[0];path='/api/canvases/'+item['id'];lease=acquire(world,path)
     saved=world['editor'].put(path,headers=proof(world,lease,item['revision']),json={'nodes':[{'id':'text','type':'smart-prompt','text':'初始文本','images':[]}],'connections':[],'base_revision':item['revision']});assert saved.status_code==200,saved.text
     item=saved.json()['canvas'];assert world['editor'].post(path+'/edit-lease/release',headers=proof(world,lease,item['revision'])).status_code==200
-    directory=Path(__file__).resolve().parents[1];process=subprocess.Popen(['node',str(directory/'tests/helpers/pixmax-folder-delete-http.cjs')],cwd=directory,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0));done=False;posts=[]
+    directory=Path(__file__).resolve().parents[1];process=subprocess.Popen(['node',str(directory/'tests/helpers/shadoxai-folder-delete-http.cjs')],cwd=directory,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0));done=False;posts=[]
     try:
         process.stdin.write(json.dumps({'initial':{'canvas':item,'member':world['people'][0]['id'],'workspace':world['a']['id'],'folder':root,'name':'电影项目'}})+'\n');process.stdin.flush()
         for line in process.stdout:

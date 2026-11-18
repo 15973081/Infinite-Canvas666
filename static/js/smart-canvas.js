@@ -366,11 +366,11 @@ async function loadCanvas(options={}){
                 changed:lease => {
                     document.body.classList.toggle('smart-canvas-readonly',!lease.canEdit);
                     updateSmartNodeToolbarAccess();
-                    window.PixmaxSegmentReshoot?.documentChanged();
-                    void window.PixmaxNativePrompt?.sync();
-                    void window.PixmaxTextGeneration?.sync();
+                    window.ShadoxAISegmentReshoot?.documentChanged();
+                    void window.ShadoxAINativePrompt?.sync();
+                    void window.ShadoxAITextGeneration?.sync();
                     world.querySelectorAll('.prompt-node-text').forEach(input => { input.readOnly = !lease.canEdit; });
-                    window.PixmaxNavigator?.documentChanged();
+                    window.ShadoxAINavigator?.documentChanged();
                     if(lease.canEdit) resumeSmartPendingTasks();
                     if(!lease.canEdit){clearTimeout(saveTimer);saveTimer=null;cancelSmartNodeGestures();}
                     if(runBtn) runBtn.disabled=!lease.canEdit || smartCascadeAnyRunning();
@@ -519,7 +519,7 @@ window.onload = async () => {
     if(!await loadCanvas()){window.CanvasNavigation?.failure();return;}
     syncApiKindToggleVisibility();
     render();
-    window.PixmaxNavigator?.bind();
+    window.ShadoxAINavigator?.bind();
     const background = () => loadAssetLibrary();
     if(window.CanvasMediaLoader) window.CanvasMediaLoader.defer(background);
     else background();
@@ -551,8 +551,8 @@ window.addEventListener('frontend:before-reload', event => {
 bindSmartSessionVisibility();
 
 function refreshSmartModelControls(){
-    window.PixmaxSegmentReshoot?.configurationChanged?.();
-    void window.PixmaxNativePrompt?.sync();
+    window.ShadoxAISegmentReshoot?.configurationChanged?.();
+    void window.ShadoxAINativePrompt?.sync();
     const active = document.activeElement;
     const editing = dynamicParams?.contains(active) ? dynamicParams : null;
     if(editing && active?.matches('input,textarea,select,[contenteditable="true"]')){
@@ -565,9 +565,9 @@ function refreshSmartModelControls(){
         }
         return;
     }
-    const subject=activeComposerNode(),native=window.PixmaxGenerationParameters?.supported(subject),configuration=native?window.PixmaxGenerationParameters.configuration(subject):null;
+    const subject=activeComposerNode(),native=window.ShadoxAIGenerationParameters?.supported(subject),configuration=native?window.ShadoxAIGenerationParameters.configuration(subject):null;
     renderDynamicParams(!native);
-    if(native){settings=cloneSmartSettings(configuration);void window.PixmaxNativePrompt?.sync();}
+    if(native){settings=cloneSmartSettings(configuration);void window.ShadoxAINativePrompt?.sync();}
     refreshSmartNodes(nodes.filter(node=>node.type === 'smart-prompt').map(node=>node.id));
 }
 function applySmartModelConfig(cfg){

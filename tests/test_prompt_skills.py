@@ -46,14 +46,19 @@ def test_context_is_plain_user_reference_without_executable_fields():
     assert '不要执行脚本' in prompt_context([{'name':'prompt-review','context':'Better framing'}])
 
 @pytest.fixture
-def installed_skills(monkeypatch):
+def skill_storage(monkeypatch, tmp_path):
+    monkeypatch.setenv('OBJECT_STORE_ROOT', str(tmp_path / 'objects'))
+
+
+@pytest.fixture
+def installed_skills(monkeypatch, skill_storage):
     rows = {}
     class Connection:
         def execute(self, query, params):
             self.row = rows.get(params[1])
             return self
         def fetchone(self):
-            return self.row
+            return {**self.row, 'origin_workspace_id': 'workspace'} if self.row else None
     @contextmanager
     def connection():
         yield Connection()
@@ -97,7 +102,7 @@ def test_unavailable_skills_are_still_rejected(installed_skills):
 
 
 @pytest.mark.parametrize('length', [999999, 1000000, 1000001])
-def test_resolve_context_limit_preserves_all_text_or_rejects(monkeypatch, length):
+def test_resolve_context_limit_preserves_all_text_or_rejects(monkeypatch, length, skill_storage):
     from contextlib import contextmanager
     from app.services import prompt_skills as skills
     from app.services.chat import upstream_message_from_record
@@ -118,7 +123,7 @@ def test_resolve_context_limit_preserves_all_text_or_rejects(monkeypatch, length
             return self
 
         def fetchone(self):
-            return row
+            return {**row, 'origin_workspace_id': 'workspace'}
 
     @contextmanager
     def connection():

@@ -809,7 +809,7 @@ function attachRunMeta(targetNode, meta){
         targetNode.promptDraftHtml = htmlHasToken ? meta.promptHtml : (rebuiltHtml || meta.promptHtml);
         targetNode.promptDraftText = meta.promptText || '';
     }
-    if(targetNode.nativePrompt?.schemaVersion===1)PixmaxReshootReferences.setPrompt(targetNode,targetNode.nativePrompt.prompt);
+    if(targetNode.nativePrompt?.schemaVersion===1)ShadoxAIReshootReferences.setPrompt(targetNode,targetNode.nativePrompt.prompt);
     targetNode.images = (targetNode.images || []).map(img => stripImageGenerationMeta(img));
 }
 
@@ -946,7 +946,7 @@ function toggleInputRefBlocked(node, img){
 function defaultReferenceImagesFor(node, consume=false, ctx=null,configuration=node?.runSettings){
     if(!node) return [];
     const slots=configuration?.videoReferenceMode==='firstAndLastFrame';
-    const storyboard=window.PixmaxStoryboardMedia?.referencesFor(node);
+    const storyboard=window.ShadoxAIStoryboardMedia?.referencesFor(node);
     if(storyboard)return uniqueReferenceImages(storyboard,slots);
     const self = selfReferenceImagesForNode(node, consume, ctx).filter(img => img?.url);
     // A generator's result is an output, including in automatic mode. Reusing
@@ -1053,7 +1053,7 @@ function originalPromptTextFromParts(parts){
 }
 
 function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=false, ctx=null){
-    if(node.nativePrompt?.schemaVersion===1){const current=PixmaxReshootReferences.plan(node,{base:overrideDefaultImages||defaultReferenceImagesFor(node,consumeDefault,ctx),ctx});return {prompt:PixmaxReshootReferences.validate(node,current),displayPrompt:node.promptDraftText,refs:current.entries.filter(entry=>entry.media).map(entry=>({...entry.media,referenceLabel:entry.alias})),mentioned:/%%@\[|%%subject-ref\(/.test(node.nativePrompt.prompt)};}
+    if(node.nativePrompt?.schemaVersion===1){const current=ShadoxAIReshootReferences.plan(node,{base:overrideDefaultImages||defaultReferenceImagesFor(node,consumeDefault,ctx),ctx});return {prompt:ShadoxAIReshootReferences.validate(node,current),displayPrompt:node.promptDraftText,refs:current.entries.filter(entry=>entry.media).map(entry=>({...entry.media,referenceLabel:entry.alias})),mentioned:/%%@\[|%%subject-ref\(/.test(node.nativePrompt.prompt)};}
     const parts = collectPromptParts();
     if(smartTypedVideoInputs()){
         const base = Array.isArray(overrideDefaultImages) ? overrideDefaultImages : defaultReferenceImagesFor(node, consumeDefault, ctx);
@@ -1553,7 +1553,7 @@ function appendOutputsToNode(node, additions, kind='image', options={}){
 
 
 function loadNodePromptDraftToInput(node){
-    if(node?.nativePrompt?.schemaVersion===1){PixmaxReshootReferences.setPrompt(node,node.nativePrompt.prompt);promptInput.innerHTML=node.promptDraftHtml;return;}
+    if(node?.nativePrompt?.schemaVersion===1){ShadoxAIReshootReferences.setPrompt(node,node.nativePrompt.prompt);promptInput.innerHTML=node.promptDraftHtml;return;}
     if(node?.promptDraftHtml) {
         const hasToken = String(node.promptDraftHtml || '').includes('mention-image-token');
         promptInput.innerHTML = hasToken
@@ -1565,7 +1565,7 @@ function loadNodePromptDraftToInput(node){
         if(rebuilt) promptInput.innerHTML = rebuilt;
         else setPromptText(draft);
     }
-    if(node)window.PixmaxStoryboardMedia?.refreshPromptReferences(node,promptInput);
+    if(node)window.ShadoxAIStoryboardMedia?.refreshPromptReferences(node,promptInput);
 }
 
 function buildPromptRequestForNode(node, defaultImages, ctx=null){
@@ -1579,15 +1579,15 @@ function buildPromptRequestForNode(node, defaultImages, ctx=null){
 }
 
 async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=settings, inputBinding=null){
-    window.PixmaxGenerationParameters?.validate(node);
+    window.ShadoxAIGenerationParameters?.validate(node);
     const writeGuard=canvasTaskWriteGuard(node);
     writeGuard.check(); inputBinding?.check();
     inputBinding ||= smartTaskInputBinding(node,node,writeGuard);
-    if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1){await PixmaxSubjects.refresh(node,writeGuard.valid,{checkOnly:true});writeGuard.check();inputBinding.check();}
-    await window.PixmaxGenerationParameters?.validateInputs(node,runSettings);
+    if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1){await ShadoxAISubjects.refresh(node,writeGuard.valid,{checkOnly:true});writeGuard.check();inputBinding.check();}
+    await window.ShadoxAIGenerationParameters?.validateInputs(node,runSettings);
     writeGuard.check();inputBinding.check();
-    let activeSettings = window.PixmaxSegmentReshoot?.executionSettings(node,runSettings||settings)||runSettings||settings;
-    if(node.segmentReshoot?.schemaVersion===1){const request=PixmaxReshootReferences.request(node,activeSettings);prompt=request.prompt;refs=request.refs;activeSettings=request.settings;}
+    let activeSettings = window.ShadoxAISegmentReshoot?.executionSettings(node,runSettings||settings)||runSettings||settings;
+    if(node.segmentReshoot?.schemaVersion===1){const request=ShadoxAIReshootReferences.request(node,activeSettings);prompt=request.prompt;refs=request.refs;activeSettings=request.settings;}
     if(activeSettings.engine === 'comfy') return generateComfyUrlsWithSettings(activeSettings, prompt, refs);
     if(isApiLikeEngine(activeSettings.engine) && activeSettings.apiKind === 'video'){
         const taskResult = await runApiVideoGeneration(prompt, refs, activeSettings, inputBinding);
@@ -1810,19 +1810,19 @@ async function runGeneration(){
     if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const node = selectedNode();
     if(!node) return;
-    if(node.segmentReshoot?.schemaVersion===1)return window.PixmaxSegmentReshoot.open(node);
+    if(node.segmentReshoot?.schemaVersion===1)return window.ShadoxAISegmentReshoot.open(node);
     savePromptDraftForCurrent();
-    try{window.PixmaxGenerationParameters?.validate(node);}catch(error){return toast(error.message);}
+    try{window.ShadoxAIGenerationParameters?.validate(node);}catch(error){return toast(error.message);}
     if(node.nativePrompt?.schemaVersion===1){
         const guard=canvasTaskWriteGuard(node),configuration=JSON.stringify(settingsForStorage(smartSettingsForNode(node)));
         const valid=()=>guard.valid()&&selectedNode()===node&&activeComposerNode()===node&&JSON.stringify(settingsForStorage(smartSettingsForNode(node)))===configuration;
-        try{await PixmaxSubjects.refresh(node,valid);guard.check();if(!valid())throw Error('生成节点或参数已变化，请确认当前内容后重新生成');}catch(error){return toast(error.message);}
+        try{await ShadoxAISubjects.refresh(node,valid);guard.check();if(!valid())throw Error('生成节点或参数已变化，请确认当前内容后重新生成');}catch(error){return toast(error.message);}
     }
-    if(window.PixmaxGenerationParameters?.supported(node)){
-        const guard=canvasTaskWriteGuard(node),signature=PixmaxReshootReferences.signature(node);
-        try{await PixmaxGenerationParameters.validateInputs(node);guard.check();if(selectedNode()!==node||PixmaxReshootReferences.signature(node)!==signature)throw Error('生成节点或参考已变化，请确认当前内容后重新生成');}catch(error){return toast(error.message);}
+    if(window.ShadoxAIGenerationParameters?.supported(node)){
+        const guard=canvasTaskWriteGuard(node),signature=ShadoxAIReshootReferences.signature(node);
+        try{await ShadoxAIGenerationParameters.validateInputs(node);guard.check();if(selectedNode()!==node||ShadoxAIReshootReferences.signature(node)!==signature)throw Error('生成节点或参考已变化，请确认当前内容后重新生成');}catch(error){return toast(error.message);}
     }
-    if(window.PixmaxBatchExecution?.busy(node.id))return toast('此节点正在批量生成，请等待当前任务完成');
+    if(window.ShadoxAIBatchExecution?.busy(node.id))return toast('此节点正在批量生成，请等待当前任务完成');
     const previousSettings = cloneSmartSettings(settings);
     const runSettings = smartSettingsForNode(node);
     settings = {...settings, ...cloneSmartSettings(runSettings || {})};
@@ -2051,7 +2051,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
         const unreadyVolcengineAsset = targetPlatform === 'volcengine' && uploadedRefs
             .map(ref => smartFaceAuthState(ref,targetProvider)).find(state => state.blocked);
         if(unreadyVolcengineAsset) throw new Error(window.CanvasAssetAuth.error(unreadyVolcengineAsset.status));
-        const nativeRoles=window.PixmaxVideoModes&&runSettings.videoReferenceMode&&runSettings.videoReferenceMode!=='auto'?window.PixmaxVideoModes.roles(runSettings,uploadedRefs):null;
+        const nativeRoles=window.ShadoxAIVideoModes&&runSettings.videoReferenceMode&&runSettings.videoReferenceMode!=='auto'?window.ShadoxAIVideoModes.roles(runSettings,uploadedRefs):null;
         const useFrameRoles = targetPlatform !== 'volcengine' && runSettings.videoUseFrameRoles;
         const refImages = imageRefsOnly(uploadedRefs).map((ref, i) => {
             const item = {url:effUrl(ref), name:ref.name || `图${i + 1}`};
@@ -2490,7 +2490,7 @@ async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=f
             // accepted here gets its own undo step; the cursor acknowledges the
             // entire observed prefix, including those other deliveries.
             const document={id:origin.id,nodes,task_result_version:origin.task_result_version||0};
-            window.CanvasTaskResults.mergeDeliveries(document,{...data,deliveries:data.deliveries.filter(entry=>entry.task_id!==taskId&&!window.PixmaxBatchExecution?.ownsTask(entry.task_id))});
+            window.CanvasTaskResults.mergeDeliveries(document,{...data,deliveries:data.deliveries.filter(entry=>entry.task_id!==taskId&&!window.ShadoxAIBatchExecution?.ownsTask(entry.task_id))});
             prepareResult?.();
             const completed=[taskId,...data.deliveries.map(entry=>entry.task_id)];
             pushSmartTaskResultUndo(completed);
@@ -2506,10 +2506,10 @@ async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=f
 function smartTaskRecovery(){
     return {
         deliveryVersion:()=>canvas.task_result_version || 0,
-        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || window.PixmaxBatchExecution?.busy() || window.PixmaxVideoParse?.busy() || window.PixmaxStoryboardAssets?.busy() || canvasSyncInFlight,
+        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.ShadoxAIAudioCreation?.busy() || window.ShadoxAIModelCreation?.busy() || window.ShadoxAIBatchExecution?.busy() || window.ShadoxAIVideoParse?.busy() || window.ShadoxAIStoryboardAssets?.busy() || canvasSyncInFlight,
         mergeDeliveries:response=>{
             window.CanvasTaskResults.validateDeliveries({id:canvas.id,task_result_version:canvas.task_result_version||0},response);
-            response=window.PixmaxVideoParse?.deliveryPrefix(response)||response;
+            response=window.ShadoxAIVideoParse?.deliveryPrefix(response)||response;
             const document={id:canvas.id,nodes,task_result_version:canvas.task_result_version || 0};
             const affected=window.CanvasTaskResults.mergeDeliveries(document,response);
             canvas.task_result_version=document.task_result_version;
@@ -2517,14 +2517,14 @@ function smartTaskRecovery(){
             refreshSmartNodes(affected);
         },
         list:()=>[...nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video','audio','model'].includes(task.kind || 'image')||task.kind==='llm'&&task.batchFrameId)
-            .map(task=>({id:task.taskId,canvasId:canvas.id,kind:task.kind || 'image',task,node}))),...(window.PixmaxVideoParse?.pending()||[])],
+            .map(task=>({id:task.taskId,canvasId:canvas.id,kind:task.kind || 'image',task,node}))),...(window.ShadoxAIVideoParse?.pending()||[])],
         changed:item=>refreshSmartNodes(item ? [item.node.id] : nodes.filter(node=>smartPendingTasks(node).length).map(node=>node.id)),
         apply:async(item,record,current)=>{
-            if(item.kind==='llm'&&item.node.videoAnalysis)return window.PixmaxVideoParse.recover(item.node,record,{valid:current});
-            if(item.kind==='llm'&&item.task.batchFrameId)return window.PixmaxBatchExecution?.recover(item,record,current);
+            if(item.kind==='llm'&&item.node.videoAnalysis)return window.ShadoxAIVideoParse.recover(item.node,record,{valid:current});
+            if(item.kind==='llm'&&item.task.batchFrameId)return window.ShadoxAIBatchExecution?.recover(item,record,current);
             const source=nodes.find(node=>node.id===item.task.run?.nodeId),writeGuard=canvasTaskWriteGuard(source,item.node);
             const valid=()=>current() && Boolean(source) && writeGuard.valid() && smartPendingTasks(item.node).includes(item.task);
-            if(!valid() || activeSmartTaskPolls.has(item.kind+':'+item.id) || item.kind==='audio' && window.PixmaxAudioCreation?.busy() || item.kind==='model' && window.PixmaxModelCreation?.busy())return;
+            if(!valid() || activeSmartTaskPolls.has(item.kind+':'+item.id) || item.kind==='audio' && window.ShadoxAIAudioCreation?.busy() || item.kind==='model' && window.ShadoxAIModelCreation?.busy())return;
             const binding=await window.CanvasTaskBindings.recover({task:record,taskId:item.id,canvasId:canvas.id,kind:'smart',
                 sourceId:source.id,targetId:item.node.id,read:smartTaskInputDocument,valid});
             const result=record.result || {},outputs=item.kind==='video' ? resultMediaUrls(result) : resultMediaUrls(item.kind==='audio' ? result.audios : item.kind==='model' ? result.models : result.images || result);

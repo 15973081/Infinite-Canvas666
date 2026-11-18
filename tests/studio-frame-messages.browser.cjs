@@ -9,7 +9,7 @@ async function fixture(t,options={}){
     await page.addInitScript(()=>{
         // Routing tests exercise two known frames regardless of the product's home default.
         localStorage.setItem('studio_active_page','online');
-        window.CanvasSession={ready:Promise.resolve(),url:x=>x,socketUrl:x=>x,observeStatus(){}};
+        window.CanvasSession={ready:Promise.resolve(),url:x=>x,socketUrl:x=>x,observeStatus(data){window.observedStats=data;}};
         window.WebSocket=class{static OPEN=1;static CONNECTING=0;constructor(url){this.url=url;this.readyState=1;window.sockets||=[];window.sockets.push(this);}close(){this.readyState=3;}};
     });
     await page.route('**/*',async route=>{
@@ -65,13 +65,13 @@ test('production stats connection reconnects with original delay, retires old ca
     await page.waitForFunction(()=>!document.getElementById('service-disconnected').hidden);
     await page.waitForFunction(()=>sockets.length===2);
     await page.evaluate(()=>{sockets[1].onopen();oldStats.open();oldStats.close();oldStats.error();oldStats.message({data:'{"type":"stats","online_count":999}'});sockets[1].onmessage({data:'{"type":"stats","online_members":7}'});});
-    assert.equal(await page.locator('#online-val').innerText(),'7');assert.equal(await page.locator('#service-disconnected').isVisible(),false);
+    assert.equal(await page.evaluate(()=>observedStats.online_members??observedStats.online_count),7);assert.equal(await page.locator('#service-disconnected').isVisible(),false);
     assert.equal(await page.evaluate(()=>sockets.length),2);assert.deepEqual(errors,[]);
 });
 test('malformed WebSocket envelopes do not repaint or prevent subsequent messages',async t=>{
     const {page,errors}=await fixture(t);
     await page.evaluate(()=>{for(const data of ['bad','null','[]','{"type":1}'])sockets[0].onmessage({data});sockets[0].onmessage({data:'{"type":"stats","online_count":3}'});});
-    assert.equal(await page.locator('#online-val').innerText(),'3');assert.deepEqual(errors,[]);
+    assert.equal(await page.evaluate(()=>observedStats.online_members??observedStats.online_count),3);assert.deepEqual(errors,[]);
 });
 test('exit while reconnect is queued removes socket timers and stale callbacks',async t=>{
     const {page,errors}=await fixture(t);
@@ -86,7 +86,7 @@ test('native ES module cold startup waits for decoder and preserves legacy start
     }});
     await page.waitForFunction(()=>sockets.length===1);
     await page.evaluate(async()=>{await Promise.all([connectStudioWebSocket(),connectStudioWebSocket()]);sockets[0].onmessage({data:'{"type":"stats","online_members":12}'});});
-    assert.equal(await page.locator('#online-val').innerText(),'12');assert.equal(await page.evaluate(()=>sockets.length),1);
+    assert.equal(await page.evaluate(()=>observedStats.online_members??observedStats.online_count),12);assert.equal(await page.evaluate(()=>sockets.length),1);
     assert.equal(checked,true);assert.equal(codecRequests.length,1);assert.match(codecRequests[0],/__frontend_build=cold-build/);assert.deepEqual(errors,[]);
 });
 test('module-only build update changes native import URL without changing legacy bridge script',async t=>{
@@ -100,7 +100,7 @@ test('module-only build update changes native import URL without changing legacy
     await f.page.evaluate(()=>sockets[0].onmessage({data:'{"type":"stats","online_count":4}'}));
     await f.page.evaluate(()=>sockets[0].onmessage({data:'{"type":"canvas_updated"}'}));
     await f.page.waitForFunction(()=>document.querySelector('iframe.active').contentWindow.received.some(m=>m.codecVersion==='two'));
-    assert.equal(await f.page.locator('#online-val').innerText(),'4');assert.deepEqual(f.errors,[]);
+    assert.equal(await f.page.evaluate(()=>observedStats.online_members??observedStats.online_count),4);assert.deepEqual(f.errors,[]);
 });
 test('real postMessage accepts only parent/owned frames and API forwarding keeps payload',async t=>{
     const {page,errors}=await fixture(t);

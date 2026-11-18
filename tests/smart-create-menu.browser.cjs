@@ -7,7 +7,7 @@ for(const kind of ['image','video'])test(kind+' generation node accepts dropped 
     const name=kind==='image'?'input.png':'input.mp4';
     await page.evaluate(kind=>{
         window.uploadTarget=createGenerationNodeAt({x:400,y:200},kind);
-        uploadFiles=async files=>[{url:kind==='image'?'/test-image.svg':'/tests/fixtures/pixmax-audio-source.mp4',kind,name:files[0].name,natural_w:1280,natural_h:720}];
+        uploadFiles=async files=>[{url:kind==='image'?'/test-image.svg':'/tests/fixtures/shadoxai-audio-source.mp4',kind,name:files[0].name,natural_w:1280,natural_h:720}];
     },kind);
     const node=page.locator('.generation-node');await node.hover();
     assert.equal(await node.locator('.media-node-upload,[data-node-upload],.node-drop').count(),0);
@@ -19,7 +19,7 @@ for(const kind of ['image','video'])test(kind+' generation node accepts dropped 
     await page.waitForFunction(()=>uploadTarget.images.length===1);
     assert.equal(await page.evaluate(()=>nodes.length),1);assert.equal(await page.evaluate(()=>uploadTarget.images[0].name),name);
     if(kind==='video'){
-        await page.waitForFunction(()=>document.querySelector('.pixmax-player-mount video')?.readyState>=1);
+        await page.waitForFunction(()=>document.querySelector('.shadoxai-player-mount video')?.readyState>=1);
         await page.locator('.image-wrap').hover();
         assert.equal(await page.locator('.image-resolution-badge').count(),0);
         await page.evaluate(()=>updateImageResolutionBadgeElement(document.querySelector('.image-wrap'),uploadTarget.images[0]));
@@ -72,10 +72,10 @@ test('node and controls preserve their context interactions, and readonly cannot
     const {page,errors}=await fixture(t,'smart',true);
     await page.evaluate(()=>{nodes=[{id:'source',type:'smart-image',x:50,y:150,images:[{url:'/test-image.svg',kind:'image'}]}];render();});
     const native=await page.evaluate(()=>document.querySelector('.image-node').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:200,clientY:200})));
-    assert.equal(native,false);assert.deepEqual(await page.locator('.pixmax-context-menu button').evaluateAll(buttons=>buttons.map(button=>button.dataset.contextAction)),['asset','pin','copy','cover','delete']);assert.equal(await page.locator('#createMenu.open').count(),0);
+    assert.equal(native,false);assert.deepEqual(await page.locator('.shadoxai-context-menu button').evaluateAll(buttons=>buttons.map(button=>button.dataset.contextAction)),['asset','pin','copy','cover','delete']);assert.equal(await page.locator('#createMenu.open').count(),0);
     await page.locator('.image-node').dispatchEvent('dblclick');assert.equal(await page.locator('#createMenu.open').count(),0);
-    await page.locator('.pixmax-topbar').dispatchEvent('contextmenu');assert.equal(await page.locator('#createMenu.open').count(),0);
-    await page.locator('.pixmax-topbar').dispatchEvent('dblclick');assert.equal(await page.locator('#createMenu.open').count(),0);
+    await page.locator('.shadoxai-topbar').dispatchEvent('contextmenu');assert.equal(await page.locator('#createMenu.open').count(),0);
+    await page.locator('.shadoxai-topbar').dispatchEvent('dblclick');assert.equal(await page.locator('#createMenu.open').count(),0);
     await page.mouse.dblclick(900,600);assert.equal(await page.locator('#createMenu.open').count(),1);
     await page.evaluate(()=>MemberCanvasEdit.setEditable(false));assert.equal(await page.locator('#createMenu.open').count(),0);
     await page.mouse.dblclick(900,600);assert.equal(await page.locator('#createMenu.open').count(),0);

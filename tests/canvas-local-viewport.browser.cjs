@@ -41,7 +41,7 @@ for(const kind of ['smart','classic'])test(kind+': navigation stays local while 
  await page.mouse.wheel(0,120);
  if(kind==='smart'){
   await page.keyboard.down('Control');await page.mouse.wheel(0,-120);await page.keyboard.up('Control');
-  await page.evaluate(()=>{centerViewportOnWorldPoint({x:600,y:300});fitAllNodesViewport();enterZoomPreview();exitZoomPreview();zoomPixmaxCanvas(1.2);});
+  await page.evaluate(()=>{centerViewportOnWorldPoint({x:600,y:300});fitAllNodesViewport();enterZoomPreview();exitZoomPreview();zoomShadoxAICanvas(1.2);});
  }
  await page.clock.fastForward(2500);
  await page.evaluate(()=>MemberCanvasEdit.options.flush());

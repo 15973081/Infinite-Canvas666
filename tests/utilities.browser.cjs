@@ -59,7 +59,8 @@ for(const name of ['index', 'canvas', 'online', 'gpt-chat']) {
                     <div id="responsive" class="hidden md:flex"></div>
                     <div id="overlay" class="bg-black/50"></div>
                     <div id="hidden" hidden>隐藏</div>`;
-                document.body.append(host);
+                host.style.cssText='display:block;position:fixed;inset:0 auto auto 0;width:240px';
+                document.documentElement.append(host);
                 await new Promise((resolve,reject) => {
                     const link = shadow.querySelector('link');
                     link.onload = resolve;

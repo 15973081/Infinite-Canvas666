@@ -231,7 +231,7 @@ test('source image fetch errors identify the material instead of recommending a 
 });
 test('smart image toolbar opens local depth and creates a separate image node only when saved',async t=>{
     const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
-    await page.evaluate(()=>{nodes=[{id:'depth-source',type:'smart-image',x:20,y:20,images:[{url:'/test-image.svg',kind:'image',name:'input.svg'}]}];smartSelection.createdNode('depth-source');render();});
+    await page.evaluate(()=>{nodes=[{id:'depth-source',type:'smart-image',x:400,y:250,images:[{url:'/test-image.svg',kind:'image',name:'input.svg'}]}];smartSelection.createdNode('depth-source');render();});
     assert.equal(await page.locator('[data-smart-node-action="depth-local"]').count(),1);
     assert.equal(await page.locator('[data-smart-node-action="depth"]').count(),1,'existing managed depth stays available');
     await page.locator('[data-smart-node-action="depth-local"]').click();assert.equal(await page.locator('#localDepthTitle').textContent(),'本地深度图');await page.keyboard.press('Escape');
@@ -250,7 +250,7 @@ test('smart image toolbar opens local depth and creates a separate image node on
 test('smart video creates one result node, keeps preview behavior and saves into the same node',async t=>{
     const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
     await page.route('**/input.mp4',route=>route.fulfill({contentType:'video/mp4',body:input}));
-    await page.evaluate(()=>{nodes=[{id:'depth-source',type:'smart-image',x:20,y:20,images:[{url:'/input.mp4',kind:'video',name:'input.mp4'}]}];smartSelection.createdNode('depth-source');render();});
+    await page.evaluate(()=>{nodes=[{id:'depth-source',type:'smart-image',x:400,y:250,images:[{url:'/input.mp4',kind:'video',name:'input.mp4'}]}];smartSelection.createdNode('depth-source');render();});
     await page.evaluate(()=>{
         window.depthUploads=0;
         LocalDepthVideo.generate=options=>{window.depthOptions=options;return {close(){},cancel(){options.onError(new DOMException('cancel','AbortError'));options.onFinally();},download(){window.depthDownloaded=true;}};};
@@ -269,7 +269,7 @@ test('smart video creates one result node, keeps preview behavior and saves into
     assert.equal(await page.evaluate(()=>depthUploads),1);assert.equal(await page.evaluate(()=>nodes.length),2);
     assert.equal(await page.evaluate(()=>nodes[1].images[0].url),'/result.mp4');assert.equal(await page.locator('.local-depth-node').count(),0);
     await page.evaluate(()=>runSmartNodeToolbarAction('depth-source','preview'));
-    await page.waitForFunction(()=>document.getElementById('previewCurrentVideo').currentSrc.includes('input.mp4'));
+    await page.waitForFunction(()=>document.querySelector('.shadoxai-detail-video video')?.currentSrc.includes('input.mp4'));
     assert.deepEqual(await page.evaluate(()=>nodes[0].images.map(({url,kind,name})=>({url,kind,name}))),[{url:'/input.mp4',kind:'video',name:'input.mp4'}]);
     assert.deepEqual(errors,[]);
 });

@@ -11,4 +11,4 @@ css.walkRules(rule=>{
 });
 css.walkAtRules(rule=>{if(rule.name==='import'&&rule.params.includes('fonts.css'))rule.remove();if(rule.nodes&&!rule.nodes.length)rule.remove();});
 css.walkComments(comment=>comment.remove());
-fs.writeFileSync(path.join(root,'static/css/smart-canvas-services.css'),'/* Service dialogs and business controls. Canvas surface lives in pixmax-canvas.css. */\n'+css.toString());
+fs.writeFileSync(path.join(root,'static/css/smart-canvas-services.css'),'/* Service dialogs and business controls. Canvas surface lives in shadoxai-canvas.css. */\n'+css.toString());

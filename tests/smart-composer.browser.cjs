@@ -55,7 +55,7 @@ test('optional video controls are hidden, preserve values and stay usable after 
  assert.equal(await page.getByRole('switch').count(),0);
  await page.evaluate(()=>{settings.engine='api';renderDynamicParams();});
  await summary.click();
- await page.locator('[data-toggle-param="videoUseFrameRoles"]').click();
+ assert.equal(await page.locator('[data-toggle-param="videoUseFrameRoles"]').count(),0);
  await page.locator('[data-toggle-param="videoMultimodal"]').click();
  assert.deepEqual(await page.evaluate(()=>[settings.videoUseFrameRoles,settings.videoMultimodal]),[false,true]);
 });

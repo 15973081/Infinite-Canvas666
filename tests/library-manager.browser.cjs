@@ -29,7 +29,7 @@ test('Classic manager exposes frozen UI snapshots without external state/DOM ali
 });
 test('Classic manager repeated bind gives one read/open and one submitted deletion, without touching unrelated controls',async t=>{
  const {page,errors}=await manager(t);await page.evaluate(()=>{classicLibraryManager.bind();classicLibraryManager.bind();closeAssetManager();managerReads=0;});
- await page.locator('#gateAssetManagerBtn').evaluate(el=>el.click());await page.waitForFunction(()=>managerReads===1);
+ await page.evaluate(()=>openAssetManager());await page.waitForFunction(()=>managerReads===1);
  await page.locator('[data-manager-asset-check="a"]').check();
  await page.evaluate(()=>{window.CanvasApi.deleteAssetItems=async request=>{managerWrites++;window.managerDeleteRequest=request;return {library:managerData};};});
  await page.locator('[data-manager-asset-delete]').click();await page.waitForFunction(()=>managerWrites===1);

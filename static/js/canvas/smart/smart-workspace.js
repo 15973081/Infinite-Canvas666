@@ -341,7 +341,7 @@ function createSmartSelection(){
 }
 
 function syncSelectionUi(){
-    window.PixmaxNavigator?.documentChanged();
+    window.ShadoxAINavigator?.documentChanged();
     world.classList.toggle('smart-multi-selected', selectedNodeIds().length > 1);
     world.querySelectorAll('.image-node').forEach(el => {
         const id = el.dataset.id || '';
@@ -353,10 +353,10 @@ function syncSelectionUi(){
             item.classList.toggle('image-selected', smartSelection.image.nodeId === id && smartSelection.image.index === index);
         });
     });
-    positionPixmaxVideoToolbars();
-    void window.PixmaxTextGeneration?.sync();
-    window.PixmaxNativePrompt?.updateViewport();
-    window.PixmaxTextGeneration?.position();
+    positionShadoxAIVideoToolbars();
+    void window.ShadoxAITextGeneration?.sync();
+    window.ShadoxAINativePrompt?.updateViewport();
+    window.ShadoxAITextGeneration?.position();
 }
 
 function isNodeSelected(id){
@@ -521,16 +521,16 @@ function promptNodeLayoutSize(node){
 }
 
 function imageLayout(images, scale=1, node=null){
-    if(window.PixmaxCanvasFrames?.isFrame(node)){const box=window.PixmaxCanvasFrames.rect(node);return {cols:1,rows:1,width:box.width,height:box.height,thumb:0,single:true};}
+    if(window.ShadoxAICanvasFrames?.isFrame(node)){const box=window.ShadoxAICanvasFrames.rect(node);return {cols:1,rows:1,width:box.width,height:box.height,thumb:0,single:true};}
     if(isSmartStudioNode(node)){
-        const [w,h]=window.PixmaxCanvasAssets.sizes[node.type.slice(6)];
+        const [w,h]=window.ShadoxAICanvasAssets.sizes[node.type.slice(6)];
         const oldDefault=node.w===320&&node.h===320;
         return {cols:1,rows:1,width:oldDefault?w:Number(node.w)||w,height:oldDefault?h:Number(node.h)||h,thumb:96,single:true};
     }
     if(node?.type === 'smart-prompt') return {cols:1, rows:1, ...promptNodeLayoutSize(node), thumb:96, single:true};
     const count = (images || []).length;
     const s = node?.type === 'smart-image' || !node?.type ? mediaNodeDefaultScale(node) : (Number.isFinite(scale) && scale > 0 ? scale : 1);
-    const reshootPreview=count===0?window.PixmaxSegmentReshoot?.previewMedia(node):null;
+    const reshootPreview=count===0?window.ShadoxAISegmentReshoot?.previewMedia(node):null;
     if(reshootPreview)return singleImageLayout(reshootPreview,node,s);
     if(count === 0){
         const explicitW = Number(node?.w);
@@ -619,15 +619,15 @@ function applyViewport(){
     // 缩小时位图被降采样 → 组件发虚。缩放态下关闭这些 backdrop-filter（底色本身已接近不透明，
     // 观感几乎无差），让卡片随矢量重新栅格化，保持清晰。
     world.classList.toggle('canvas-scaled', Math.abs(viewport.scale - 1) > 0.001);
-    const pattern=document.getElementById('pixmaxGridPattern');
+    const pattern=document.getElementById('shadoxaiGridPattern');
     if(pattern){const gap=20*viewport.scale;pattern.setAttribute('width',gap);pattern.setAttribute('height',gap);pattern.setAttribute('x',viewport.x%gap);pattern.setAttribute('y',viewport.y%gap);const dot=pattern.querySelector('circle');dot.setAttribute('r',.5*viewport.scale);dot.setAttribute('cx',.5*viewport.scale);dot.setAttribute('cy',.5*viewport.scale);}
-    const zoomLabel=document.getElementById('pixmaxZoomLabel');if(zoomLabel)zoomLabel.textContent=Math.round(viewport.scale*100)+'%';
-    syncPixmaxSaveStatus();
-    positionPixmaxVideoToolbars();
+    const zoomLabel=document.getElementById('shadoxaiZoomLabel');if(zoomLabel)zoomLabel.textContent=Math.round(viewport.scale*100)+'%';
+    syncShadoxAISaveStatus();
+    positionShadoxAIVideoToolbars();
     scheduleSmartMinimapRender(true);
     scheduleSmartViewportRefresh();
-    window.PixmaxNativePrompt?.updateViewport();
-    window.PixmaxTextGeneration?.position();
+    window.ShadoxAINativePrompt?.updateViewport();
+    window.ShadoxAITextGeneration?.position();
 }
 
 // 视野裁剪：判断节点是否在智能画布可见区域内
@@ -652,9 +652,9 @@ function isSmartNodeInViewport(node, margin=400){
 function scheduleSmartViewportRefresh(...args){return smartWorkspaceView.scheduleViewport(...args);}
 
 function canRecycleSmartMediaNode(node, el){
-    const reshootPreview=window.PixmaxSegmentReshoot?.previewMedia(node);
+    const reshootPreview=window.ShadoxAISegmentReshoot?.previewMedia(node);
     if(!node || (node.type && node.type !== 'smart-image') || !(node.images || []).length&&!reshootPreview) return false;
-    if(node.running || node.queued || smartNodePendingCount(node) || isNodeSelected(node.id)||el?.querySelector('.pixmax-audio-mount[data-playing="true"]')) return false;
+    if(node.running || node.queued || smartNodePendingCount(node) || isNodeSelected(node.id)||el?.querySelector('.shadoxai-audio-mount[data-playing="true"]')) return false;
     if(dragState || resizeState || thumbDragState || portDragState || selectionState || smartCascadeAnyRunning()) return false;
     if(el?.contains(document.activeElement)) return false;
     if(reshootPreview ? [...(el?.querySelectorAll('video,audio')||[])].some(media=>!media.paused) : el?.querySelector('video,audio'))return false;
@@ -668,10 +668,10 @@ function restoreSmartNodeScroll(...args){return smartWorkspaceView.restoreScroll
 function renderSmartOffscreenPlaceholders(...args){return smartWorkspaceView.recycle(...args);}
 
 function renderSmartNodeHtml(node){
-    if(window.PixmaxCanvasFrames?.isFrame(node))return window.PixmaxCanvasFrames.render(node);
+    if(window.ShadoxAICanvasFrames?.isFrame(node))return window.ShadoxAICanvasFrames.render(node);
     if(isSmartStudioNode(node)) return renderSmartStudioNode(node);
     const imgs = node.images || [];
-    const reshootPreview=window.PixmaxSegmentReshoot?.previewMedia(node);
+    const reshootPreview=window.ShadoxAISegmentReshoot?.previewMedia(node);
     const scale = nodeScale(node);
     const layout = imageLayout(imgs, scale, node);
     const isPrompt = node.type === 'smart-prompt';
@@ -691,12 +691,12 @@ function renderSmartNodeHtml(node){
     const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : isSmartVideoAssetNode(node)?'video':'';
     const body = nodeBodyHtml(node, layout);
     return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${smartSelection.nodeId===node.id?'active-node':''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="--node-layer:${smartSelection.layer(node.id)};left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
-        ${!isPrompt ? pixmaxNodeCaption(node,singleMediaKind==='audio'?'audio':generationKind==='video'||singleMediaKind==='video'?'video':'image',node.localDepth?'视频生成节点-深度':generationKind?generationTitle:singleMediaKind==='video'?'视频节点':singleMediaKind==='audio'?'音频节点':'图像节点') : ''}
-        ${isPrompt ? pixmaxNodeCaption(node,'text','文本生成节点') : ''}
+        ${!isPrompt ? shadoxaiNodeCaption(node,singleMediaKind==='audio'?'audio':generationKind==='video'||singleMediaKind==='video'?'video':'image',node.localDepth?'视频生成节点-深度':generationKind?generationTitle:singleMediaKind==='video'?'视频节点':singleMediaKind==='audio'?'音频节点':'图像节点') : ''}
+        ${isPrompt ? shadoxaiNodeCaption(node,'text','文本生成节点') : ''}
         ${smartNodeToolbarHtml(node)}
         <div class="node-body">${body}</div>
         ${imgs.length || reshootPreview || pendingCount || isQueued || recoveryOnly || isPrompt ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
-        ${pixmaxNodePorts()}
+        ${shadoxaiNodePorts()}
     </div>`;
 }
 
@@ -714,7 +714,7 @@ function screenToWorld(event){
 }
 
 function smartViewportBounds(){
-    return window.PixmaxNavigator?.viewportBounds?.()||{x:0,y:0,width:shell.clientWidth,height:shell.clientHeight};
+    return window.ShadoxAINavigator?.viewportBounds?.()||{x:0,y:0,width:shell.clientWidth,height:shell.clientHeight};
 }
 
 function viewportCenter(){
@@ -1807,8 +1807,8 @@ function moveNodeElementsDuringDrag(){
             el.style.top = `${n.y || 0}px`;
         }
     });
-    window.PixmaxCanvasFrames?.updateElements(groupItems.map(item=>item.id));
-    window.PixmaxCanvasFrames?.previewDrag(dragState);
+    window.ShadoxAICanvasFrames?.updateElements(groupItems.map(item=>item.id));
+    window.ShadoxAICanvasFrames?.previewDrag(dragState);
     const active = selectedNode();
     if(active && (dragState.group || [{id:dragState.id}]).some(item => item.id === active.id)){
         positionComposerForNode(active);
@@ -1978,10 +1978,10 @@ function updateImageResolutionBadgeElement(itemEl, img){
 
 function singleMediaHtml(img, w, h){
     if(isFileMediaItem(img) || isTextMediaItem(img)) return `<div class="node-img media-card media-file-card" style="width:${w}px;height:${h}px"><div class="media-card-icon"><i data-lucide="${isTextMediaItem(img) ? 'file-text' : 'file'}"></i></div><div class="media-card-title">${escapeHtml(img.name || (isTextMediaItem(img) ? 'Text' : 'File'))}</div><div class="media-card-sub">${isTextMediaItem(img) ? 'TEXT' : 'FILE'}</div></div>`;
-    if(isAudioMediaItem(img)) return `<div class="node-img" style="width:100%;height:100%">${pixmaxAudioCardHtml(img)}</div>`;
+    if(isAudioMediaItem(img)) return `<div class="node-img" style="width:100%;height:100%">${shadoxaiAudioCardHtml(img)}</div>`;
     if(isVideoMediaItem(img)){
-        const source=displayMediaUrl(img.previewVideoUrl?{...img,url:img.previewVideoUrl}:img),poster=pixmaxMediaPoster(img);
-        return `<div class="node-img media-card media-video-card" style="width:${w}px;height:${h}px"><div class="pixmax-player-mount" data-src="${escapeAttr(source)}" data-url="${escapeAttr(img.url)}" data-poster="${escapeAttr(poster)}" data-duration="${Number(img.duration)||0}"></div></div>`;
+        const source=displayMediaUrl(img.previewVideoUrl?{...img,url:img.previewVideoUrl}:img),poster=shadoxaiMediaPoster(img);
+        return `<div class="node-img media-card media-video-card" style="width:${w}px;height:${h}px"><div class="shadoxai-player-mount" data-src="${escapeAttr(source)}" data-url="${escapeAttr(img.url)}" data-poster="${escapeAttr(poster)}" data-duration="${Number(img.duration)||0}"></div></div>`;
     }
     return smartPreviewImgHtml(img, 768, `class="node-img" draggable="false" style="width:${w}px;height:${h}px"`);
 }
@@ -1990,11 +1990,11 @@ function smartNodeHasLiveMedia(node){
     return Boolean(!node?.pending && (node?.images || []).some(img => img?.url));
 }
 
-function isPixmaxPlayerControlEvent(event){
+function isShadoxAIPlayerControlEvent(event){
     // The original player's play/pause icon changes during its click handler.
     // composedPath retains the button ancestry even when that SVG is removed.
     return event.composedPath().some(element=>element instanceof Element &&
-        (element.matches('.pixmax-audio-mount') || element.matches('button,[role=slider]') && element.closest('.pixmax-player-mount')));
+        (element.matches('.shadoxai-audio-mount') || element.matches('button,[role=slider]') && element.closest('.shadoxai-player-mount')));
 }
 
 function mediaSignaturePartFromElement(itemEl){
@@ -2041,16 +2041,21 @@ function restoreMediaPlaybackState(media, state){
 }
 
 function transplantSmartMediaElements(oldNodeEl, newNodeEl){
-    for(const player of oldNodeEl.querySelectorAll('.pixmax-audio-mount')){
-        const next=[...newNodeEl.querySelectorAll('.pixmax-audio-mount')].find(target=>target.dataset.audioKey===player.dataset.audioKey&&target.dataset.src===player.dataset.src);
+    for(const player of oldNodeEl.querySelectorAll('.shadoxai-audio-mount')){
+        const next=[...newNodeEl.querySelectorAll('.shadoxai-audio-mount')].find(target=>target.dataset.audioKey===player.dataset.audioKey&&target.dataset.src===player.dataset.src);
         if(next)next.replaceWith(player);
     }
-    const oldItems = [...(oldNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap,.pixmax-reshoot-source') || [])];
-    const newItems = [...(newNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap,.pixmax-reshoot-source') || [])];
+    const oldItems = [...(oldNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap,.shadoxai-reshoot-source') || [])];
+    const newItems = [...(newNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap,.shadoxai-reshoot-source') || [])];
     oldItems.forEach((oldItem, index) => {
-        const player=oldItem.querySelector('.pixmax-player-mount');
-        const nextPlayer=newItems.find(item=>item.dataset.mediaSignature===oldItem.dataset.mediaSignature)?.querySelector('.pixmax-player-mount');
-        if(player&&nextPlayer&&player.dataset.url===nextPlayer.dataset.url){nextPlayer.replaceWith(player);return;}
+        const player=oldItem.querySelector('.shadoxai-player-mount');
+        const nextPlayer=newItems.find(item=>item.dataset.mediaSignature===oldItem.dataset.mediaSignature)?.querySelector('.shadoxai-player-mount');
+        if(player&&nextPlayer&&player.dataset.url===nextPlayer.dataset.url){
+            const video=player.querySelector('video'), playback=captureMediaPlaybackState(video);
+            nextPlayer.replaceWith(player);
+            if(video && playback.currentTime>0)queueMicrotask(()=>restoreMediaPlaybackState(video,playback));
+            return;
+        }
         const oldMedia = oldItem.querySelector('video,audio,img.node-img,.thumb-item > img,.media-thumb img');
         if(!oldMedia) return;
         const selector = oldMedia.tagName.toLowerCase();
@@ -2062,7 +2067,7 @@ function transplantSmartMediaElements(oldNodeEl, newNodeEl){
             || newItems.find(item => item.querySelector?.(selector)?.getAttribute?.('src') === oldMedia.getAttribute('src'))
             || newItems[index];
         const newMedia = newItem?.querySelector?.(selector);
-        if(Boolean(oldItem.matches('.pixmax-reshoot-source'))!==Boolean(newItem?.matches('.pixmax-reshoot-source')))return;
+        if(Boolean(oldItem.matches('.shadoxai-reshoot-source'))!==Boolean(newItem?.matches('.shadoxai-reshoot-source')))return;
         const newUrl = newMedia?.dataset?.url || newMedia?.dataset?.originalSrc || newMedia?.getAttribute?.('src') || '';
         if(!newMedia || oldUrl !== newUrl) return;
         if(selector === 'img'){
@@ -2107,18 +2112,18 @@ function restoreMediaPlaybackStates(states){
 }
 
 function promptNodeBodyHtml(node){
-    const task=window.PixmaxTextGeneration?.body(node);if(task)return task;
+    const task=window.ShadoxAITextGeneration?.body(node);if(task)return task;
     return `<div class="prompt-node-card">
-        <div class="pixmax-text-view ${node.text?.trim()?'':'empty'}" role="presentation">${escapeHtml(node.text || '双击开始输入...')}</div>
+        <div class="shadoxai-text-view ${node.text?.trim()?'':'empty'}" role="presentation">${escapeHtml(node.text || '双击开始输入...')}</div>
         <textarea class="prompt-node-text prompt-node-control" aria-label="节点文本" hidden readonly placeholder="在此输入文本...">${escapeHtml(node.text || '')}</textarea>
     </div>`;
 }
 
 function nodeBodyHtml(node, layout){
-    const mediaTask=window.PixmaxMediaKit?.body(node);if(mediaTask)return mediaTask;
+    const mediaTask=window.ShadoxAIMediaKit?.body(node);if(mediaTask)return mediaTask;
     if(node.localDepth && !(node.images || []).length)return smartLocalDepthBodyHtml(node);
     const tasks=window.CanvasSession?.enabled ? smartPendingTasks(node) : [];
-    const body=window.PixmaxSegmentReshoot?.previewBody(node,layout)||smartNodeMediaBodyHtml(node,layout);
+    const body=window.ShadoxAISegmentReshoot?.previewBody(node,layout)||smartNodeMediaBodyHtml(node,layout);
     if(!tasks.length)return body;
     const recoveryOnly=!((node.images || []).length);
     return body+tasks.map(task=>{
@@ -2157,16 +2162,16 @@ function smartNodeMediaBodyHtml(node, layout){
     if(imgs.length > 1){
         const visibleRows = Math.max(1, Math.min(MEDIA_GROUP_MAX_VISIBLE_ROWS, Number(layout.visibleRows || layout.rows || 1)));
         const maxHeight = visibleRows * Number(layout.thumb || 96) + Math.max(0, visibleRows - 1) * 8;
-        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris, img) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${window.PixmaxSeedanceDrafts?.badge(img)||''}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true, img)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
+        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris, img) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${window.ShadoxAISeedanceDrafts?.badge(img)||''}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true, img)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
     }
-    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${window.PixmaxSeedanceDrafts?.badge(imgs[0])||''}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}</div>`;
+    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${window.ShadoxAISeedanceDrafts?.badge(imgs[0])||''}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}</div>`;
     const generationKind = smartGenerationKind(node);
     if(generationKind) return `<button class="generation-node-placeholder" type="button" aria-label="编辑${generationKind === 'video' ? '视频' : '图片'}生成提示词">
-        ${pixmaxSvg(generationKind==='video'?'video-fill':'image-fill')}
+        ${shadoxaiSvg(generationKind==='video'?'video-fill':'image-fill')}
         <span>点击输入提示词</span>
     </button>`;
-    if(isSmartVideoAssetNode(node))return `<button class="node-drop" type="button" data-node-upload aria-label="上传视频">${pixmaxSvg('video-fill')}</button>`;
-    return `<button class="node-drop" type="button" data-upload-action="files" aria-label="上传图片、视频或音频">${pixmaxSvg('image-fill')}</button>`;
+    if(isSmartVideoAssetNode(node))return `<button class="node-drop" type="button" data-node-upload aria-label="上传视频">${shadoxaiSvg('video-fill')}</button>`;
+    return `<button class="node-drop" type="button" data-upload-action="files" aria-label="上传图片、视频或音频">${shadoxaiSvg('image-fill')}</button>`;
 }
 
 function imageTaskRecoverBodyHtml(node, task, layout){
@@ -2203,7 +2208,7 @@ function runSmartNodeToolbarAction(nodeId, action){
     const node = nodes.find(n => n.id === nodeId);
     if(!node) return;
     if(node.type==='smart-prompt'){
-        if(action==='tags')return window.PixmaxTags.openPicker([node.id],world.querySelector(`[data-node-id="${CSS.escape(node.id)}"][data-smart-node-action="tags"]`));
+        if(action==='tags')return window.ShadoxAITags.openPicker([node.id],world.querySelector(`[data-node-id="${CSS.escape(node.id)}"][data-smart-node-action="tags"]`));
         if(action==='download-text'&&node.text?.trim())return downloadBlob(new Blob([node.text],{type:'text/plain;charset=utf-8'}),safeExportFileName((node.label||'文本')+'.txt','文本.txt'));
         return;
     }
@@ -2211,17 +2216,17 @@ function runSmartNodeToolbarAction(nodeId, action){
     const item = imageForDisplay(node.images?.[index]);
     if(!item?.url) return;
     const kind = mediaKindForItem(item);
-    if(action==='tags')return window.PixmaxTags.openPicker([nodeId],world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="tags"]`));
-    if(PIXMAX_VIDEO_DEFERRED.has(action))return;
-    if(action==='seedance-final'&&kind==='video')return window.PixmaxSeedanceDrafts?.open(node,index);
-    if(['understand','erase','upscale'].includes(action)&&kind==='video')return window.PixmaxMediaKit?.open(nodeId,index,action);
-    if(action==='video-history'||action==='image-history')return window.PixmaxGenerationHistory?.openNode(node,world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="${action}"]`));
+    if(action==='tags')return window.ShadoxAITags.openPicker([nodeId],world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="tags"]`));
+    if(SHADOXAI_VIDEO_DEFERRED.has(action))return;
+    if(action==='seedance-final'&&kind==='video')return window.ShadoxAISeedanceDrafts?.open(node,index);
+    if(['understand','erase','upscale'].includes(action)&&kind==='video')return window.ShadoxAIMediaKit?.open(nodeId,index,action);
+    if(action==='video-history'||action==='image-history')return window.ShadoxAIGenerationHistory?.openNode(node,world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="${action}"]`));
     if(['auth','asset','depth-video','audio-separate','annotation','parse','reshoot'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
     smartSelection.toolbarImage(nodeId, index);
-    if(action==='audio-separate'&&kind==='video')return window.PixmaxMediaTools.openAudioSeparate(nodeId,index);
-    if(action==='annotation'&&kind==='video')return window.PixmaxVideoAnnotation.open(nodeId,index);
-    if(action==='parse'&&kind==='video')return window.PixmaxVideoParse.create(nodeId,index);
-    if(action==='reshoot'&&kind==='video')return window.PixmaxSegmentReshoot.create(nodeId,index);
+    if(action==='audio-separate'&&kind==='video')return window.ShadoxAIMediaTools.openAudioSeparate(nodeId,index);
+    if(action==='annotation'&&kind==='video')return window.ShadoxAIVideoAnnotation.open(nodeId,index);
+    if(action==='parse'&&kind==='video')return window.ShadoxAIVideoParse.create(nodeId,index);
+    if(action==='reshoot'&&kind==='video')return window.ShadoxAISegmentReshoot.create(nodeId,index);
     if(action === 'download'){
         downloadPreviewFile(node.images?.[index] || item);
         return;
@@ -2239,7 +2244,7 @@ function runSmartNodeToolbarAction(nodeId, action){
         return;
     }
     if(action === 'depth-video' && kind === 'video'){
-        return openPixmaxVideoDepthMenu(nodeId,index);
+        return openShadoxAIVideoDepthMenu(nodeId,index);
     }
     if(action === 'depth-local' && kind === 'image'){
         return openSmartLocalDepthImage(nodeId, index);
@@ -2255,12 +2260,12 @@ function runSmartNodeToolbarAction(nodeId, action){
     if(action === 'panorama' || action === 'depth'){
         return runManagedImageTool(action, nodeId, index);
     }
-    if(action==='crop'||action==='brush')return window.PixmaxImageTools.open(node,index,action);
+    if(action==='crop'||action==='brush')return window.ShadoxAIImageTools.open(node,index,action);
 }
 
 function smartChangedConnectionNodes(...args){return smartWorkspaceView.changedConnections(...args);}
 
-function render(...args){const result=smartWorkspaceView.render(...args);void window.PixmaxTextGeneration?.sync();return result;}
+function render(...args){const result=smartWorkspaceView.render(...args);void window.ShadoxAITextGeneration?.sync();return result;}
 
 function smartAffectedNodeIds(ids){
     const affected = new Set(ids.filter(Boolean)), outgoing = new Map();
@@ -2281,7 +2286,7 @@ function smartAffectedNodeIds(ids){
     return affected;
 }
 
-function refreshSmartNodes(...args){const result=smartWorkspaceView.refreshNodes(...args);void window.PixmaxTextGeneration?.sync();return result;}
+function refreshSmartNodes(...args){const result=smartWorkspaceView.refreshNodes(...args);void window.ShadoxAITextGeneration?.sync();return result;}
 
 function measureSmartNodeImages(root=world){
     root.querySelectorAll('.image-node img,.image-node video').forEach(imgEl => {
@@ -2380,13 +2385,13 @@ function clearPortDragVisual(){
 function bindPromptNodeControls(el, node){
     const textEl = el.querySelector('.prompt-node-text');
     if(!textEl) return;
-    const view=el.querySelector('.pixmax-text-view');
+    const view=el.querySelector('.shadoxai-text-view');
     let changed=false;
     view.addEventListener('dblclick',event=>{
         event.stopPropagation();
-        if(isSmartCanvasLocked()||pixmaxCanvasMode!=='normal')return;
+        if(isSmartCanvasLocked()||shadoxaiCanvasMode!=='normal')return;
         const scrollTop=view.scrollTop;
-        const caret=window.PixmaxTextCaret(view,event.clientX,event.clientY,node.text||'')??0;
+        const caret=window.ShadoxAITextCaret(view,event.clientX,event.clientY,node.text||'')??0;
         view.hidden=true;textEl.hidden=false;textEl.readOnly=false;textEl.placeholder='在此输入文本...';
         textEl.focus({preventScroll:true});textEl.setSelectionRange(caret,caret);textEl.scrollTop=scrollTop;
     });
@@ -2517,7 +2522,7 @@ function handlePortDrop(drag, e){
         if(!compatible){ discardPendingUndo(); render(); return; }
         const fromId = drag.fromPort === 'out' ? drag.fromId : targetId;
         const toId = drag.fromPort === 'out' ? targetId : drag.fromId;
-        if(pixmaxCanConnect(nodes.find(node=>node.id===fromId),nodes.find(node=>node.id===toId))&&connectInputNode(fromId, toId)){
+        if(shadoxaiCanConnect(nodes.find(node=>node.id===fromId),nodes.find(node=>node.id===toId))&&connectInputNode(fromId, toId)){
             commitPendingUndo();
             render();
             scheduleSave();
@@ -2544,12 +2549,12 @@ function handlePortDrop(drag, e){
 }
 
 function bindNodeEvents(elements=null){
-    requestAnimationFrame(positionPixmaxVideoToolbars);
+    requestAnimationFrame(positionShadoxAIVideoToolbars);
     (elements || world.querySelectorAll('.image-node')).forEach(el => {
         const id = el.dataset.id;
         const nodeForControls = nodes.find(n => n.id === id);
-        if(window.PixmaxCanvasFrames?.isFrame(nodeForControls)){window.PixmaxCanvasFrames.bind(el,nodeForControls);return;}
-        if(!isSmartStudioNode(nodeForControls))bindPixmaxNodeName(el,nodeForControls);
+        if(window.ShadoxAICanvasFrames?.isFrame(nodeForControls)){window.ShadoxAICanvasFrames.bind(el,nodeForControls);return;}
+        if(!isSmartStudioNode(nodeForControls))bindShadoxAINodeName(el,nodeForControls);
         if(isSmartStudioNode(nodeForControls)) bindSmartStudioNode(el,nodeForControls);
         if(nodeForControls?.type === 'smart-prompt') bindPromptNodeControls(el, nodeForControls);
         el.addEventListener('focusin', () => smartSelection.activateNode(id));
@@ -2562,7 +2567,7 @@ function bindNodeEvents(elements=null){
         const generationPlaceholder = el.querySelector('.generation-node-placeholder');
         generationPlaceholder?.addEventListener('mousedown', e => {
             if(e.button !== 0) return;
-            if(shell.dataset.tool==='pan'||pixmaxSpacePanning)return;
+            if(shell.dataset.tool==='pan'||shadoxaiSpacePanning)return;
             generationPlaceholder._press={x:e.clientX,y:e.clientY};
             e.preventDefault(); e.stopPropagation();
             el.onmousedown?.(e);
@@ -2598,7 +2603,7 @@ function bindNodeEvents(elements=null){
         });
         el.querySelectorAll('[data-mediakit-query]').forEach(btn=>{
             btn.addEventListener('mousedown',event=>{event.preventDefault();event.stopPropagation();},true);
-            btn.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();window.PixmaxMediaKit?.refresh(btn.dataset.mediakitQuery);});
+            btn.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();window.ShadoxAIMediaKit?.refresh(btn.dataset.mediakitQuery);});
         });
         el.querySelectorAll('[data-smart-node-action]').forEach(btn => {
             btn.addEventListener('mousedown', e => {
@@ -2653,7 +2658,7 @@ function bindNodeEvents(elements=null){
                 openSmartVideoLightbox(id, imageIndex);
             }, true);
         });
-        el.querySelectorAll('.pixmax-inline-video').forEach(video=>{
+        el.querySelectorAll('.shadoxai-inline-video').forEach(video=>{
             ['mousedown','click','dblclick','wheel'].forEach(type=>video.addEventListener(type,event=>event.stopPropagation()));
         });
         el.querySelectorAll('.smart-audio-open').forEach(btn => {
@@ -2681,7 +2686,7 @@ function bindNodeEvents(elements=null){
                 e.preventDefault();
             });
             item.addEventListener('mousedown', e => {
-                if(isPixmaxPlayerControlEvent(e) || e.target.closest('video,audio')) return;
+                if(isShadoxAIPlayerControlEvent(e) || e.target.closest('video,audio')) return;
                 if(e.button !== 0 || e.target.closest('.image-delete')) return;
                 if(e.detail < 2) return;
                 e.preventDefault();
@@ -2699,7 +2704,7 @@ function bindNodeEvents(elements=null){
                 openImagePreview(id, imageIndex);
             }, true);
             item.addEventListener('click', e => {
-                if(isPixmaxPlayerControlEvent(e) || e.target.closest('video,audio')) return;
+                if(isShadoxAIPlayerControlEvent(e) || e.target.closest('video,audio')) return;
                 if(e.target.closest('.image-delete')) return;
                 e.preventDefault();
                 e.stopPropagation();
@@ -2723,7 +2728,7 @@ function bindNodeEvents(elements=null){
                 smartSelection.deferImageClick(owner, imageIndex);
             });
         item.addEventListener('dblclick', e => {
-            if(isPixmaxPlayerControlEvent(e) || e.target.closest('video,audio')) return;
+            if(isShadoxAIPlayerControlEvent(e) || e.target.closest('video,audio')) return;
             if(e.target.closest('.image-delete')) return;
             e.preventDefault();
             e.stopPropagation();
@@ -2743,7 +2748,7 @@ function bindNodeEvents(elements=null){
         el.querySelectorAll('.thumb-item').forEach(item => {
             item.addEventListener('mousedown', e => {
                 if(isSmartCanvasLocked()) return;
-                if(isPixmaxPlayerControlEvent(e) || e.target.closest('video,audio')) return;
+                if(isShadoxAIPlayerControlEvent(e) || e.target.closest('video,audio')) return;
                 if(e.button !== 0 || e.target.closest('.mini-x')) return;
                 if(e.detail >= 2) return;
                 const node = nodes.find(n => n.id === id);
@@ -2765,10 +2770,10 @@ function bindNodeEvents(elements=null){
             capturePendingUndo();
         });
         const beginNodeDrag = e => {
-            if(shell.dataset.tool === 'pan'||pixmaxSpacePanning) return;
+            if(shell.dataset.tool === 'pan'||shadoxaiSpacePanning) return;
             if(isSmartCanvasLocked()) return;
             if(e.button !== 0 || e.target.closest('.mini-x, .smart-node-floating-menu, .node-resize-handle, .thumb-item, .node-port, select, input')) return;
-            if(e.target.closest('button') && !e.target.closest('.generation-node-placeholder,.pixmax-studio-open'))return;
+            if(e.target.closest('button') && !e.target.closest('.generation-node-placeholder,.shadoxai-studio-open'))return;
             if(e.target.closest('.prompt-node-pill, textarea')) return;
             e.preventDefault(); e.stopPropagation();
             window.getSelection?.()?.removeAllRanges?.();
@@ -2777,13 +2782,13 @@ function bindNodeEvents(elements=null){
             if(!node) return;
             if(e.altKey) node = duplicateForAltDrag(node);
             const selectedDragIds = smartSelection.ids.includes(node.id) ? smartSelection.ids.slice() : [node.id];
-            const dragIds = window.PixmaxCanvasFrames?.expand(selectedDragIds)||selectedDragIds;
+            const dragIds = window.ShadoxAICanvasFrames?.expand(selectedDragIds)||selectedDragIds;
             const group = dragIds.map(dragId => {
                 const n = nodes.find(x => x.id === dragId);
                 return n ? {id:n.id, ox:Number(n.x) || 0, oy:Number(n.y) || 0} : null;
             }).filter(Boolean);
             dragState = {id:node.id, startX:e.clientX, startY:e.clientY, ox:node.x || 0, oy:node.y || 0, group, groupIds:group.map(item => item.id), ctrlGroup:Boolean(e.ctrlKey)};
-            window.PixmaxCanvasFrames?.prepareDrag(dragState);
+            window.ShadoxAICanvasFrames?.prepareDrag(dragState);
             smartSelection.activateNode(node.id);
             document.body.classList.add('smart-node-drag');
             capturePendingUndo();
@@ -2830,7 +2835,7 @@ function rectOverlapNode(draggedId, x, y, w, h, excludeIds=[]){
     const excluded = new Set([draggedId, ...(excludeIds || [])]);
     for(const n of nodes){
         if(excluded.has(n.id)) continue;
-        if(window.PixmaxCanvasFrames?.isFrame(n))continue;
+        if(window.ShadoxAICanvasFrames?.isFrame(n))continue;
         const r = nodeRect(n);
         if(cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height) return n;
     }
@@ -2882,7 +2887,7 @@ function currentComposerSubject(){
 }
 
 function loadPromptDraft(subject){
-    if(subject?.nativePrompt?.schemaVersion===1){PixmaxReshootReferences.setPrompt(subject,subject.nativePrompt.prompt);promptInput.innerHTML=subject.promptDraftHtml;return;}
+    if(subject?.nativePrompt?.schemaVersion===1){ShadoxAIReshootReferences.setPrompt(subject,subject.nativePrompt.prompt);promptInput.innerHTML=subject.promptDraftHtml;return;}
     if(subject?.promptDraftHtml){
         const hasToken = String(subject.promptDraftHtml || '').includes('mention-image-token');
         promptInput.innerHTML = hasToken
@@ -2899,15 +2904,22 @@ function loadPromptDraft(subject){
 
 function positionComposerForNode(node){
     if(!node) return;
-    if(node.type==='smart-prompt')return window.PixmaxTextGeneration?.position();
+    if(node.type==='smart-prompt')return window.ShadoxAITextGeneration?.position();
     const rect = nodeRect(node);
     const gap = 16;
     // The composer belongs to the node's world position, not the screen edges.
-    const cardW = 720;
+    const scale = safeScale(viewport.scale);
+    const narrow = shell.clientWidth < 740;
+    const cardW = narrow ? Math.min(720, (shell.clientWidth - 24) / scale) : 720;
+    const left = rect.x + rect.width / 2 - cardW / 2;
+    const minLeft = (12 - viewport.x) / scale;
     composer.style.width = `${cardW}px`;
-    composer.style.left = `${rect.x+rect.width/2-cardW/2}px`;
-    composer.style.top = `${rect.y+rect.height+gap}px`;
-    const card=composer.querySelector('.pixmax-native-generation-form [data-native-generation-surface]')||composer.querySelector('.composer-card');
+    composer.style.left = `${narrow ? Math.max(minLeft, Math.min(left, minLeft + (shell.clientWidth - 24) / scale - cardW)) : left}px`;
+    const top = rect.y + rect.height + gap;
+    const bottomControls = narrow && document.querySelector('.shadoxai-bottom-controls');
+    const availableBottom = bottomControls ? bottomControls.getBoundingClientRect().top : shell.clientHeight;
+    composer.style.top = `${narrow ? Math.max((8 - viewport.y) / scale, Math.min(top, (availableBottom - 12 - viewport.y) / scale - composer.offsetHeight)) : top}px`;
+    const card=composer.querySelector('.shadoxai-native-generation-form [data-native-generation-surface]')||composer.querySelector('.composer-card');
     if(card){card.style.maxHeight='';card.style.overflowY='';}
 }
 
@@ -3520,7 +3532,7 @@ function openCreateMenu(event, {connection=null}={}){
     if(!createMenu || !canvas || isSmartCanvasLocked()) return;
     createMenuPoint = screenToWorld(event);
     createMenu._connection = connection;
-    const allowed=connection?pixmaxConnectionMenuTypes(nodes.find(node=>node.id===connection.fromId),connection.fromPort):null;
+    const allowed=connection?shadoxaiConnectionMenuTypes(nodes.find(node=>node.id===connection.fromId),connection.fromPort):null;
     createMenu.setAttribute('aria-label', connection ? '连接生成节点' : '新建节点');
     createMenu.querySelectorAll('[data-create-type]').forEach(item => {
         const kind = item.dataset.createType;
@@ -3550,13 +3562,13 @@ function createNodeFromMenu(type){
     // A dangling connection keeps the original 240px by 120px handle offsets.
     const origin={x:point.x-(connection?.fromPort==='in'?240:0),y:point.y-(connection?120:0)};
     const kind={prompt:'text','generate-image':'image','generate-video':'video'}[type]||type;
-    const [width,height]=window.PixmaxCanvasAssets.sizes[kind]||[200,200];
+    const [width,height]=window.ShadoxAICanvasAssets.sizes[kind]||[200,200];
     const p={x:origin.x+width/2,y:origin.y+height/2};
     closeCreateMenu();
     closeSmartCanvasContext();
     if(connection){
         const owner=nodes.find(node=>node.id===connection.fromId);
-        if(!owner||!pixmaxConnectionMenuTypes(owner,connection.fromPort).has(type))return;
+        if(!owner||!shadoxaiConnectionMenuTypes(owner,connection.fromPort).has(type))return;
         pushUndo();
         const options={select:false,skipUndo:true};
         const node = type==='prompt' ? createPromptNode(origin.x,origin.y,options)
@@ -3607,7 +3619,7 @@ function cancelSmartNodeGestures(){
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartWorkspaceGestures(){
     shell.addEventListener('mousedown', e => {
-        if(e.target.closest('.pixmax-creation-sidebar'))return;
+        if(e.target.closest('.shadoxai-creation-sidebar'))return;
         if(!zoomPreviewState) return;
         if(e.button !== 0) return;
         if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
@@ -3615,7 +3627,7 @@ function bindSmartWorkspaceGestures(){
         e.stopPropagation();
     }, true);
     shell.addEventListener('click', e => {
-        if(e.target.closest('.pixmax-creation-sidebar'))return;
+        if(e.target.closest('.shadoxai-creation-sidebar'))return;
         if(!zoomPreviewState) return;
         if(e.button !== 0) return;
         if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
@@ -3626,10 +3638,10 @@ function bindSmartWorkspaceGestures(){
         else exitZoomPreview(screenToWorld(e));
     }, true);
     shell.onmousedown = e => {
-        if(e.target.closest('.pixmax-creation-sidebar'))return;
+        if(e.target.closest('.shadoxai-creation-sidebar'))return;
         if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
-        if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.smart-audio-lightbox,.create-menu,.smart-minimap,.pixmax-context-menu')) return;
-        if(e.target.closest('.image-node') && shell.dataset.tool !== 'pan'&&!pixmaxSpacePanning)return;
+        if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.smart-audio-lightbox,.create-menu,.smart-minimap,.shadoxai-context-menu')) return;
+        if(e.target.closest('.image-node') && shell.dataset.tool !== 'pan'&&!shadoxaiSpacePanning)return;
         closeCreateMenu();
         if(e.button === 0 && isRKeyDown){
             e.preventDefault();
@@ -3646,7 +3658,7 @@ function bindSmartWorkspaceGestures(){
             return;
         }
         if(e.button !== 0 && e.button !== 1) return;
-        if(e.button===0 && shell.dataset.tool!=='pan' && !pixmaxSpacePanning && !e.altKey && !isSmartCanvasLocked()){
+        if(e.button===0 && shell.dataset.tool!=='pan' && !shadoxaiSpacePanning && !e.altKey && !isSmartCanvasLocked()){
             e.preventDefault();didPan=false;
             selectionState={startScreen:{x:e.clientX,y:e.clientY},startWorld:screenToWorld(e)};
             updateSelectionBox(e);return;
@@ -3662,7 +3674,7 @@ function bindSmartWorkspaceGestures(){
             e.stopPropagation();
             return;
         }
-        if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.asset-panel,.create-menu,.pixmax-context-menu,.smart-minimap,textarea,input'))return;
+        if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.asset-panel,.create-menu,.shadoxai-context-menu,.smart-minimap,textarea,input'))return;
         e.preventDefault();openSmartCanvasContext(e,nodes.find(node=>node.id===e.target.closest('.image-node')?.dataset.id));
     };
     shell.ondblclick = e => {
@@ -3675,8 +3687,8 @@ function bindSmartWorkspaceGestures(){
         openCreateMenu(e);
     };
     shell.onclick = e => {
-        if(e.target.closest('.pixmax-creation-sidebar'))return;
-        if(e.target.closest('.pixmax-context-menu'))return;
+        if(e.target.closest('.shadoxai-creation-sidebar'))return;
+        if(e.target.closest('.shadoxai-context-menu'))return;
         // Releasing a dragged port also emits a click on the blank canvas.
         // Later pointerdowns dismiss the menu before reaching this handler.
         if(createMenu?._connection) return;
@@ -3794,7 +3806,7 @@ function bindSmartWorkspaceGestures(){
         (dragState.group || [{id:dragState.id, ox:dragState.ox, oy:dragState.oy}]).forEach(item => {
             const n = nodes.find(x => x.id === item.id);
             if(!n) return;
-            const snap = typeof pixmaxSnapToGrid !== 'undefined' && pixmaxSnapToGrid;
+            const snap = typeof shadoxaiSnapToGrid !== 'undefined' && shadoxaiSnapToGrid;
             const dx=snap ? Math.round((dragState.ox+moveDx)/20)*20-dragState.ox : moveDx;
             const dy=snap ? Math.round((dragState.oy+moveDy)/20)*20-dragState.oy : moveDy;
             n.x = item.ox + dx;
@@ -3884,7 +3896,7 @@ function bindSmartWorkspaceGestures(){
                 return;
             }
             // Connections are made through handles; overlapping cards only moves them.
-            window.PixmaxCanvasFrames?.reconcileDrag(dragState);
+            window.ShadoxAICanvasFrames?.reconcileDrag(dragState);
             commitPendingUndo();
             clearDropHighlight();
             dragState = null;
@@ -3911,7 +3923,7 @@ function bindSmartWorkspaceGestures(){
     }, {passive:false,capture:true});
     shell.addEventListener('wheel', e => {
         if(e.ctrlKey||e.metaKey)return;
-        if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.pixmax-context-menu,.create-menu,.image-edit-modal,.smart-audio-lightbox,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
+        if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.shadoxai-context-menu,.create-menu,.image-edit-modal,.smart-audio-lightbox,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
         e.preventDefault();
         const unit=e.deltaMode===1?20:1;
         viewport.x-=(e.shiftKey?e.deltaY:e.deltaX)*unit*.5;
@@ -3943,18 +3955,18 @@ function bindSmartWorkspaceGestures(){
         }
         if(nodeClipboard?.nodes?.length && !isEditableTarget(e.target)){
             e.preventDefault();
-            pasteNodes({includeConnections:pixmaxPasteWithLinks});pixmaxPasteWithLinks=false;
+            pasteNodes({includeConnections:shadoxaiPasteWithLinks});shadoxaiPasteWithLinks=false;
         }
     });
     window.addEventListener('keydown', e => {
         const key = String(e.key || '').toLowerCase();
-        if(e.isComposing||smartStudioSession||document.querySelector('.pixmax-storyboard-modal'))return;
-        if((e.ctrlKey||e.metaKey)&&key==='v')pixmaxPasteWithLinks=e.shiftKey;
+        if(e.isComposing||smartStudioSession||document.querySelector('.shadoxai-storyboard-modal'))return;
+        if((e.ctrlKey||e.metaKey)&&key==='v')shadoxaiPasteWithLinks=e.shiftKey;
         if(!isEditableTarget(e.target)){
-            if(e.code==='Space'){e.preventDefault();pixmaxSpacePanning=true;shell.classList.add('pixmax-space-pan');return;}
-            if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&['v','h'].includes(key)){e.preventDefault();setPixmaxCanvasTool(key==='v'?'select':'pan');return;}
+            if(e.code==='Space'){e.preventDefault();shadoxaiSpacePanning=true;shell.classList.add('shadoxai-space-pan');return;}
+            if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&['v','h'].includes(key)){e.preventDefault();setShadoxAICanvasTool(key==='v'?'select':'pan');return;}
             if((e.ctrlKey||e.metaKey)&&['+','=','-','s'].includes(key)){
-                e.preventDefault();if(key==='s')saveCanvas({force:true});else zoomPixmaxCanvas(key==='-'?1/1.2:1.2);return;
+                e.preventDefault();if(key==='s')saveCanvas({force:true});else zoomShadoxAICanvas(key==='-'?1/1.2:1.2);return;
             }
         }
         if(isSmartCanvasLocked() && (((e.ctrlKey || e.metaKey) && ['v','z','g'].includes(key)) || ['delete','backspace'].includes(key))) return;
@@ -4021,21 +4033,21 @@ function bindSmartWorkspaceGestures(){
         if((e.ctrlKey || e.metaKey) && e.shiftKey && key === 'g' && !isEditableTarget(e.target)){
             e.preventDefault();
             const ids = smartSelection.ids.length ? smartSelection.ids.slice() : (smartSelection.nodeId ? [smartSelection.nodeId] : []);
-            if(window.PixmaxCanvasFrames?.ungroup(ids))return;
+            if(window.ShadoxAICanvasFrames?.ungroup(ids))return;
             const ok = ids.map(id => ungroupNode(id)).some(Boolean);
             if(ok) return;
         }
         if((e.ctrlKey || e.metaKey) && key === 'g' && !e.shiftKey && !isEditableTarget(e.target)){
             e.preventDefault();
-            window.PixmaxCanvasFrames?.create(selectedNodeIds());
+            window.ShadoxAICanvasFrames?.create(selectedNodeIds());
         }
     });
     window.addEventListener('keyup', e => {
-        if(e.code==='Space'){pixmaxSpacePanning=false;shell.classList.remove('pixmax-space-pan');}
+        if(e.code==='Space'){shadoxaiSpacePanning=false;shell.classList.remove('shadoxai-space-pan');}
         if(String(e.key || '').toLowerCase() === 'r') isRKeyDown = false;
     });
     window.addEventListener('blur', () => {
-        pixmaxSpacePanning=false;shell.classList.remove('pixmax-space-pan');
+        shadoxaiSpacePanning=false;shell.classList.remove('shadoxai-space-pan');
         isRKeyDown = false;
     });
     engineSelect.onchange = () => {
@@ -4152,7 +4164,7 @@ function bindSmartComposerInputEvents(){
 }
 
 function renderSmartNodePlaceholderHtml(node){
-    if(window.PixmaxCanvasFrames?.isFrame(node))return window.PixmaxCanvasFrames.render(node);
+    if(window.ShadoxAICanvasFrames?.isFrame(node))return window.ShadoxAICanvasFrames.render(node);
     const layout = imageLayout(node.images || [], nodeScale(node), node);
     return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="--node-layer:${smartSelection.layer(node.id)};left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         <div class="node-port port-in" data-port="in" title="input"></div>
@@ -4165,27 +4177,27 @@ function smartNodeGenerationToolEnabled(action){
 }
 
 function updateSmartNodeToolbarAccess(){
-    if(isSmartCanvasLocked())closePixmaxVideoDepthMenu();
+    if(isSmartCanvasLocked())closeShadoxAIVideoDepthMenu();
     // Lease changes update existing controls without interrupting media playback.
     world.querySelectorAll('[data-smart-node-action="depth-video"],[data-smart-node-action="depth"],[data-smart-node-action="panorama"]').forEach(button => {
         button.disabled = !smartNodeGenerationToolEnabled(button.dataset.smartNodeAction);
     });
-    world.querySelectorAll('.pixmax-video-toolbar [data-smart-node-action]').forEach(button=>{
+    world.querySelectorAll('.shadoxai-video-toolbar [data-smart-node-action]').forEach(button=>{
         const node=nodes.find(node=>node.id===button.dataset.nodeId);
-        const action=pixmaxVideoToolbarActions(node).find(action=>action.key===button.dataset.smartNodeAction);
+        const action=shadoxaiVideoToolbarActions(node).find(action=>action.key===button.dataset.smartNodeAction);
         if(action){button.disabled=!action.enabled;button.title=action.hint||action.label;}
     });
 }
 
 function smartNodeToolbarHtml(node){
-    if(node?.type==='smart-prompt')return `<div class="smart-node-floating-menu pixmax-text-toolbar" role="toolbar" aria-label="文本节点工具" data-smart-node-menu="1"><button type="button" data-smart-node-action="tags" data-node-id="${escapeAttr(node.id)}" aria-label="标签" title="标签"><i data-lucide="tag"></i></button>${node.text?.trim()?`<button type="button" data-smart-node-action="download-text" data-node-id="${escapeAttr(node.id)}" aria-label="下载文本" title="下载文本"><i data-lucide="download"></i></button>`:''}</div>`;
+    if(node?.type==='smart-prompt')return `<div class="smart-node-floating-menu shadoxai-text-toolbar" role="toolbar" aria-label="文本节点工具" data-smart-node-menu="1"><button type="button" data-smart-node-action="tags" data-node-id="${escapeAttr(node.id)}" aria-label="标签" title="标签"><i data-lucide="tag"></i></button>${node.text?.trim()?`<button type="button" data-smart-node-action="download-text" data-node-id="${escapeAttr(node.id)}" aria-label="下载文本" title="下载文本"><i data-lucide="download"></i></button>`:''}</div>`;
     const isImageNode = node?.type === 'smart-image' || !node?.type;
     const images = node?.images || [];
     if(!isImageNode || !images.some(img => img?.url)) return '';
     const item = imageForDisplay(images[smartNodeToolbarImageIndex(node)] || images.find(img => img?.url));
     if(!item?.url) return '';
     const kind = mediaKindForItem(item);
-    if(kind==='video')return pixmaxVideoToolbarHtml(node);
+    if(kind==='video')return shadoxaiVideoToolbarHtml(node);
     const canEditImage = kind === 'image';
     const actions = [
         {key:'preview', icon:'eye', label:'预览', enabled:kind === 'image' || kind === 'video'},
@@ -4242,7 +4254,7 @@ function createSmartComposer(){
             window.addEventListener(type,fn);listeners.push([type,fn]);
         }
     }
-    function documentReplaced(){if(destroyed)return;window.PixmaxNativePrompt?.dispose();inputVersion++;activeComposerSubject=null;lastComposerNodeId='';targetCanvasId='';}
+    function documentReplaced(){if(destroyed)return;window.ShadoxAINativePrompt?.dispose();inputVersion++;activeComposerSubject=null;lastComposerNodeId='';targetCanvasId='';}
     function documentImported(){if(!destroyed){inputVersion++;activeComposerSubject=null;}}
     function outputSelected(){if(!destroyed && activeComposerSubject?.id && smartSelection.nodeId===activeComposerSubject.id)lastComposerNodeId=smartSelection.nodeId+':node';}
     function finishCascade(){if(destroyed)return;documentReplaced();composer.classList.remove('open');}
@@ -4253,7 +4265,7 @@ function createSmartComposer(){
         if(clearInput)setPromptText('');
     }
     function pause(){if(!destroyed){inputVersion++;paused=true;}}
-    function resume(){if(!destroyed && paused){paused=false;updateComposer();void window.PixmaxNativePrompt?.sync();}}
+    function resume(){if(!destroyed && paused){paused=false;updateComposer();void window.ShadoxAINativePrompt?.sync();}}
     function destroy(){if(destroyed)return;documentReplaced();smartComposerBaseline=null;clearListeners();if(typeof composer!=='undefined')composer?.classList.remove('open');destroyed=true;paused=false;}
     function activeSettingsSubject(){
         const active = canvas?.id===targetCanvasId && activeComposerSubject && nodes.includes(activeComposerSubject)
@@ -4274,7 +4286,7 @@ function createSmartComposer(){
         if(!subject) return;
         settings = enforceSmartGenerationKind(subject, settings);
         subject.runSettings = settingsForStorage(settings);
-        void globalThis.PixmaxNativePrompt?.sync();
+        void globalThis.ShadoxAINativePrompt?.sync();
         if(smartComposerBaseline?.nodeId === subject.id) smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
         rememberRecentSmartSettings(settings, subject);
     }
@@ -4306,9 +4318,9 @@ function createSmartComposer(){
         if(promptInput?.dataset?.promptLocked === '1') return;
         const subject = activeComposerNode();
         if(!subject) return;
-        window.PixmaxNativePrompt?.flush(subject);
+        window.ShadoxAINativePrompt?.flush(subject);
         if(subject.nativePrompt?.schemaVersion===1){
-            PixmaxReshootReferences.setPrompt(subject,subject.nativePrompt.prompt);
+            ShadoxAIReshootReferences.setPrompt(subject,subject.nativePrompt.prompt);
             delete promptInput.dataset.preserveDraftOnce;
             if(smartComposerBaseline?.nodeId===subject.id){smartComposerBaseline.html=promptInput.innerHTML;smartComposerBaseline.text=promptPlainText();smartComposerBaseline.settings=JSON.stringify(settingsForStorage(settings));}
             return;
@@ -4323,7 +4335,7 @@ function createSmartComposer(){
         if(changes.prompt){
             subject.promptDraftHtml = promptInput.innerHTML;
             subject.promptDraftText = promptPlainText();
-            if(subject.segmentReshoot?.schemaVersion===1||subject.nativePrompt?.schemaVersion===1)window.PixmaxReshootReferences?.captureComposer(subject);
+            if(subject.segmentReshoot?.schemaVersion===1||subject.nativePrompt?.schemaVersion===1)window.ShadoxAIReshootReferences?.captureComposer(subject);
             if(smartComposerBaseline?.nodeId === subject.id){
                 smartComposerBaseline.html = subject.promptDraftHtml;
                 smartComposerBaseline.text = subject.promptDraftText;
@@ -4481,7 +4493,7 @@ function createSmartComposer(){
         get state(){return Object.freeze({open:Boolean(!destroyed && typeof composer!=='undefined' && composer?.classList.contains('open')),nodeId:activeComposerNode()?.id||'',targetValid:Boolean(activeComposerNode()),canvasId:targetCanvasId,paused,destroyed});},
         activeNode:activeComposerNode,settingsSubject:activeSettingsSubject,changes:smartComposerChanges,applyOutpaint,setManualMediaUrls,
         bind,pause,resume,destroy,close,documentReplaced,documentImported,outputSelected,finishCascade,
-        refresh:(...args)=>{if(!paused && !destroyed){const result=updateComposer(...args);void globalThis.PixmaxNativePrompt?.sync();return result;}},
+        refresh:(...args)=>{if(!paused && !destroyed){const result=updateComposer(...args);void globalThis.ShadoxAINativePrompt?.sync();return result;}},
         // Existing background saves must still flush the paused page's input.
         saveDraft:(...args)=>{if(!destroyed)return savePromptDraftForCurrent(...args);},
         persistSettings:(...args)=>{if(!paused && !destroyed)return persistActiveSmartSettings(...args);},
@@ -4602,7 +4614,7 @@ function createSmartWorkspaceView(){
     function nodeRectImpl(node){
         const cached = smartComputationContext?.rects.get(node);
         if(cached) return cached;
-        if(window.PixmaxCanvasFrames?.isFrame(node)){const rect=window.PixmaxCanvasFrames.rect(node);smartComputationContext?.rects.set(node,rect);return rect;}
+        if(window.ShadoxAICanvasFrames?.isFrame(node)){const rect=window.ShadoxAICanvasFrames.rect(node);smartComputationContext?.rects.set(node,rect);return rect;}
         const layout = imageLayout(node.images || [], nodeScale(node), node);
         const rect = {x:node.x || 0, y:node.y || 0, width:layout.width, height:layout.height};
         smartComputationContext?.rects.set(node, rect);
@@ -4774,10 +4786,10 @@ function createSmartWorkspaceView(){
     }
 
     function renderImpl(){
-        window.PixmaxModelPreview?.documentChanged();
-        window.PixmaxVideoAnnotation?.documentChanged();
-        window.PixmaxTags?.notifyChanged();
-        window.PixmaxNavigator?.documentChanged();
+        window.ShadoxAIModelPreview?.documentChanged();
+        window.ShadoxAIVideoAnnotation?.documentChanged();
+        window.ShadoxAITags?.notifyChanged();
+        window.ShadoxAINavigator?.documentChanged();
         smartAudioPreview.dataChanged();
         cancelSmartGeometryRefresh();
         if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
@@ -4787,7 +4799,7 @@ function createSmartWorkspaceView(){
         withSmartComputation(() => nodes.forEach(node => {
             if(node.hidden)return;
             const current = existing.get(node.id);
-            const html = isSmartNodeInViewport(node, 400)||current?.querySelector('.pixmax-audio-mount[data-playing="true"]') ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            const html = isSmartNodeInViewport(node, 400)||current?.querySelector('.shadoxai-audio-mount[data-playing="true"]') ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
             existing.delete(node.id);
             const previous = current && smartRenderedNodes.get(current);
             // Object identity also matters: controls close over their node object.
@@ -4821,17 +4833,17 @@ function createSmartWorkspaceView(){
         scheduleSmartMinimapRender();
         refreshIcons();
         refreshRunTimerPills();
-        window.PixmaxSegmentReshoot?.documentChanged();
+        window.ShadoxAISegmentReshoot?.documentChanged();
     }
 
     function refreshSmartNodesImpl(ids, {forceIds=[]}={}){
-        window.PixmaxModelPreview?.documentChanged();
-        window.PixmaxVideoAnnotation?.documentChanged();
-        window.PixmaxTags?.notifyChanged();
-        window.PixmaxNavigator?.documentChanged();
+        window.ShadoxAIModelPreview?.documentChanged();
+        window.ShadoxAIVideoAnnotation?.documentChanged();
+        window.ShadoxAITags?.notifyChanged();
+        window.ShadoxAINavigator?.documentChanged();
         smartAudioPreview.dataChanged();
         const affected = smartAffectedNodeIds(ids);
-        window.PixmaxCanvasFrames?.ancestors([...affected]).forEach(id=>affected.add(id));
+        window.ShadoxAICanvasFrames?.ancestors([...affected]).forEach(id=>affected.add(id));
         const byId = new Map(nodes.map(node => [node.id, node]));
         affected.forEach(id => {
             const node = byId.get(id);
@@ -4852,7 +4864,7 @@ function createSmartWorkspaceView(){
             }
             const scroll = current.querySelector('[data-thumb-scroll]')?.scrollTop ?? smartViewportScrolls.get(node) ?? 0;
             const tpl = document.createElement('template');
-            const html = isSmartNodeInViewport(node, 400)||current.querySelector('.pixmax-audio-mount[data-playing="true"]') ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            const html = isSmartNodeInViewport(node, 400)||current.querySelector('.shadoxai-audio-mount[data-playing="true"]') ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
             tpl.innerHTML = html;
             const fresh = tpl.content.firstElementChild;
             if(!fresh) return;
@@ -4867,7 +4879,7 @@ function createSmartWorkspaceView(){
             measureSmartNodeImages(fresh);
         });
         if(affected.has(smartSelection.nodeId)) updateComposer();
-        window.PixmaxSegmentReshoot?.documentChanged();
+        window.ShadoxAISegmentReshoot?.documentChanged();
         scheduleSmartGeometryRefresh([...affected], 2);
         scheduleSmartMinimapRender();
         refreshRunTimerPills();

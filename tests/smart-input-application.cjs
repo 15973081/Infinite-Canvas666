@@ -5,7 +5,7 @@ const media=fs.readFileSync('static/js/canvas/smart/smart-media-editor.js','utf8
 const plain=x=>JSON.parse(JSON.stringify(x));
 function fixture(){
  const a={id:'a',type:'smart-image',promptDraftText:'A',runSettings:{model:'a-model',count:2}},b={id:'b',type:'smart-image',promptDraftText:'B',runSettings:{model:'b-model',count:3}},calls=[];
- const c=vm.createContext({nodes:[a,b],choice:a,settings:{model:'initial'},canvas:{id:'canvas'},
+ const c=vm.createContext({window:{},nodes:[a,b],choice:a,settings:{model:'initial'},canvas:{id:'canvas'},
   promptInput:{textContent:'live',dataset:{preserveDraftOnce:'old'}},composer:{classList:{remove(){},contains:()=>false}},
   selectedNode:()=>c.choice,isSmartImageNode:n=>n?.type==='smart-image',escapeHtml:s=>s.replace(/</g,'&lt;'),
   cloneSmartSettings:s=>plain(s),withOutpaintDisplaySettings:(n,s)=>({...s,resolution:'custom',customWidth:n.outpaintSize.width,customHeight:n.outpaintSize.height,outpaintResolutionLocked:true}),

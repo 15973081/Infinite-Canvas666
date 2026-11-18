@@ -1,0 +1,56 @@
+.shadoxai-creation-modal {position:fixed;inset:0;z-index:100110;display:grid;place-items:center;background:#0009;color:#fafafa;}
+.shadoxai-creation-modal>section {width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto;border:1px solid #313136;border-radius:12px;background:#141416;}
+.shadoxai-creation-modal header,.shadoxai-creation-sidebar header {display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #313136;}
+.shadoxai-creation-content {display:grid;gap:18px;padding:22px;}
+.shadoxai-creation-modal button,.shadoxai-creation-sidebar button {border:0;border-radius:8px;padding:8px 12px;background:#282a2f;color:#fafafa;cursor:pointer;}
+.shadoxai-creation-modal label,.shadoxai-creation-sidebar label,.shadoxai-story-source label {display:grid;gap:8px;font-size:12px;color:#aeb6c5;}
+.shadoxai-creation-modal textarea,.shadoxai-creation-sidebar textarea,.shadoxai-story-source textarea {width:100%;min-height:100px;padding:12px;box-sizing:border-box;resize:vertical;border:1px solid #313136;border-radius:8px;background:#070707;color:#fafafa;line-height:1.6;font:inherit;}
+.shadoxai-creation-models {display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;}
+.shadoxai-creation-models select,.shadoxai-story-ai-actions input {max-width:100%;padding:8px 10px;border:1px solid #313136;border-radius:8px;background:#202124;color:#fafafa;font-size:12px;}
+.shadoxai-creation-primary {background:#fafafa!important;color:#141416!important;}
+.shadoxai-creation-status {padding:0 22px 18px;font-size:13px;white-space:pre-wrap;color:#aeb6c5;}
+.shadoxai-creation-hint {color:#737781;font-size:12px;line-height:1.6;}
+.shadoxai-mediakit-modal>section {width:560px;font:13px/1.6 var(--studio-font, sans-serif);}
+.shadoxai-mediakit-modal header {padding:16px 20px;}
+.shadoxai-mediakit-modal header strong {font-size:15px;font-weight:600;}
+.shadoxai-mediakit-modal .shadoxai-creation-content {gap:16px;padding:20px;}
+.shadoxai-mediakit-modal .shadoxai-mediakit-intro {margin:0;color:var(--studio-text-muted,#aeb6c5);}
+.shadoxai-mediakit-modal label {gap:8px;color:var(--studio-text-muted,#aeb6c5);}
+.shadoxai-mediakit-modal select {width:100%;min-height:36px;padding:8px 10px;border:1px solid var(--studio-border,#313136);border-radius:var(--studio-radius-control,8px);background:var(--studio-surface-muted,#202124);color:var(--studio-text,#fafafa);font:inherit;color-scheme:dark;cursor:pointer;}
+.shadoxai-mediakit-modal select:disabled,.shadoxai-mediakit-modal textarea:disabled {opacity:.55;cursor:default;}
+.shadoxai-mediakit-modal textarea {min-height:112px;background:var(--studio-page,#070707);border-color:var(--studio-border,#313136);border-radius:var(--studio-radius-control,8px);}
+.shadoxai-mediakit-modal .shadoxai-creation-hint {margin:0;color:var(--studio-text-muted,#9199a9);}
+.shadoxai-mediakit-modal .shadoxai-mediakit-actions {display:flex;justify-content:flex-end;gap:10px;padding-top:4px;}
+.shadoxai-mediakit-modal .shadoxai-mediakit-actions button {min-width:104px;padding:9px 16px;font:inherit;}
+.shadoxai-mediakit-modal .shadoxai-creation-status {padding:0 20px 20px;margin:0;font-size:12px;color:var(--studio-text-muted,#aeb6c5);}
+.shadoxai-mediakit-modal .shadoxai-creation-status:empty {display:none;}
+@supports (appearance:base-select){
+ .shadoxai-mediakit-modal select,.shadoxai-mediakit-modal select::picker(select){appearance:base-select;}
+ .shadoxai-mediakit-modal select::picker(select){background:var(--studio-panel,#141416);color:var(--studio-text,#fafafa);border:1px solid var(--studio-border,#313136);border-radius:var(--studio-radius-control,8px);padding:4px;margin-block:4px;}
+ .shadoxai-mediakit-modal select option {padding:8px 10px;border-radius:var(--studio-radius-control,6px);}
+ .shadoxai-mediakit-modal select option:checked {background:var(--studio-selected,#282a2f);color:var(--studio-accent-label,#fafafa);}
+}
+.shadoxai-creation-modal button:disabled,.shadoxai-storyboard-modal button:disabled,.shadoxai-creation-sidebar button:disabled {opacity:.45;cursor:wait;}
+.shadoxai-story-source {display:grid;gap:12px;padding:0 24px 18px;border-bottom:1px solid #313136;}
+.shadoxai-story-source>label textarea {min-height:64px;max-height:140px;}
+.shadoxai-story-ai-actions {display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;}
+.shadoxai-story-ai-actions [data-story-count] {width:70px;}
+.shadoxai-story-ai-actions [role=status] {font-size:12px;color:#aeb6c5;flex:1;min-width:180px;margin:8px 0;}
+.shadoxai-story-body {padding-top:18px;min-height:100px;}
+.shadoxai-creation-sidebar {position:absolute;right:16px;top:72px;bottom:90px;width:360px;max-width:calc(100vw - 32px);z-index:1000;display:flex;flex-direction:column;gap:14px;padding:0 18px 18px;border:1px solid #313136;border-radius:12px;background:#141416;color:#fafafa;box-shadow:0 12px 40px #0008;overflow:auto;}
+.shadoxai-creation-sidebar header {margin:0 -18px;padding:14px 18px;flex:none;}
+.shadoxai-creation-sidebar>label,.shadoxai-creation-sidebar>button,.shadoxai-creation-sidebar>.shadoxai-creation-models {flex:none;}
+.shadoxai-creation-sidebar p {margin:0;white-space:pre-wrap;overflow-wrap:anywhere;}
+.shadoxai-pin-list {display:grid;gap:12px;}
+.shadoxai-pin-list article {position:relative;border:1px solid #313136;border-radius:8px;overflow:hidden;}
+.shadoxai-pin-list [data-pin-focus] {display:grid;width:100%;gap:8px;padding:12px;text-align:left;background:#1d1e22;}
+.shadoxai-pin-list img {width:100%;max-height:160px;object-fit:contain;border-radius:6px;}
+.shadoxai-pin-list [data-pin-remove] {position:absolute;right:4px;top:4px;}
+.shadoxai-pin-list p {font-size:12px;color:#aeb6c5;}
+.shadoxai-assistant-messages {flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:12px;}
+.shadoxai-assistant-messages article {border-radius:8px;background:#202124;padding:12px;font-size:13px;line-height:1.6;}
+.shadoxai-assistant-messages strong {display:block;margin-bottom:6px;font-size:12px;color:#aeb6c5;}
+.shadoxai-assistant-messages button {margin-top:10px;}
+.shadoxai-assistant-user {margin-left:32px;}
+.shadoxai-creation-sidebar [role=status] {font-size:12px;line-height:1.6;}
+@media(max-width:700px){.shadoxai-story-source {padding:0 12px 12px;}.shadoxai-creation-sidebar {top:60px;bottom:74px;right:8px;max-width:calc(100vw - 16px);}.shadoxai-creation-models {gap:8px;}}

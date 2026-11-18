@@ -20,6 +20,10 @@ async function fixture(t){
     const objectUrl=`http://127.0.0.1:${objects.address().port}/image.svg?signature=unchanged`;
     const app=http.createServer((req,res)=>{
         const url=new URL(req.url,'http://app.test');
+        if(url.pathname==='/static/js/credit-balance-store.js'){
+            res.setHeader('Content-Type','text/javascript');
+            return res.end(fs.readFileSync(path.join(root,'static/js/credit-balance-store.js')));
+        }
         if(url.pathname==='/api/auth/status'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({authenticated:true,mode:'members',member:{id:'alice',display_name:'Alice'}}));}
         if(url.pathname==='/api/auth/workspaces'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({workspaces:[{id:'space-test',name:'Test',permissions:['canvas.read','asset.read']}]}));}
         if(url.pathname==='/assets/cloud/sample.svg'){

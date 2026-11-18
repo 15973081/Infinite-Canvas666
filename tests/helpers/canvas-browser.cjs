@@ -20,7 +20,7 @@ async function fixture(t, kind, member, options={}) {
     await page.addInitScript(({member,navigatorOpen,permissions}) => {
         // Other editor tests keep their canvas unobscured. Sidebar tests opt in
         // to the production default; saved preferences survive fixture reloads.
-        const navigatorKey=member?'member-1:workspace-1:pixmax_navigator_v1':'pixmax_navigator_v1';
+        const navigatorKey=member?'member-1:workspace-1:shadoxai_navigator_v1':'shadoxai_navigator_v1';
         if(localStorage.getItem(navigatorKey)===null)localStorage.setItem(navigatorKey,JSON.stringify({opened:navigatorOpen}));
         window.WebSocket = class extends EventTarget { constructor(){super();this.readyState=1;setTimeout(()=>this.onopen?.(),0);} close(){this.readyState=3;} };
         // Non-member fixtures isolate legacy business adapters, not retired lock UI.

@@ -37,13 +37,15 @@ def publishing(tmp_path, monkeypatch):
 
     def execute(sql, args=()):
         if sql.startswith('SELECT legacy_ref,asset_id'): return Result([])
-        if sql.startswith('SELECT id,status FROM assets'):
+        if sql.startswith('SELECT id,status,metadata FROM assets'):
             return Result([r for r in state.rows.values() if r['id'] in args[1]])
+        if sql.startswith('SELECT metadata FROM assets'):
+            return Result([{'metadata': {}}] if args[1] == PARENT else [])
         if sql.startswith('INSERT INTO assets'):
-            workspace, aid, kind, name, bucket, region, key, parent, role = args
+            workspace, aid, kind, name, bucket, region, key, parent, role, metadata = args
             state.rows.setdefault(aid, dict(id=aid, workspace_id=workspace, kind=kind,
                 display_name=name, bucket=bucket, region=region, object_key=key,
-                object_version_id=None, parent_asset_id=parent, role=role, status='uploading'))
+                object_version_id=None, parent_asset_id=parent, role=role, status='uploading', metadata=metadata.obj))
             return Result([])
         if sql.startswith('SELECT 1 FROM assets'):
             return Result([{'exists': 1}] if args[1] in state.rows else [])

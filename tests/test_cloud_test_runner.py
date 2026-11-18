@@ -72,6 +72,10 @@ def test_runner_isolates_paths_and_cleans_its_schema(tmp_path, monkeypatch, fail
     else:
         assert cloud_test.main(["-x"]) == 5
         assert run.call_args.args[0][-1] == "-x"
+        suites = [Path(value) for value in run.call_args.args[0] if value.endswith('.py')]
+        assert all(path.is_file() for path in suites)
+        renamed = set((cloud_test.ROOT / 'tests').glob('test_cloud_shadoxai_*.py'))
+        assert renamed <= set(suites)
     assert observed["DATABASE_BACKEND"] == "postgres"
     assert observed["MEDIA_BACKEND"] == "filesystem"
     assert observed["AUTH_DB_PATH"] != before["AUTH_DB_PATH"]

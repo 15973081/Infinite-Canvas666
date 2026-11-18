@@ -35,7 +35,7 @@ test('director round trip and repeated notification timeouts retain editing; rea
  await page.waitForFunction(()=>MemberCanvasEdit.canEdit);
  const proof=await page.evaluate(()=>({epoch:MemberCanvasEdit.active.lease.epoch,generation:MemberCanvasEdit.active.lease.generation}));
  await page.evaluate(()=>{const node=createSmartStudioNode('director',{x:600,y:350});openSmartStudio(node.id);});
- const frame=page.frameLocator('.pixmax-editor-overlay iframe');
+ const frame=page.frameLocator('.shadoxai-editor-overlay iframe');
  await frame.locator('.stage-editor').waitFor({timeout:30000});
  await frame.getByRole('button',{name:'添加几何体',exact:true}).click();
  await frame.getByRole('button',{name:'正方体',exact:true}).click();

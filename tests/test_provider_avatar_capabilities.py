@@ -14,6 +14,8 @@ def catalog(monkeypatch):
 
     class Connection:
         def execute(self, query, params):
+            if 'workspace_model_defaults' in query:
+                return []
             assert 'g.workspace_id=%s' in query
             assert params == (current_workspace(),)
             return rows if current_workspace() == 'assigned' else []
@@ -23,6 +25,8 @@ def catalog(monkeypatch):
         yield Connection()
 
     monkeypatch.setattr(provider_control.az, 'policy_transaction', transaction)
+    monkeypatch.setattr('app.storage.database.connection', transaction)
+    monkeypatch.setattr('app.services.tenants.filter_models', lambda conn, config, provider, workspace: config)
     monkeypatch.setattr(provider_control, 'recovery_provider', lambda conn: None)
     monkeypatch.setattr(registry, 'managed_providers_enabled', lambda: True)
 

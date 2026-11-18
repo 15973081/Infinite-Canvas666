@@ -172,7 +172,11 @@ def require(conn, principal, action, workspace=None):
     if action not in catalog:
         fail('unknown_permission', 400)
     if workspace is not None:
-        row = conn.execute('SELECT w.status,t.status tenant_status,w.tenant_id FROM workspaces w JOIN tenants t ON t.id=w.tenant_id WHERE w.id=%s', (workspace,)).fetchone()
+        row = conn.execute('''SELECT w.status, t.status AS tenant_status,
+            EXISTS (SELECT 1 FROM tenant_members WHERE tenant_id=t.id AND member_id=%s) AS tenant_member,
+            EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id=w.id AND member_id=%s) AS workspace_member
+            FROM workspaces w JOIN tenants t ON t.id=w.tenant_id WHERE w.id=%s''',
+            (principal.member_id, principal.member_id, workspace)).fetchone()
         if not row or row['status'] != 'active' or row['tenant_status']!='active':
             fail('workspace_unavailable')
         # Cross-space management is explicit; superadmin is not blanket access
@@ -186,10 +190,9 @@ def require(conn, principal, action, workspace=None):
             if TENANT_SPACE_MANAGEMENT[action] not in tenant_space_permissions(conn, principal.member_id, workspace):
                 fail('tenant_permission_denied')
             return member
-        if not conn.execute('SELECT 1 FROM tenant_members WHERE tenant_id=%s AND member_id=%s',(row['tenant_id'],principal.member_id)).fetchone():
+        if not row['tenant_member']:
             fail('tenant_forbidden')
-        if not conn.execute('SELECT 1 FROM workspace_members WHERE workspace_id=%s AND member_id=%s',
-                            (workspace, principal.member_id)).fetchone():
+        if not row['workspace_member']:
             fail('workspace_forbidden')
     if action not in effective_permissions(conn, principal.member_id, workspace):
         fail('permission_denied')

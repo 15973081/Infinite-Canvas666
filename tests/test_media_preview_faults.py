@@ -102,6 +102,7 @@ def test_object_path_validation_remains_confined_with_extended_roots(tmp_path):
 def test_long_object_versions_restore_from_verified_offline_bundle(tmp_path):
     import json
     from app.storage import backup
+    from app.storage.deletion_ledger import identity
     source = tmp_path / 'snapshot.dump'
     source.write_bytes(b'opaque database dump')
     objects = source.with_suffix('.objects')
@@ -113,6 +114,7 @@ def test_long_object_versions_restore_from_verified_offline_bundle(tmp_path):
     key = 'media/space_' + 'a' * 32 + '/ast_' + 'b' * 32 + '/' + 'c' * 32 + '.webp'
     manifest = {'format_version': 2, 'database_dump': source.name, 'objects_directory': objects.name,
                 'database_size_bytes': dump_size, 'database_sha256': dump_hash, 'media_backend': 'filesystem',
+                'deletion_ledger': identity(tmp_path / 'deletion-ledger', create=True),
                 'objects': [{'id': 'ast_' + 'b' * 32, 'bucket': 'local-simulation', 'object_key': key,
                              'object_version_id': 'd' * 32, 'size_bytes': size, 'sha256': checksum,
                              'status': 'ready', 'backup_file': blob.name}]}

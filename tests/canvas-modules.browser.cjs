@@ -321,7 +321,7 @@ for(const kind of ['classic', 'smart']) {
                 host.innerHTML = renderVideoAdvancedControl(true);
                 return [...host.querySelectorAll('[data-toggle-param]')].map(button => button.textContent);
             });
-            assert.deepEqual(toggles, ['提示词增强','高清','生成音频','镜头固定','水印','智能多参','首尾帧','可信素材模式']);
+            assert.deepEqual(toggles, ['提示词增强','高清','生成音频','镜头固定','水印','智能多参','可信素材模式']);
         }
         assert.deepEqual(errors, []);
     });
@@ -375,7 +375,7 @@ for(const kind of ['classic','smart']) {
             }
         },kind);
         assert.deepEqual(result,{navigation:{measurements:200,reused:true},mixed:400,centered:true,
-            saves:kind==='classic'?[0,0,1]:[1,2,2],dragging:false});
+            saves:kind==='classic'?[0,0,1]:[0,0,0],dragging:false});
         assert.deepEqual(errors,[]);
     });
     test(`${kind}: minimap canvas reload, cached-page return and destroy reject old resources and retain workspace gestures`,async t=>{

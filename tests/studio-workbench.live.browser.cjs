@@ -29,7 +29,7 @@ test('live workbench creates, saves and opens both canvas types through producti
  await frame.locator('#board').click({button:'right',position:{x:400,y:350}});
  await frame.getByRole('button',{name:'提示词',exact:true}).click();
  await frame.getByRole('textbox',{name:'提示词',exact:true}).fill('保存回归输入');
- assert.equal(await frame.locator('.node').first().evaluate(el=>getComputedStyle(el).borderRadius),'18px');
+ assert.equal(await frame.locator('.node').first().evaluate(el=>getComputedStyle(el).borderRadius),'8px');
  await page.waitForFunction(()=>!localCanvasDirty && !savingCanvasNow);
  const canonical=page.url();
  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
@@ -71,11 +71,15 @@ test('live workbench creates, saves and opens both canvas types through producti
  await page.waitForFunction(()=>MemberCanvasEdit.canEdit);
  await page.locator('#shell').dblclick({position:{x:460,y:380}});
  await page.getByRole('menuitem',{name:'文本节点',exact:true}).click();
+ await page.locator('.shadoxai-text-view').dblclick();
  await page.getByRole('textbox',{name:'节点文本'}).fill('独立画布：链接、保存与任务恢复');
  await page.waitForFunction(()=>!smartCanvasDirty && !smartSaveInFlight);
  await page.screenshot({path:path.join(out,'after-smart-editor-light.png')});
  await page.setViewportSize({width:390,height:844});
- assert.equal(await page.evaluate(()=>document.querySelector('.smart-top-tools').getBoundingClientRect().top>document.querySelector('.smart-nav').getBoundingClientRect().bottom),true);
+ const menuBounds=await page.locator('.shadoxai-logo-bar').boundingBox();
+ const toolsBounds=await page.locator('.shadoxai-topbar').boundingBox();
+ assert.ok(menuBounds&&toolsBounds);
+ assert.ok(toolsBounds.y>=menuBounds.y+menuBounds.height||toolsBounds.x>=menuBounds.x+menuBounds.width);
  await page.screenshot({path:path.join(out,'after-smart-editor-mobile.png')});
  await page.setViewportSize({width:1440,height:1000});
  // The editor's return/create path saves first and opens the scoped home dialog.
@@ -90,7 +94,7 @@ test('live workbench creates, saves and opens both canvas types through producti
   await frame.locator('#gateCreateBtn').waitFor();
   assert.equal(await frame.locator('.studio-start-card,.studio-recent-item').count(),0);
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.nav-item.active')).backgroundColor===
-   'rgb(53, 61, 55)');
+   'rgb(34, 34, 40)');
   await page.screenshot({path:path.join(out,'after-'+theme+'-desktop.png')});
   if(theme==='dark'){
    await frame.locator('#studioFolderTrigger').click();
@@ -158,7 +162,8 @@ test('live independent directory preserves short leases, folders, rename, trash 
  const folderId=await frame.locator('.gate-folder-node.active').getAttribute('data-folder-id');assert.ok(folderId&&folderId!=='all');
  await frame.locator('#studioFolderTrigger').click();await frame.locator('[data-folder-id="all"] .gate-folder-main').click();
  await card.locator('summary').click();await card.locator('.canvas-folder-btn').click();
- await card.locator('[data-move-folder="'+folderId+'"]').click();await frame.evaluate(()=>CanvasDirectoryApi.flush());
+ const picker=frame.getByRole('dialog');
+ await picker.getByRole('button').filter({hasText:name+' 文件夹'}).click();await picker.waitFor({state:'hidden'});
  assert.equal((await read()).folder_id,folderId);
  async function trash(){await card.locator('summary').click();await card.locator('.canvas-delete').click();await card.locator('.canvas-confirm-btn').click();await card.waitFor({state:'detached'});}
  await trash();await frame.locator('#gateTrashBtn').click();await card.waitFor();

@@ -6,17 +6,15 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi import HTTPException
+from test_cloud_member_gateway import operator
 
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 PASSWORD = 'test-only-password-12345'
 
 
 @pytest.fixture(scope='module')
-def admin():
-    from app.services import members
-    member = members.bootstrap('root-' + uuid.uuid4().hex, '管理员', PASSWORD)
-    result = members.login(member['username'], PASSWORD, audience='management')
-    return members.resolve_session(result['token'], 'management')
+def admin(operator):
+    return operator
 
 
 def new_member(admin):

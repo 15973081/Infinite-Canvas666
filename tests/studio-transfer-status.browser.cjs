@@ -31,7 +31,7 @@ for(const kind of ['classic','smart']){
   }
   for(const route of pending.splice(0))await route.fulfill({contentType:'image/svg+xml',body:svg});
   await page.waitForFunction(()=>[...document.querySelectorAll('.canvas-node-media-state')].every(el=>el.hidden));
-  assert.equal(requests.length,2);assert.deepEqual(errors,[]);
+  assert.equal(requests.length,kind==='classic'?2:1);assert.ok(requests.every(url=>url.includes('/api/media-preview?')));assert.deepEqual(errors,[]);
   await page.emulateMedia({reducedMotion:'reduce'});
   assert.equal(await page.locator('.canvas-node-media-state').first().evaluate(el=>getComputedStyle(el,'::before').animationName),'none');
  });

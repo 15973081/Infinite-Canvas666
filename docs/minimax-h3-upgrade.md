@@ -1,7 +1,7 @@
 # MiniMax H3 / H3 Max 升级
 
 功能来源：`codex/seedance-draft-upgrade`，截至 `e21985061c7b939a95d24282da99a687e9feeb0f`。
-迁入 `3eac44d1` 的模型能力、`df39e076` 的 APIMart 通道隔离，以及 `e2198506` 的会员 768P 修复，并适配当前分支的 Pixmax 原生生成表单。
+迁入 `3eac44d1` 的模型能力、`df39e076` 的 APIMart 通道隔离，以及 `e2198506` 的会员 768P 修复，并适配当前分支的 ShadoxAI 原生生成表单。
 
 ## 配置与规格
 
@@ -21,9 +21,9 @@ H3 Max 的 1080P 请求完全省略 `watermark` 字段。网关不支持的种�
 ## 封装与兼容
 
 - `app/services/apimart_video.py`：模型能力、输入校验、上游基础请求构建；校验在素材上传和付费提交前完成。
-- `static/js/apimart-video-policy.js`：浏览器共享的 APIMart 能力；经典画布、智能画布、Pixmax 表单共用分辨率和时长限制。
+- `static/js/apimart-video-policy.js`：浏览器共享的 APIMart 能力；经典画布、智能画布、ShadoxAI 表单共用分辨率和时长限制。
 - 会员配置仅公开 `video_adapter` 标记，不公开供应商端点或凭证。
-- Pixmax 使用网关素材限制覆盖旧快照中的 H3 Max 限制，不修改冻结快照，也不改变其他通道的同名模型约束。
+- ShadoxAI 使用网关素材限制覆盖旧快照中的 H3 Max 限制，不修改冻结快照，也不改变其他通道的同名模型约束。
 - 打开可编辑的旧 H3 节点时，修正已失效的分辨率、时长、比例及不适用的选项，保留提示词。
 - 保留当前分支已移除首尾帧入口的行为；后端仍兼容源分支的首尾帧请求。
 

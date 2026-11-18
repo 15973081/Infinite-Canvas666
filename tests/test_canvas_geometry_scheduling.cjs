@@ -199,6 +199,7 @@ test('wheel bursts preserve the world point under the cursor while drawing once 
         y: (y - context.viewport.y) / context.viewport.scale,
     });
     context.applyViewport = () => {};
+    vm.runInContext(functionSource(source,'zoomFromWheel'),context);
     vm.runInContext(eventStatement('board.onwheel = e => {', '};'), context);
     const before = context.screenToWorld(400, 300);
     for (let i = 0; i < 8; i++) context.board.onwheel({

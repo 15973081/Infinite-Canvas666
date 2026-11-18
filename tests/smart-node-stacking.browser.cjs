@@ -28,7 +28,7 @@ async function overlappingCards(t){
  const f=await fixture(t,'smart',true,{secureOrigin:true});
  await f.page.evaluate(()=>{
   window.textCard=createPromptNode(200,250,{select:false});textCard.w=320;textCard.h=260;textCard.text='当前正在操作的文本卡片';
-  window.videoCard=createNode(350,300,[{url:'/tests/fixtures/pixmax-audio-source.mp4',kind:'video',width:1280,height:720}],{select:true});
+  window.videoCard=createNode(350,300,[{url:'/tests/fixtures/shadoxai-audio-source.mp4',kind:'video',width:1280,height:720}],{select:true});
   render();
  });
  return f;
@@ -53,7 +53,7 @@ for(const multiple of [false,true])test('dragging an overlapped card focuses it 
 
 test('focusing a covered card title raises its content without moving or editing it',async t=>{
  const {page,errors}=await overlappingCards(t);
- await page.locator('.prompt-smart-node .pixmax-node-name').click();
+ await page.locator('.prompt-smart-node .shadoxai-node-name').click();
  assert.equal(await activeAtOverlap(page),await page.evaluate(()=>textCard.id));
  assert.deepEqual(await page.evaluate(()=>({x:textCard.x,y:textCard.y,text:textCard.text})),{x:200,y:250,text:'当前正在操作的文本卡片'});
  assert.deepEqual(errors,[]);

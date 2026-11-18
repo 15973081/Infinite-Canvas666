@@ -35,7 +35,8 @@ def test_group_lifecycle_in_postgres():
     class Rollback(Exception): pass
     with pytest.raises(Rollback):
         with connection() as conn:
-            assert conn.execute('SELECT current_database() AS name').fetchone()['name'].startswith('canvas_delivery_')
+            target = conn.execute('SELECT current_database() AS name, current_schema() AS schema').fetchone()
+            assert target['name'].startswith('canvas_delivery_') or (target['name'] == 'canvas_cloud_test' and target['schema'].startswith('cloud_test_'))
             workspace = 'group_test_' + uuid.uuid4().hex
             other = workspace + '_other'
             for wid in (workspace, other):

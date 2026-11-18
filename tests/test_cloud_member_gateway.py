@@ -76,17 +76,17 @@ def test_native_stats_module_uses_authenticated_static_admission(world):
     assert world['viewer'].get('/static/api-settings.html').status_code == 403
 
 
-def test_pixmax_stage_library_uses_authenticated_scoped_static_admission(world):
+def test_shadoxai_stage_library_uses_authenticated_scoped_static_admission(world):
     import json
     from pathlib import Path
     from fastapi.testclient import TestClient
     from main import app
-    root = Path(__file__).resolve().parents[1] / 'static/vendor/pixmax/previs'
+    root = Path(__file__).resolve().parents[1] / 'static/vendor/shadoxai/previs'
     catalog = json.loads((root / 'animations/catalog.runtime.v1.json').read_text(encoding='utf8'))
     clip = next((root / 'animations/clips').glob('*.anim')).name
-    paths = ['/static/vendor/pixmax/previs/animations/catalog.runtime.v1.json',
-             '/static/vendor/pixmax/previs/characters/x-bot.fbx',
-             '/static/vendor/pixmax/previs/animations/clips/' + clip]
+    paths = ['/static/vendor/shadoxai/previs/animations/catalog.runtime.v1.json',
+             '/static/vendor/shadoxai/previs/characters/x-bot.fbx',
+             '/static/vendor/shadoxai/previs/animations/clips/' + clip]
     with TestClient(app) as anonymous:
         for path in paths:
             assert anonymous.get(path).status_code == 401
@@ -95,8 +95,8 @@ def test_pixmax_stage_library_uses_authenticated_scoped_static_admission(world):
         assert response.status_code == 200, response.text[:200]
         assert response.content
     assert len(catalog['entries']) > 2000
-    for path in ['/static/private.json', '/static/vendor/pixmax/previs/private.json',
-                 '/static/vendor/pixmax/previs/characters/private.env', '/static/private.fbx']:
+    for path in ['/static/private.json', '/static/vendor/shadoxai/previs/private.json',
+                 '/static/vendor/shadoxai/previs/characters/private.env', '/static/private.fbx']:
         assert world['viewer'].get(path).status_code == 403
 
 

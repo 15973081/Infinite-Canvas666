@@ -10,7 +10,7 @@ html:has(body.studio-canvas-home), html body.studio-canvas-home {
     --studio-border: rgb(255 255 255 / .08);
     --studio-border-strong: rgb(255 255 255 / .16);
     --studio-text: #f4f4f5;
-    --studio-text-muted: #71717a;
+    --studio-text-muted: #a1a1aa;
     --studio-text-faint: #71717a;
     --studio-accent: #e4e4e7;
     --studio-accent-text: #09090b;

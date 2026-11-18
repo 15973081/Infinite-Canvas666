@@ -21,8 +21,8 @@
                 if(window.CanvasSession?.enabled&&window.MemberCanvasEdit?.leave&&!await window.MemberCanvasEdit.leave())return false;
             }else if(!await leaveGuard())return false;
             window.LocalDepthVideo?.allowPageExit?.();
-            window.PixmaxMediaTools?.allowPageExit?.();
-            window.PixmaxVideoAnnotation?.allowPageExit?.();
+            window.ShadoxAIMediaTools?.allowPageExit?.();
+            window.ShadoxAIVideoAnnotation?.allowPageExit?.();
             window.top.location.assign(target.href);
             return true;
         } catch(error) {
@@ -54,12 +54,12 @@
         card.append(title,note,retry,back);document.body.append(card);
     }
     function confirmLocalWork(){
-        return !(window.LocalDepthVideo?.hasUnfinishedWork?.()||window.PixmaxMediaTools?.hasUnfinishedWork?.()||window.PixmaxVideoAnnotation?.hasUnfinishedWork?.()) || window.confirm('本地媒体处理仍在进行，或结果尚未保存到画布。离开将中断处理并丢失未保存的本地结果。确定离开？');
+        return !(window.LocalDepthVideo?.hasUnfinishedWork?.()||window.ShadoxAIMediaTools?.hasUnfinishedWork?.()||window.ShadoxAIVideoAnnotation?.hasUnfinishedWork?.()) || window.confirm('本地媒体处理仍在进行，或结果尚未保存到画布。离开将中断处理并丢失未保存的本地结果。确定离开？');
     }
     async function prepareReload(guard){
         if(!confirmLocalWork())return false;
         const ready=await guard();
-        if(ready){window.LocalDepthVideo?.allowPageExit?.();window.PixmaxMediaTools?.allowPageExit?.();window.PixmaxVideoAnnotation?.allowPageExit?.();}
+        if(ready){window.LocalDepthVideo?.allowPageExit?.();window.ShadoxAIMediaTools?.allowPageExit?.();window.ShadoxAIVideoAnnotation?.allowPageExit?.();}
         return ready;
     }
     window.CanvasNavigation=Object.freeze({canvasId,workspace,homeUrl,canvasUrl,bindLink,go:url=>go(url),afterDeletion:id=>go(homeUrl(),id),adopt,failure,confirmLocalWork,prepareReload,

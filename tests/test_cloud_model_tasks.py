@@ -10,7 +10,7 @@ from test_cloud_canvas_leases import setup_canvas,acquire,proof
 from test_cloud_audio_tasks import execute
 
 pytestmark=pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST')!='1',reason='Use tools/cloud_test.py')
-GLB=Path(__file__).parent/'fixtures'/'pixmax-generated-model.glb'
+GLB=Path(__file__).parent/'fixtures'/'shadoxai-generated-model.glb'
 
 
 def prepared(world,platform):
@@ -109,7 +109,7 @@ def test_model_deleted_target_delivers_or_joins_a_previewable_asset_once(world,p
     document=world['viewer'].get(path,headers=headers(world['a'])).json()['canvas']
     assert len(document['nodes'])==1
     result=document['nodes'][0]
-    assert result['type']=='smart-model' and result['pixmaxSourceType']=='BASE_3D'
+    assert result['type']=='smart-model' and result['shadoxaiSourceType']=='BASE_3D'
     assert result['images'][0]['kind']=='model'
     assert world['viewer'].get(result['images'][0]['url'],headers=headers(world['a'])).content==GLB.read_bytes()
     repeated=world['editor'].post(path+'/task-results/'+task['id']+'/join',headers=proof(world,lease,document['revision']))

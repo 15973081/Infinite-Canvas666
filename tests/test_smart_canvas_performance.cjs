@@ -63,7 +63,7 @@ test('minimap reuses DOM and layout on pan, reprojects expanded bounds, invalida
 });
 test('composer refreshes material list once through normalized dynamic params',()=>{
     let inputs=0;const noop=()=>{},node={id:'a'};
-    const ctx=vm.createContext({selectedNode:()=>node,nodes:[node],canvas:{id:'c'},smartCascadeSilentSelection:false,smartSettingsForNode:()=>({}),loadPromptDraft:noop,
+    const ctx=vm.createContext({isSmartVideoAssetNode:()=>false,selectedNode:()=>node,nodes:[node],canvas:{id:'c'},smartCascadeSilentSelection:false,smartSettingsForNode:()=>({}),loadPromptDraft:noop,
         composer:{classList:{toggle(){},contains:()=>true}},cascadeRunBtn:{style:{}},isSmartImageNode:()=>true,
 
         smartComposerChanges:()=>({prompt:false,settings:false}),promptInputNodesFor:()=>[],setPromptInputLocked:noop,syncCascadeRunButton:noop,

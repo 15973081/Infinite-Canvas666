@@ -16,7 +16,7 @@ def test_tc3_signature_matches_tencent_published_test_vector():
 
 def test_generated_glb_has_a_real_mesh_and_truncated_or_external_resources_are_rejected(tmp_path):
     import struct
-    sample=Path('tests/fixtures/pixmax-generated-model.glb').read_bytes()
+    sample=Path('tests/fixtures/shadoxai-generated-model.glb').read_bytes()
     path=tmp_path/'model.glb';path.write_bytes(sample)
     assert validate_glb(path)['meshes'][0]['primitives'][0]['attributes']['POSITION']==0
     path.write_bytes(sample[:-1])

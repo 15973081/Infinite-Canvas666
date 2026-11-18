@@ -74,7 +74,7 @@ test('smart creation, search and trash use the existing catalog without original
 });
 
 test('member homepage rail, wallet and catalog remain usable across desktop sizes',async t=>{
- const {page,errors}=await fixture(t,'classic',false,{home:true,startPath:'/static/index.html',record:{title:'智能画布',kind:'smart',cover_media:{kind:'image',url:'/test-image.svg'}},extraRecords:[{id:'b',title:'Pixmax 原版交互验收',kind:'smart'},{id:'c',title:'深度视频',kind:'smart'},{id:'d',title:'经典画布',kind:'classic'}]});
+ const {page,errors}=await fixture(t,'classic',false,{home:true,startPath:'/static/index.html',record:{title:'智能画布',kind:'smart',cover_media:{kind:'image',url:'/test-image.svg'}},extraRecords:[{id:'b',title:'ShadoxAI 原版交互验收',kind:'smart'},{id:'c',title:'深度视频',kind:'smart'},{id:'d',title:'经典画布',kind:'classic'}]});
  await page.route('**/static/index.html',route=>route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(root,'static/index.html'),'utf8').replace('<head>','<head><link rel="stylesheet" href="/static/css/member-session.css"><script src="/static/js/member-session.js"></script>')}));
  await page.route('**/api/**',route=>{
   const url=new URL(route.request().url());
@@ -83,7 +83,7 @@ test('member homepage rail, wallet and catalog remain usable across desktop size
   if(url.pathname==='/api/workspace/storage')return route.fulfill({json:{workspace_id:'workspace-1',bytes:167772160,files:12,unknown_files:0,pending_files:0,retained_bytes:0,quota_bytes:null,by_kind:{},updated_at:'2026-10-16T09:37:00Z'}});
   if(url.pathname==='/api/canvases')return route.fulfill({json:{canvases:[
    {id:'canvas-test',title:'智能画布',kind:'smart',updated_at:1792143420,cover_media:{kind:'image',url:'/test-image.svg'}},
-   {id:'b',title:'Pixmax 原版交互验收',kind:'smart',updated_at:1792122480},
+   {id:'b',title:'ShadoxAI 原版交互验收',kind:'smart',updated_at:1792122480},
    {id:'c',title:'深度视频',kind:'smart',updated_at:1792121580},
    {id:'d',title:'经典画布',kind:'classic',updated_at:1791762360}
   ]}});

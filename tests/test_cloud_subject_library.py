@@ -114,8 +114,8 @@ def test_subject_mixed_materials_crud_cover_type_validation_and_retention(world)
     picture = image(w['editor'], w['a'])
     added = item(w['editor'], w['a'], group, 2, kind='image', name='正面', url=picture['url'])
     image_id = added['target_id']
-    for revision, kind, filename, content_type in ((3, 'audio', 'pixmax-generated-audio.mp3', 'audio/mpeg'),
-                                                  (4, 'video', 'pixmax-audio-source.mp4', 'video/mp4')):
+    for revision, kind, filename, content_type in ((3, 'audio', 'shadoxai-generated-audio.mp3', 'audio/mpeg'),
+                                                  (4, 'video', 'shadoxai-audio-source.mp4', 'video/mp4')):
         path = Path(__file__).parent / 'fixtures' / filename
         upload = w['editor'].post('/api/ai/upload', headers=headers(w['a']),
                                   files={'files': (filename, path.read_bytes(), content_type)})

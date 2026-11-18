@@ -15,7 +15,7 @@ from test_cloud_management import platform
 from test_cloud_audio_tasks import execute
 
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
-VIDEO = Path(__file__).parent / 'fixtures' / 'pixmax-audio-source.mp4'
+VIDEO = Path(__file__).parent / 'fixtures' / 'shadoxai-audio-source.mp4'
 KEY = 'mediakit-test-only-secret'
 
 

@@ -262,7 +262,7 @@ def test_inbox_actual_browser(world,monkeypatch):
             time.sleep(.02)
         assert server.started
         config={'base':f'http://127.0.0.1:{port}','workspace':world['a']['id'],'username':world['people'][0]['username'],'password':'test-only-password-12345'}
-        result=subprocess.run(['node',str(Path(__file__).with_name('online-inbox.browser.cjs')),json.dumps(config)],
+        result=subprocess.run(['node',str(Path(__file__).parent/'helpers/online-inbox-http.cjs'),json.dumps(config)],
             capture_output=True,text=True,encoding='utf-8',timeout=100,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         assert result.returncode==0,result.stdout+result.stderr
     finally:

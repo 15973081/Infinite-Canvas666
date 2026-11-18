@@ -36,15 +36,15 @@ test('Smart actual image clicks keep group composer and single-node drag/view sa
  assert.deepEqual(await state(p),{selectedId:'g',selectedIds:[],selectedImage:{nodeId:'',index:-1},saves:1,renders:0});
  assert.equal(await p.evaluate(()=>promptPlainText()),'Group draft');
  await p.locator('.image-node[data-id="a"] .image-wrap').click();await p.waitForFunction(()=>smartSelection.nodeId==='a');
- assert.deepEqual(await state(p),{selectedId:'a',selectedIds:[],selectedImage:{nodeId:'a',index:0},saves:2,renders:0});assert.deepEqual(errors,[]);
+ assert.deepEqual(await state(p),{selectedId:'a',selectedIds:[],selectedImage:{nodeId:'',index:-1},saves:2,renders:0});assert.deepEqual(errors,[]);
 });
 test('Smart native double click clears multiselect for preview and Escape closes without a delayed selection',async t=>{
  const {page:p,errors}=await selection(t);
  await p.evaluate(()=>{smartSelection.boxSelection(['a','g']);syncSelectionUi();});
  await p.locator('.image-node[data-id="g"] [data-image-index="1"]').first().dblclick();
- await p.waitForFunction(()=>PixmaxImagePreview.opened&&document.querySelector('.pixmax-detail-thumbs button:nth-child(2)')?.getAttribute('aria-pressed')==='true');
+ await p.waitForFunction(()=>ShadoxAIImagePreview.opened&&document.querySelector('.shadoxai-detail-thumbs button:nth-child(2)')?.getAttribute('aria-pressed')==='true');
  assert.equal(await p.evaluate(()=>smartSelection.nodeId),'g');assert.deepEqual(await p.evaluate(()=>smartSelection.ids),[]);
- await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>PixmaxImagePreview.opened),false);
+ await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>ShadoxAIImagePreview.opened),false);
  await p.waitForTimeout(280);assert.equal(await p.evaluate(()=>smartSelection.image.index),1);assert.deepEqual(errors,[]);
 });
 test('Smart actual box gesture and Delete/Undo retain batch selection and original save counts',async t=>{

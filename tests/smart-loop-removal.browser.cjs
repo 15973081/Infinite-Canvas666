@@ -60,7 +60,7 @@ test('legacy one-click cascade is absent from connected ordinary generation node
         nodes=['root','middle','tail'].map((id,index)=>({id,type:'smart-image',generationKind:'image',x:100+index*300,y:180,images:index===0?[{url:'/test-image.svg',kind:'image'}]:[],promptDraftText:'模型生成要求',runSettings:{engine:'api',apiKind:'image',provider_id:'p',model:'gpt-image-2',resolution:'1k',ratio:'square',count:1}}));
         canvas.nodes=nodes;canvas.connections=[{from:'root',to:'middle',kind:'input'},{from:'middle',to:'tail',kind:'input'}];smartSelection.createdNode('tail');render();
     });
-    await page.locator('.pixmax-native-generation-form').waitFor();
+    await page.locator('.shadoxai-native-generation-form').waitFor();
     assert.equal(await page.locator('#cascadeRunBtn,.cascade-run-btn').count(),0);
     assert.equal(await page.getByRole('button',{name:'一键运行',exact:true}).count(),0);
     assert.deepEqual(await page.evaluate(()=>({run:typeof runSmartCascade,stop:typeof requestSmartCascadeStop,plan:typeof smartCascadeGraphForTail})),{run:'undefined',stop:'undefined',plan:'undefined'});

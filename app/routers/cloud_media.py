@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 import time
 import uuid
-from weakref import WeakValueDictionary
+from weakref import WeakValueDictionary, ref as weakref_ref
 from fastapi import APIRouter, File, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -217,13 +217,14 @@ async def preview(ref, width):
     media_id = "ast_" + hashlib.sha256(f"preview-v1:{asset['id']}:{width}".encode()).hexdigest()[:32]
     # Keep waiting requests in their own authorization/operation contexts. Weak
     # values release idle locks; separate event loops must never share a lock.
-    lock_key = (asyncio.get_running_loop(), media.current_workspace(), media_id)
+    loop = weakref_ref(asyncio.get_running_loop())
+    lock_key = (loop, media.current_workspace(), media_id)
     lock = _preview_locks.setdefault(lock_key, asyncio.Lock())
     async with lock:
         existing = await run_in_threadpool(media.get_asset, media_id, ready=False)
         if not existing or existing["status"] != "ready":
             # All preview entry points share a bound, including content?variant=preview.
-            slots = _preview_slots.setdefault(asyncio.get_running_loop(), asyncio.Semaphore(4))
+            slots = _preview_slots.setdefault(loop, asyncio.Semaphore(4))
             async with slots:
                 existing = await run_in_threadpool(_build_preview, asset, media_id, width)
     return RedirectResponse(await run_in_threadpool(media.browser_url, existing), 307, headers={"Cache-Control": "private, no-store"})

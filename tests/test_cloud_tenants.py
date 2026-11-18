@@ -3,21 +3,14 @@ import os
 import re
 import uuid
 import pytest
+from test_cloud_member_gateway import operator
 from fastapi import HTTPException
 pytestmark=pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST')!='1',reason='Use tools/cloud_test.py')
 PASSWORD='tenant-test-password-12345'
 
 @pytest.fixture(scope='module')
-def enterprise_admin():
-    from app.services import members
-    from app.storage.database import connection
-    with connection() as conn:
-        exists=conn.execute('SELECT 1 FROM members LIMIT 1').fetchone()
-    if exists:
-        pytest.skip('Run tenant acceptance in its own selected test set')
-    member=members.bootstrap('tenant-root','租户验收管理员',PASSWORD)
-    result=members.login(member['username'],PASSWORD,audience='management')
-    return members.resolve_session(result['token'],'management')
+def enterprise_admin(operator):
+    return operator
 
 def user(admin):
     from app.services import members

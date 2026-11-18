@@ -15,7 +15,7 @@ from test_cloud_management import platform
 
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 KEY = 'audio-test-only-secret'
-MP3 = Path(__file__).parent / 'fixtures' / 'pixmax-generated-audio.mp3'
+MP3 = Path(__file__).parent / 'fixtures' / 'shadoxai-generated-audio.mp3'
 
 
 def prepared(world, platform, mode='speech', music_mode='CUSTOM', voice_design=False, voice_clone=False):

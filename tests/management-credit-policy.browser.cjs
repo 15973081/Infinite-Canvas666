@@ -33,7 +33,7 @@ async function setup(t, canEdit=true){
         if(state.conflict)return route.fulfill({status:409,json:{detail:{code:'credit_policy_changed'}}});
         state.config=body.config;state.version++;
       }
-      return route.fulfill({json:{config:state.config,version:state.version,reference:'Pixmax 2026-10-16',mode:'active',model_catalog:state.model_catalog}});
+      return route.fulfill({json:{config:state.config,version:state.version,reference:'ShadoxAI 2026-10-16',mode:'active',model_catalog:state.model_catalog}});
     }
     if(path==='/api/credits/policy/preview'){
       const body=req.postDataJSON();state.quotes.push(body);

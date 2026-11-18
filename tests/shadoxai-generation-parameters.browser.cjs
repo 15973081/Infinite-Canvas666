@@ -1,0 +1,152 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {fixture}=require('./helpers/canvas-browser.cjs');
+async function setup(t,kind='image'){
+    const result=await fixture(t,'smart',true,{secureOrigin:true});
+    await result.page.evaluate(kind=>{
+        apiProviders=[{id:'p',name:'第一供应商',has_key:true,enabled:true,image_models:['gpt-image-2'],video_models:['doubao-seedance-2-5-pro'],protocol:'volcengine'},{id:'second',name:'第二供应商',has_key:true,enabled:true,image_models:['gpt-image-2'],video_models:['doubao-seedance-2-5-pro'],protocol:'volcengine',model_policies:{'video:doubao-seedance-2-5-pro':{resolutions:['480p'],duration_min:4,duration_max:8}}}];
+        Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});
+        window.generationNode=createGenerationNodeAt({x:440,y:100},kind);Object.assign(generationNode.runSettings,{engine:'api',apiKind:kind,provider_id:'p',model:'gpt-image-2',videoProvider:'p',videoModel:'doubao-seedance-2-5-pro',videoDuration:5,videoAspect:'16:9',videoResolution:'720p'});render();
+    },kind);
+    await result.page.getByRole('button',{name:'生成模型',exact:true}).waitFor();return result;
+}
+async function tasks(page,kind){
+    const calls=[],records=new Map(),endpoint='/api/canvas-'+kind+'-tasks';
+    await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});
+    if(kind==='video')await page.route('**/output/native-result.mp4',route=>route.fulfill({contentType:'video/mp4',body:fs.readFileSync(path.join(__dirname,'fixtures/shadoxai-audio-source.mp4'))}));
+    await page.route('**'+endpoint+'**',route=>{
+        if(route.request().method()==='POST'){
+            const body=route.request().postDataJSON(),target=body.canvas_target;calls.push(body);const id=body.client_task_id||'canvas_img_'+calls.length,binding={version:3,canvas_id:body.canvas_id,canvas_kind:'smart',source_node_id:target.source_node_id,target_node_id:target.target_node_id,submitted_revision:target.base_revision,graph_sha256:target.input_sha256,request_sha256:'b'.repeat(64)};
+            records.set(id,{id,status:'succeeded',canvas_edit_generation:1,canvas_binding:binding,result:kind==='image'?{images:['/test-image.svg']}:{videos:['/output/native-result.mp4']}});return route.fulfill({json:{task_id:id,status:'queued',canvas_binding:binding}});
+        }
+        return route.fulfill({json:records.get(new URL(route.request().url()).pathname.split('/').pop())});
+    });return calls;
+}
+async function panel(page){await page.getByRole('button',{name:'生成参数',exact:true}).click();const panel=page.locator('[data-combo-selector-panel]');await panel.waitFor();return panel;}
+test('native model selector distinguishes identical models by provider and preserves typed prompt',async t=>{
+    const {page,errors,record}=await setup(t);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('海边的陶瓷猫');await page.getByRole('button',{name:'生成厂商',exact:true}).click();await page.locator('[data-select-option]').filter({hasText:'第二供应商'}).click();
+    assert.equal(await page.evaluate(()=>generationNode.runSettings.provider_id),'second');assert.equal(await page.getByRole('textbox',{name:'生成提示词',exact:true}).innerText(),'海边的陶瓷猫');
+    await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes.find(node=>node.id===record.nodes[0].id).runSettings.provider_id,'second');assert.deepEqual(errors,[]);
+});
+test('native image resolution quality and count reach the task payload and saved settings',async t=>{
+    const {page,errors,record}=await setup(t),calls=await tasks(page,'image');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('摄影棚陶瓷猫');const menu=await panel(page);
+    await menu.getByRole('button',{name:'2K',exact:true}).click();await menu.getByRole('button',{name:'高',exact:true}).click();await page.keyboard.press('Escape');
+    await page.getByRole('button',{name:'生成数量',exact:true}).click();await page.locator('.shadoxai-reshoot-model-options').getByRole('button',{name:'4张',exact:true}).click();
+    await page.screenshot({path:'.local/shadoxai-native-generation-image.png'});await page.evaluate(()=>runGeneration());assert.equal(calls.length,4);assert.ok(calls.every(call=>call.size==='2048x2048'&&call.quality==='high'&&call.n===1));
+    await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes.find(node=>node.id===record.nodes[0].id).runSettings.count,4);assert.deepEqual(errors,[]);
+});
+for(const lockSource of ['node','canvas defaults','recent settings'])test(`legacy outpaint locks in ${lockSource} do not disable ordinary image generation settings`,async t=>{
+    const {page,errors}=await setup(t),calls=await tasks(page,'image');
+    await page.evaluate(lockSource=>{
+        apiProviders[0].image_models.push('nano-banana-pro');
+        const legacy={engine:'api',apiKind:'image',provider_id:'p',model:'nano-banana-pro',resolution:'1k',ratio:'square',outpaintResolutionLocked:true};
+        if(lockSource==='node')Object.assign(generationNode.runSettings,legacy);
+        if(lockSource==='canvas defaults'){
+            Object.assign(canvasDefaultSmartSettings,legacy);
+            Object.assign(generationNode.runSettings,{model:'nano-banana-pro',resolution:'',ratio:'square'});
+        }
+        if(lockSource==='recent settings'){
+            generationNode.runSettings={};
+            const key=smartSettingsModeKey(legacy);
+            recentSmartSettingsByMode={__lastKey:key,[key]:legacy};
+        }
+        ShadoxAINativePrompt.sync();
+    },lockSource);
+    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('横版海报');
+    const menu=await panel(page);
+    const resolution=menu.getByRole('button',{name:'2K',exact:true}),ratio=menu.getByRole('button',{name:'16:9',exact:true});
+    assert.equal(await resolution.isEnabled(),true);
+    assert.equal(await ratio.isEnabled(),true);
+    await resolution.click();await ratio.click();await page.keyboard.press('Escape');
+    await page.evaluate(()=>runGeneration());
+    assert.equal(calls.length,1);
+    assert.equal(calls[0].model,'nano-banana-pro');
+    assert.equal(calls[0].size,'2048x1152');
+    assert.deepEqual(errors,[]);
+});
+
+test('native image settings honor the dimensions of a pending outpaint',async t=>{
+    const {page,errors}=await setup(t);
+    await page.evaluate(()=>{
+        Object.assign(generationNode.runSettings,{resolution:'1k',ratio:'square'});
+        generationNode.outpaintSize={width:768,height:640};
+        ShadoxAINativePrompt.sync();
+    });
+    const menu=await panel(page);
+    assert.equal(await menu.getByRole('button',{name:'2K',exact:true}).isDisabled(),true);
+    assert.equal(await menu.getByRole('button',{name:'16:9',exact:true}).isDisabled(),true);
+    const size=await page.evaluate(()=>sizeForRun(ShadoxAIGenerationParameters.configuration(generationNode)));
+    assert.equal(size,'768x640');
+    assert.deepEqual(errors,[]);
+});
+test('native video resolution sound and MOV reach an ordinary generation task',async t=>{
+    const {page,errors}=await setup(t,'video'),calls=await tasks(page,'video');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('海边的摄影师');const menu=await panel(page);
+    await menu.getByRole('button',{name:'1080P',exact:true}).click();await menu.getByRole('button',{name:'Audio On',exact:true}).click();await menu.getByRole('button',{name:'MOV',exact:true}).click();await page.keyboard.press('Escape');
+    await page.screenshot({path:'.local/shadoxai-native-generation-video.png'});await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].resolution,'1080p');assert.equal(calls[0].generate_audio,true);assert.equal(calls[0].output_format,'mov');assert.deepEqual(errors,[]);
+});
+test('changing native video model applies the selected providers resolution and duration policy',async t=>{
+    const {page,errors}=await setup(t,'video');await page.evaluate(()=>{generationNode.runSettings.videoDuration=15;settings.videoDuration=15;ShadoxAINativePrompt.sync();});await page.getByRole('button',{name:'生成厂商',exact:true}).click();await page.locator('[data-select-option]').filter({hasText:'第二供应商'}).click();
+    const config=await page.evaluate(()=>generationNode.runSettings);assert.equal(config.videoProvider,'second');assert.equal(config.videoResolution,'480p');assert.equal(config.videoDuration,8);const menu=await panel(page);assert.equal(await menu.getByRole('button',{name:'1080P',exact:true}).count(),0);assert.equal(await menu.getByRole('button',{name:'480P',exact:true}).count(),1);assert.deepEqual(errors,[]);
+});
+test('removing the selected provider displays the replacement and preserves the draft before explicit submission',async t=>{
+    const {page,errors}=await setup(t),calls=await tasks(page,'image');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('保存的提示词');await page.evaluate(()=>{applySmartModelConfig({api_providers:apiProviders.filter(provider=>provider.id!=='p')});});assert.equal(calls.length,0);assert.equal(await page.getByRole('button',{name:'生成厂商',exact:true}).innerText(),'第二供应商');await page.evaluate(()=>runGeneration());
+    assert.equal(calls.length,1);assert.equal(calls[0].provider_id,'second');assert.equal(await page.getByRole('textbox',{name:'生成提示词',exact:true}).innerText(),'保存的提示词');assert.deepEqual(errors,[]);
+});
+test('native model options exclude hidden models and disable missing keys and stopped policies',async t=>{
+    const {page,errors}=await setup(t);await page.evaluate(()=>{apiProviders.push({id:'hidden',name:'隐藏模型',enabled:true,has_key:true,image_models:['gpt-image-2'],model_policies:{'image:gpt-image-2':{visible:false}}},{id:'nokey',name:'未配置密钥',enabled:true,has_key:false,image_models:['gpt-image-2']},{id:'stopped',name:'停用模型',enabled:true,has_key:true,image_models:['gpt-image-2'],model_policies:{'image:gpt-image-2':{enabled:false}}});ShadoxAINativePrompt.sync();});await page.getByRole('button',{name:'生成厂商',exact:true}).click();const menu=page.locator('[data-select-option]');assert.equal(await menu.filter({hasText:'隐藏模型'}).count(),0);assert.equal(await menu.filter({hasText:'未配置密钥'}).count(),0);assert.equal(await menu.filter({hasText:'停用模型'}).count(),0);assert.deepEqual(errors,[]);
+});
+test('native parameter portal closes on edit ownership loss and cannot write a stale draft',async t=>{
+    const {page,errors}=await setup(t);const before=await page.evaluate(()=>generationNode.runSettings.resolution),menu=await panel(page);await page.evaluate(()=>MemberCanvasEdit.setEditable(false));await menu.waitFor({state:'detached'});assert.equal(await page.evaluate(()=>generationNode.runSettings.resolution),before);assert.equal(await page.getByRole('button',{name:'生成模型',exact:true}).isDisabled(),true);assert.deepEqual(errors,[]);
+});
+test('native generation controls fit a narrow viewport and Escape preserves the selected node',async t=>{
+    const {page,errors}=await setup(t);const selected=await page.evaluate(()=>generationNode.id);await page.setViewportSize({width:390,height:844});await page.evaluate(()=>render());const menu=await panel(page),box=await menu.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390&&box.y>=0&&box.y+box.height<=844);await menu.screenshot({path:'.local/shadoxai-native-generation-mobile.png'});await page.keyboard.press('Escape');await menu.waitFor({state:'detached'});assert.equal(await page.evaluate(()=>smartSelection.nodeId),selected);assert.deepEqual(errors,[]);
+});
+
+test('native custom image dimensions reach the request without dropping the prompt',async t=>{
+    const {page,errors}=await setup(t),calls=await tasks(page,'image');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('自定义画幅');const menu=await panel(page);await menu.getByRole('button',{name:'自定义',exact:true}).click();
+    await menu.locator('input[aria-label="宽度"]').fill('1536');await menu.locator('input[aria-label="宽度"]').press('Enter');await menu.locator('input[aria-label="高度"]').fill('1024');await menu.locator('input[aria-label="高度"]').press('Enter');await page.keyboard.press('Escape');await menu.waitFor({state:'detached'});
+    await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].size,'1536x1024');assert.match(calls[0].prompt,/自定义画幅/);assert.deepEqual(errors,[]);
+});
+
+test('native duration input accepts a custom in-range value and sends it to the task',async t=>{
+    const {page,errors}=await setup(t,'video'),calls=await tasks(page,'video');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('长镜头');const menu=await panel(page);await menu.locator('input[aria-label="时长"]').fill('12');await menu.locator('input[aria-label="时长"]').press('Enter');await page.keyboard.press('Escape');await menu.waitFor({state:'detached'});
+    await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].duration,12);assert.deepEqual(errors,[]);
+});
+
+test('a late schema load mounts controls only for the current composer owner',async t=>{
+    const {page,errors}=await fixture(t,'smart',true,{secureOrigin:true});let release,entered;const gate=new Promise(resolve=>release=resolve),pending=new Promise(resolve=>entered=resolve);
+    await page.route('**/static/vendor/shadoxai/generation-schema.json',async route=>{entered();await gate;await route.fallback();});
+    await page.evaluate(()=>{apiProviders=[{id:'p',name:'当前供应商',enabled:true,has_key:true,image_models:['gpt-image-2']}];window.first=createGenerationNodeAt({x:300,y:100},'image');});await pending;
+    await page.locator('#promptInput').fill('第一份草稿');await page.evaluate(()=>{window.second=createGenerationNodeAt({x:600,y:100},'image');});release();await page.getByRole('button',{name:'生成模型',exact:true}).waitFor();
+    assert.equal(await page.locator('.shadoxai-native-generation-form').count(),1);assert.equal(await page.evaluate(()=>activeComposerNode()===second&&getComputedStyle(composer.querySelector('.composer-card')).display==='none'),true);assert.equal(await page.evaluate(()=>first.nativePrompt.prompt),'第一份草稿');assert.deepEqual(errors,[]);
+});
+
+test('native advanced video options retain the host watermark flag in the real request',async t=>{
+    const {page,errors}=await setup(t,'video'),calls=await tasks(page,'video');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('摄影师转身');await page.getByText('高级选项',{exact:true}).click();await page.locator('.shadoxai-native-generation-form').getByRole('switch',{name:'水印',exact:true}).click();
+    await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].watermark,true);assert.equal(await page.evaluate(()=>generationNode.runSettings.videoWatermark),true);assert.deepEqual(errors,[]);
+});
+
+test('a model with only custom image sizes initializes dimensions and remains usable',async t=>{
+    const {page,errors}=await setup(t),calls=await tasks(page,'image');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('方形陶瓷猫');await page.evaluate(()=>{apiProviders[1].model_policies['image:gpt-image-2']={resolutions:['custom']};ShadoxAINativePrompt.sync();});await page.getByRole('button',{name:'生成厂商',exact:true}).click();await page.locator('[data-select-option]').filter({hasText:'第二供应商'}).click();
+    assert.equal(await page.evaluate(()=>generationNode.runSettings.resolution),'custom');await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].provider_id,'second');assert.equal(calls[0].size,'1024x1024');assert.deepEqual(errors,[]);
+});
+
+
+test('native asset entry loads the real catalog items field and connects a selected media reference',async t=>{
+    const {page,errors}=await setup(t,'video');await page.route('**/api/asset-library**',route=>route.fulfill({json:{libraries:[{id:'default',categories:[{id:'images',items:[{id:'portrait',name:'可用人物资产',url:'/test-image.svg',kind:'image'}]}]}]}}));await page.locator('[data-native-generation-surface]').getByText('资产',{exact:true}).click();const picker=page.getByRole('dialog',{name:'添加资产参考',exact:true});await picker.getByRole('button',{name:'可用人物资产',exact:true}).click();await picker.waitFor({state:'detached'});assert.equal(await page.locator('.shadoxai-native-generation-references [data-source-node-order-item]').count(),1);const result=await page.evaluate(()=>({refs:buildPromptRequest(generationNode).refs,hidden:nodes.filter(node=>node.hidden).length}));assert.equal(result.hidden,1);assert.equal(result.refs[0].url,'/test-image.svg');assert.deepEqual(errors,[]);
+});
+
+test('workspace defaults apply to new nodes while saved models remain unchanged; unified search selects explicitly',async t=>{
+ const {page}=await setup(t,'image');
+ const result=await page.evaluate(()=>{
+  apiProviders[1].workspace_defaults={image:'gpt-image-2'};
+  const old=ShadoxAIGenerationParameters.configuration(generationNode);
+  const fresh=createGenerationNodeAt({x:900,y:100},'image');
+  return {old:old.provider_id,fresh:fresh.runSettings.provider_id};
+ });
+ assert.deepEqual(result,{old:'p',fresh:'second'});
+ await page.evaluate(()=>CanvasCore.openModelPicker({providers:()=>apiProviders,kind:'image',value:{provider_id:'p',model:'gpt-image-2'},onSelect:value=>window.chosenModel=value}));
+ const picker=page.getByRole('dialog',{name:'选择生成模型'});
+ await picker.getByRole('searchbox').fill('第二供应商');
+ await picker.getByRole('button',{name:/gpt-image-2.*第二供应商.*空间默认/}).click();
+ assert.deepEqual(await page.evaluate(()=>window.chosenModel),{provider_id:'second',model:'gpt-image-2'});
+});

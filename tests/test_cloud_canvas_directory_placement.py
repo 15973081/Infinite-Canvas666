@@ -135,7 +135,7 @@ def test_directory_placement_actual_browser_saves_drags_mixed_siblings_and_reloa
     item = saved.json()['canvas']
     assert world['editor'].post(path + '/edit-lease/release', headers=proof(world, lease, item['revision'])).status_code == 200
     directory = Path(__file__).resolve().parents[1]
-    process = subprocess.Popen(['node', str(directory / 'tests/helpers/pixmax-directory-placement-http.cjs')], cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    process = subprocess.Popen(['node', str(directory / 'tests/helpers/shadoxai-directory-placement-http.cjs')], cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     done, moves = False, []
     try:
         process.stdin.write(json.dumps({'initial': {'canvas': item, 'member': world['people'][0]['id'], 'workspace': world['a']['id'], 'root': root, 'child': child, 'outside': outside}}) + '\n'); process.stdin.flush()

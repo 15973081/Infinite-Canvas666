@@ -18,7 +18,7 @@ from test_cloud_mediakit_tasks import Supplier
 from test_cloud_management import platform
 
 pytestmark=pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST')!='1',reason='Use tools/cloud_test.py')
-VIDEO=Path(__file__).parent/'fixtures'/'pixmax-audio-source.mp4'
+VIDEO=Path(__file__).parent/'fixtures'/'shadoxai-audio-source.mp4'
 
 
 @pytest.fixture

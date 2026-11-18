@@ -129,9 +129,9 @@ test('floating navigation centers in the desktop viewport with neutral selection
  const rail=page.locator('#studioSidebar');
  const settings=page.getByRole('button',{name:'更多设置',exact:true});
  assert.equal(await home.getAttribute('aria-current'),'page');
- assert.equal(await chat.locator('svg[data-tabler="message"]').count(),1);
- assert.equal((await chat.locator('svg').boundingBox()).width,22);
- assert.equal((await settings.locator('svg').boundingBox()).width,22);
+ assert.equal(await chat.locator('svg[data-studio-lucide="message-square"]').count(),1);
+ assert.equal((await chat.locator('svg').boundingBox()).width,18);
+ assert.equal((await settings.locator('svg').boundingBox()).width,18);
  for(const width of [1024,1440,1920]){
   await page.setViewportSize({width,height:900});
   const [bar, first, gear, frame]=await Promise.all([rail.boundingBox(),home.boundingBox(),settings.boundingBox(),page.locator('#frame-canvas').boundingBox()]);
@@ -139,7 +139,7 @@ test('floating navigation centers in the desktop viewport with neutral selection
   assert.equal(bar.x,14);
   assert.ok(Math.abs(bar.y+bar.height/2-450)<1);
   assert.ok(bar.x+bar.width<frame.x);
-  assert.equal(first.width,44);
+  assert.equal(first.width,42);
   assert.equal(first.x,gear.x);
   assert.ok(first.y-bar.y<=16);
   assert.ok(bar.y+bar.height-gear.y-gear.height<=16);
@@ -152,7 +152,7 @@ test('floating navigation centers in the desktop viewport with neutral selection
  await tooltip.waitFor({state:'visible'});
  assert.equal(await tooltip.textContent(),'AI 对话');
  assert.equal(await chat.getAttribute('title'),null);
- assert.equal(await chat.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(39, 44, 40)');
+ assert.equal(await chat.evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(255, 255, 255, 0.06)');
  await tooltip.hover();
  assert.equal(await tooltip.isVisible(),true,'label remains readable while hovered');
  await page.keyboard.press('Escape');
@@ -160,13 +160,13 @@ test('floating navigation centers in the desktop viewport with neutral selection
  await chat.focus();
  assert.equal(await chat.getAttribute('aria-describedby'),'studioRailTooltip');
  assert.equal(await tooltip.isVisible(),true);
- assert.equal(await chat.evaluate(el=>getComputedStyle(el).outlineColor),'rgb(166, 173, 167)');
+ assert.equal(await chat.evaluate(el=>getComputedStyle(el).outlineColor),'rgb(161, 161, 170)');
  await chat.press('Enter');
  await page.waitForFunction(()=>document.querySelector('[data-page="gpt-chat"]').getAttribute('aria-current')==='page');
  assert.equal(await home.getAttribute('aria-current'),null);
  assert.equal(await tooltip.isVisible(),false);
  assert.equal(await page.locator('#frame-gpt-chat').getAttribute('class'),'active');
- assert.equal(await chat.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(53, 61, 55)');
+ assert.equal(await chat.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(34, 34, 40)');
  assert.equal(await rail.evaluate(el=>el.getBoundingClientRect().width),56);
  await home.click();
  await chat.hover();

@@ -11,7 +11,7 @@ const source=readCanvasSource(path.join(__dirname,'../static/js/smart-canvas.js'
 const clone=v=>JSON.parse(JSON.stringify(v));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 async function until(check){const deadline=Date.now()+5000;while(!check()&&Date.now()<deadline)await new Promise(r=>setTimeout(r,5));assert.ok(check(),'reached async boundary');}
-function install(c,...names){vm.createContext(c);for(const name of names){const start=new RegExp('(?:async )?function '+name+'\\(').exec(source).index;const next=source.slice(start+1).search(/[\r\n](?:async )?function /);vm.runInContext(source.slice(start,next<0?undefined:start+1+next),c,{filename:name});}}
+function install(c,...names){c.isSmartVideoAssetNode=()=>false;vm.createContext(c);for(const name of names){const start=new RegExp('(?:async )?function '+name+'\\(').exec(source).index;const next=source.slice(start+1).search(/[\r\n](?:async )?function /);vm.runInContext(source.slice(start,next<0?undefined:start+1+next),c,{filename:name});}}
 function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',status='succeeded'}={}){
  const gate=deferred(),lease={epoch:1,generation:2,revision:1,canEdit:true,state:'editing'};
  const config={engine:'api',apiKind:kind,provider_id:'p',model:'m',videoProvider:'p',videoModel:'v',count,videoTempShLinks:[]};
@@ -30,7 +30,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   smartClientId:'page',smartSaveInFlight:null,smartSaveAgain:false,smartCanvasDirty:false,smartSaveErrorNotified:false,canvasSyncInFlight:false,saveTimer:null,viewport:{x:0,y:0,scale:1},
   smartServerNodeIds:new Set(),smartServerConnectionKeys:new Set(),activeSmartTaskPolls:new Map(),activeSmartNodeResumes:new Map(),transientSmartCloudLinks:[],
   setTimeout:(fn,ms)=>{if(ms===2000)queueMicrotask(fn);else timers.push(fn);return 1;},clearTimeout(){},Date,JSON,Object,console,AbortSignal,
-  isSmartCanvasLocked:()=>!lease.canEdit,cloneSmartSettings:s=>clone(s||{}),updateSmartCanvasNav(){},syncPixmaxSaveStatus(){},responseErrorMessage:async()=> 'save failed',
+  isSmartCanvasLocked:()=>!lease.canEdit,cloneSmartSettings:s=>clone(s||{}),updateSmartCanvasNav(){},syncShadoxAISaveStatus(){},responseErrorMessage:async()=> 'save failed',
   tr:s=>s,toast:s=>c.message=s,nowMs:()=>1000,render(){},refreshSmartNodes(){},refreshConnectionLayer(){},pushUndo(){},undoSuppressed:false,
   smartSettingsForNode:n=>n.runSettings||c.settings,buildPromptRequest:()=>({prompt:c.promptInput.innerHTML,displayPrompt:c.promptInput.innerHTML,refs:[]}),
   buildPromptRequestForNode:n=>({prompt:n.promptDraftText,displayPrompt:n.promptDraftText,refs:[]}),smartRunNeedsPrompt:()=>true,
@@ -46,7 +46,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   mediaKindForUrls:(urls,kind)=>kind,validOutpaintSize:()=>null,selfReferenceImagesForNode:()=>[],defaultReferenceImagesFor:()=>[],outputImagesForNode:()=>[],smartCascadePathForCtx:()=>({states:{}}),
   replaceOutputsToNodeWithHistory:(n,images,kind)=>{n.images=images;n.outputKind=kind;n.running=false;},
  };
- win.CanvasApi={saveCanvas:async(id,payload)=>{const sent=clone(payload);await boundary('save');counts.save++;lease.revision++;serverDocument=sent;return {ok:true,json:async()=>({canvas:{...clone(sent),id,revision:lease.revision,updated_at:lease.revision}})};}};
+ win.CanvasApi={saveCanvas:async(id,payload)=>{const sent=clone(payload);await boundary('save');counts.save++;lease.revision++;serverDocument=sent;return Response.json({canvas:{...clone(sent),id,revision:lease.revision,updated_at:lease.revision}});}};
  const saveRequest=win.CanvasApi.saveCanvas;
  win.MemberCanvasEdit.send=(url,options,transport)=>transport(url,{...options,headers:{...options.headers,'X-Canvas-Edit-Proof':'fixture-proof'}});
  c.fetch=async(url,options)=>{
@@ -57,9 +57,9 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
    assert.equal(sent.canvas_target.base_revision,lease.revision);assert.equal(sent.canvas_id,'c');assert.ok(serverDocument);
    assert.equal(sent.canvas_target.input_sha256,await bindings.graphFingerprint(serverDocument,sent.canvas_target.source_node_id,sent.canvas_target.target_node_id));
    const record={id,status,canvas_edit_generation:2,result:kind==='video'?{videos:['/assets/cloud/ast_'+id+'/video.mp4']}:{images:['/assets/cloud/ast_'+id+'/image.png']},canvas_binding:{version:3,canvas_id:'c',canvas_kind:'smart',source_node_id:sent.canvas_target.source_node_id,target_node_id:sent.canvas_target.target_node_id,submitted_revision:sent.canvas_target.base_revision,graph_sha256:sent.canvas_target.input_sha256,request_sha256:'a'.repeat(64)}};
-   records.set(id,record);await boundary('submit');return {ok:true,json:async()=>({task_id:id,canvas_binding:clone(record.canvas_binding)})};
+   records.set(id,record);await boundary('submit');return Response.json({task_id:id,canvas_binding:clone(record.canvas_binding)});
   }
-  await boundary('poll');return {ok:true,json:async()=>clone(records.get(url.split('/').at(-1)))};
+  await boundary('poll');return Response.json(clone(records.get(url.split('/').at(-1))));
  };
  installSmartSelection(c);
  install(c,'resultMediaUrls','canvasTaskWriteGuard','smartTaskInputDocument','smartTaskInputBinding','attachSmartTaskBinding','smartTaskUiGuard','pauseSmartTaskInput','canvasForStorage','removeRetiredSmartLoopNodes','settingsForStorage','mediaItemForStorage','stripImageGenerationMeta',

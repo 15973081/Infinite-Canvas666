@@ -50,10 +50,10 @@ test('Smart image-video-image presentation clears comparison and uses each media
     const {page,errors}=await preview(t);await videoRoute(page);
     await page.evaluate(()=>nodes[0].images.push({url:'/preview.webm',name:'clip.webm',kind:'video',natural_w:160,natural_h:90}));
     await page.click('#compareToggleBtn');await page.evaluate(()=>openImageEditor('a',2));
-    await page.waitForFunction(()=>document.getElementById('previewCurrentVideo').videoWidth===160);
-    assert.deepEqual(await page.evaluate(()=>({mode:smartImageEditor.state.mode,on:smartPreviewGestures.state.compareOn,index:smartPreviewGestures.state.compareIndex,
-        image:document.getElementById('previewCurrentImage').getAttribute('src'),compare:document.getElementById('previewCompareImage').getAttribute('src'),thumbs:document.querySelectorAll('[data-compare-idx]').length})),{mode:'preview',on:false,index:-1,image:null,compare:null,thumbs:0});
-    assert.match(await page.locator('#previewMetaHint').textContent(),/160 x 90/);assert.equal(await page.locator('#compareToggleBtn').isVisible(),false);
+    await page.waitForFunction(()=>document.querySelector('.shadoxai-detail-video video')?.videoWidth===160);
+    assert.equal(await page.evaluate(()=>smartImageEditor.state.open),false);
+    assert.equal(await page.getByRole('button',{name:'关闭视频预览',exact:true}).count(),1);
+    assert.equal(await page.locator('#compareToggleBtn').isVisible(),false);
     await page.evaluate(()=>openImageEditor('a',0));await page.waitForFunction(()=>smartImageEditor.state.ready);
     assert.equal(await page.locator('#previewCurrentVideo').getAttribute('src'),null);assert.match(await page.locator('#previewMetaHint').textContent(),/320 x 240/);
     assert.equal(await page.evaluate(()=>previewSaves),0);assert.deepEqual(errors,[]);
@@ -91,9 +91,11 @@ for(const change of ['selection','group','mode','close','destroy'])test(`Smart o
 
 test('Smart obsolete video metadata callback cannot resize or write to a new image',async t=>{
     const {page,errors}=await preview(t);await videoRoute(page);
-    await page.evaluate(()=>{nodes[0].images.push({url:'/preview.webm',name:'clip.webm',kind:'video',natural_w:160,natural_h:90});openImageEditor('a',2);window.oldVideoLoaded=document.getElementById('previewCurrentVideo').onloadedmetadata;});
+    await page.evaluate(()=>{nodes[0].images.push({url:'/preview.webm',name:'clip.webm',kind:'video',natural_w:160,natural_h:90});openImageEditor('a',2);});
+    await page.locator('.shadoxai-detail-video video').waitFor();
+    await page.evaluate(()=>window.oldVideo=document.querySelector('.shadoxai-detail-video video'));
     await page.evaluate(()=>openImageEditor('a',1));await page.waitForFunction(()=>smartImageEditor.state.ready);
-    await page.evaluate(()=>{document.getElementById('previewFrame').style.width='888px';oldVideoLoaded();});
+    await page.evaluate(()=>{document.getElementById('previewFrame').style.width='888px';oldVideo.dispatchEvent(new Event('loadedmetadata'));});
     assert.equal(await page.locator('#previewFrame').evaluate(el=>el.style.width),'888px');assert.match(await page.locator('#previewMetaHint').textContent(),/320 x 240/);assert.equal(await page.evaluate(()=>previewSaves),0);assert.deepEqual(errors,[]);
 });
 

@@ -3,6 +3,7 @@ import time
 import uuid
 from unittest.mock import patch
 import pytest
+from test_cloud_member_gateway import operator
 from fastapi import HTTPException
 from app.services.account_billing import report
 from app.services import authorization as az
@@ -16,7 +17,7 @@ from app.services.canvas_ledger import record_task,append_logs
 pytestmark=pytest.mark.skipif(os.getenv('ACCOUNT_BILLING_INTEGRATION')!='1',reason='requires isolated local PostgreSQL')
 
 @pytest.fixture
-def world(monkeypatch):
+def world(monkeypatch, operator):
     monkeypatch.setenv('AUTH_MODE', 'members')
     class Rollback(Exception): pass
     try:

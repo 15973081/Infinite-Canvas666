@@ -160,8 +160,8 @@ test('Smart active panorama to real video clears textures and gestures while ret
  const {page:p,errors}=await setup(t);const bytes=require('node:fs').readFileSync(require('node:path').join(__dirname,'fixtures/smart-preview.webm'));
  await p.route('**/pano-video.webm',r=>r.fulfill({contentType:'video/webm',body:bytes}));await enable(p);
  await p.evaluate(()=>{nodes[0].images.push({url:'/pano-video.webm',kind:'video',natural_w:160,natural_h:90});openImageEditor('pano',2);});
- await p.waitForFunction(()=>document.getElementById('previewCurrentVideo').videoWidth===160);
+ await p.waitForFunction(()=>document.querySelector('.shadoxai-detail-video video')?.videoWidth===160);
  assert.deepEqual(await p.evaluate(()=>{const s=smartPanoramaPreview.state;return [s.enabled,s.ready,s.dragging,s.framePending];}),[false,false,false,false]);assert.equal(await p.locator('#panoramaToggleBtn').isVisible(),false);
- await p.evaluate(()=>document.getElementById('previewCurrentVideo').play());await p.waitForFunction(()=>document.getElementById('previewCurrentVideo').currentTime>0);
+ await p.evaluate(()=>document.querySelector('.shadoxai-detail-video video').play());await p.waitForFunction(()=>document.querySelector('.shadoxai-detail-video video').currentTime>0);
  await p.evaluate(()=>openImageEditor('pano'));await p.waitForFunction(()=>smartImageEditor.state.ready);await enable(p);await waitPixel(p,[34,136,68,255]);assert.equal(await p.locator('#previewCurrentVideo').getAttribute('src'),null);assert.deepEqual(errors,[]);
 });

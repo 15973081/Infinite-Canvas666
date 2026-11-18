@@ -2059,13 +2059,17 @@ function createSmartImageEditor(){
         if(!image?.url) return;
 
         const kind = mediaKindForItem(image);
-        if(kind==='video')return detachedNode
-            ? window.PixmaxImagePreview.open({item:node.images[imageIndex],label:node.label})
-            : window.PixmaxImagePreview.openNode(node,imageIndex);
-        if(kind !== 'image' && kind !== 'video'){
+        if(kind==='video'){
+            closeImageEditor(true);
+            return detachedNode
+                ? window.ShadoxAIImagePreview.open({item:node.images[imageIndex],label:node.label})
+                : window.ShadoxAIImagePreview.openNode(node,imageIndex);
+        }
+        if(kind !== 'image'){
             downloadPreviewFile(image);
             return;
         }
+        window.ShadoxAIImagePreview?.close();
         closeImageEditor(true);
         target = {canvasId:canvas?.id, node, nodeIndex:nodes.indexOf(node), index:imageIndex, item:node.images[imageIndex], url:image.url, detached:Boolean(detachedNode)};
         loaded = false;
