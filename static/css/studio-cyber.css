@@ -122,7 +122,7 @@ body.studio-smart-canvas .image-node .node-body {border-radius: 6px; border-colo
 body.studio-smart-canvas .image-node.selected .node-body {border-color: var(--studio-accent)}
 body.studio-smart-canvas .smart-minimap-viewport {border-color: var(--studio-accent); background: #d2ff3a0a}
 body.studio-smart-canvas .generation-node-caption {color: var(--studio-text-muted)}
-body.studio-smart-canvas :is(.member-canvas-edit,.member-canvas-drafts,.member-canvas-results,.member-media-preview) {--mc-bg:var(--studio-panel);--mc-glass:var(--studio-panel);--mc-border:var(--studio-border);--mc-text:var(--studio-text);--mc-muted:var(--studio-text-muted);--mc-hover:var(--studio-selected);border-radius:6px}
+body.studio-smart-canvas :is(.member-canvas-drafts,.member-canvas-results) {--mc-bg:var(--studio-panel);--mc-glass:var(--studio-panel);--mc-border:var(--studio-border);--mc-text:var(--studio-text);--mc-muted:var(--studio-text-muted);--mc-hover:var(--studio-selected);border-radius:6px}
 body.studio-canvas #shell .minimap-viewport {background: #d2ff3a12!important}
 body.studio-canvas #shell .node.selected {border-color: var(--studio-accent)}
 html body.studio-canvas .shell :is(.canvas-nav,.toolbar,.minimap) {border-radius: 5px}

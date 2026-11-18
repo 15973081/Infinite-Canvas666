@@ -2,19 +2,32 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {fixture}=require('./helpers/canvas-browser.cjs');
 
-test('image node supports keyboard upload and fills the original node',async t=>{
+for(const kind of ['image','video'])test(kind+' generation node accepts dropped files without an upload button',async t=>{
     const {page,errors}=await fixture(t,'smart',true);
-    await page.evaluate(()=>{
-        window.uploadTarget=createNode(400,200,[],{select:true});
-        uploadFiles=async files=>[{url:'/test-image.svg',kind:'image',name:files[0].name}];
-    });
-    const rect=await page.locator('.empty-node').boundingBox();assert.equal(rect.width,200);assert.equal(rect.height,200);
-    assert.equal(await page.locator('.node-drop').count(),0);
-    const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'上传图片',exact:true}).focus();await page.keyboard.press('Enter');
-    assert.equal(await page.locator('input[type="file"]').last().getAttribute('accept'),'image/*');
-    await (await chooser).setFiles({name:'input.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64')});
+    const name=kind==='image'?'input.png':'input.mp4';
+    await page.evaluate(kind=>{
+        window.uploadTarget=createGenerationNodeAt({x:400,y:200},kind);
+        uploadFiles=async files=>[{url:kind==='image'?'/test-image.svg':'/tests/fixtures/pixmax-audio-source.mp4',kind,name:files[0].name,natural_w:1280,natural_h:720}];
+    },kind);
+    const node=page.locator('.generation-node');await node.hover();
+    assert.equal(await node.locator('.media-node-upload,[data-node-upload],.node-drop').count(),0);
+    assert.equal(await node.locator('.generation-node-placeholder').count(),1);
+    const transfer=await page.evaluateHandle(({kind,name})=>{
+        const data=new DataTransfer();data.items.add(new File(['test media'],name,{type:kind==='image'?'image/png':'video/mp4'}));return data;
+    },{kind,name});
+    await node.dispatchEvent('drop',{dataTransfer:transfer});
     await page.waitForFunction(()=>uploadTarget.images.length===1);
-    assert.equal(await page.evaluate(()=>nodes.length),1);assert.equal(await page.evaluate(()=>uploadTarget.images[0].name),'input.png');
+    assert.equal(await page.evaluate(()=>nodes.length),1);assert.equal(await page.evaluate(()=>uploadTarget.images[0].name),name);
+    if(kind==='video'){
+        await page.waitForFunction(()=>document.querySelector('.pixmax-player-mount video')?.readyState>=1);
+        await page.locator('.image-wrap').hover();
+        assert.equal(await page.locator('.image-resolution-badge').count(),0);
+        await page.evaluate(()=>updateImageResolutionBadgeElement(document.querySelector('.image-wrap'),uploadTarget.images[0]));
+        assert.equal(await page.locator('.image-resolution-badge').count(),0);
+    }
+    await page.locator('#shell').dispatchEvent('drop',{dataTransfer:transfer,clientX:900,clientY:650});
+    await page.waitForFunction(()=>nodes.length===2);
+    assert.equal(await page.evaluate(()=>uploadTarget.images.length),1,'dropping on the canvas creates a separate asset');
     assert.equal(await page.locator('.empty-node').count(),0);assert.deepEqual(errors,[]);
 });
 
@@ -59,7 +72,7 @@ test('node and controls preserve their context interactions, and readonly cannot
     const {page,errors}=await fixture(t,'smart',true);
     await page.evaluate(()=>{nodes=[{id:'source',type:'smart-image',x:50,y:150,images:[{url:'/test-image.svg',kind:'image'}]}];render();});
     const native=await page.evaluate(()=>document.querySelector('.image-node').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:200,clientY:200})));
-    assert.equal(native,false);assert.equal(await page.locator('.pixmax-context-menu button').count(),4);assert.equal(await page.locator('#createMenu.open').count(),0);
+    assert.equal(native,false);assert.deepEqual(await page.locator('.pixmax-context-menu button').evaluateAll(buttons=>buttons.map(button=>button.dataset.contextAction)),['asset','pin','copy','cover','delete']);assert.equal(await page.locator('#createMenu.open').count(),0);
     await page.locator('.image-node').dispatchEvent('dblclick');assert.equal(await page.locator('#createMenu.open').count(),0);
     await page.locator('.pixmax-topbar').dispatchEvent('contextmenu');assert.equal(await page.locator('#createMenu.open').count(),0);
     await page.locator('.pixmax-topbar').dispatchEvent('dblclick');assert.equal(await page.locator('#createMenu.open').count(),0);

@@ -5,7 +5,7 @@ const {fixture}=require('./helpers/canvas-browser.cjs');
 test('overlapping nodes keep captions and resolution badges inside their own layer',async t=>{
  const {page,errors}=await fixture(t,'smart',true,{secureOrigin:true});
  await page.evaluate(()=>{
-  window.backNode=createNode(320,320,[{url:'/tests/fixtures/pixmax-audio-source.mp4',kind:'video',width:1280,height:720}],{select:false});
+  window.backNode=createNode(320,320,[{url:'/test-image.svg',kind:'image',width:1280,height:720}],{select:false});
   window.frontNode=createPromptNode(250,250,{select:false});frontNode.w=360;frontNode.h=260;frontNode.text='前景节点';render();
  });
  const sample=()=>page.evaluate(()=>{

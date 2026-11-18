@@ -16,6 +16,14 @@ test('presence retains a fresh roster on failure, exposes a usable stale state, 
  const summary=page.locator('.member-canvas-presence > summary');
  await page.waitForFunction(()=>document.querySelector('.member-canvas-presence > summary')?.textContent==='1 人在线');
  await summary.click();await page.getByText('名单验收（你） · 查看中',{exact:true}).waitFor();
+ const more=page.locator('.member-canvas-more');
+ await more.locator('summary').click();
+ assert.equal(await page.locator('.member-canvas-presence').getAttribute('open'),null,'opening more closes the roster');
+ assert.equal(await more.getAttribute('open'),'');
+ await summary.focus();await summary.press('Enter');
+ assert.equal(await more.getAttribute('open'),null,'opening the roster by keyboard closes more');
+ assert.equal(await page.locator('.member-canvas-edit details[open]').count(),1);
+ await page.getByText('名单验收（你） · 查看中',{exact:true}).waitFor();
  const edit=page.getByRole('button',{name:'开始编辑',exact:true});
  assert.equal(await edit.evaluate(el=>getComputedStyle(el).fontSize),'0px');
  assert.equal(await page.locator('.member-presence-person').evaluate(el=>getComputedStyle(el).whiteSpace),'nowrap');

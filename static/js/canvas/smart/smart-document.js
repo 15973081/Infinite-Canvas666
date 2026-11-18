@@ -442,14 +442,24 @@ function renderSmartCanvasBackups(backups){
             <div class="log-subline"><span>${new Date(backup.timestamp).toLocaleString()}</span><span>${backup.node_count || 0} 个节点</span><span>${backup.size > 1024 ? `${(backup.size / 1024).toFixed(1)} KB` : `${backup.size || 0} B`}</span></div>
         </div>
         <div class="backup-row-actions">
-            <button class="preview-icon-btn" type="button" data-backup-restore="${escapeAttr(backup.filename)}" title="恢复"><i data-lucide="rotate-ccw"></i></button>
-            <button class="preview-icon-btn" type="button" data-backup-delete="${escapeAttr(backup.filename)}" title="删除"><i data-lucide="trash-2"></i></button>
+            <button class="preview-icon-btn" type="button" data-backup-restore="${escapeAttr(backup.filename)}" title="恢复"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+  <path d="M3 3v5h5" />
+  <path d="M12 7v5l4 2" /></svg></button>
+            <button class="preview-icon-btn" type="button" data-backup-delete="${escapeAttr(backup.filename)}" title="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18" />
+  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+  <line x1="10" x2="10" y1="11" y2="17" />
+  <line x1="14" x2="14" y1="11" y2="17" /></svg></button>
         </div>
     </div>`).join('') : '<div class="log-empty">暂无备份</div>';
     shell.insertAdjacentHTML('beforeend', `<div id="smartBackupModal" class="log-modal open" onclick="if(event.target===this) closeSmartCanvasBackups()">
         <div class="log-panel backup-panel">
-            <div class="log-head"><div class="log-title">画布备份</div><button class="preview-icon-btn" type="button" onclick="closeSmartCanvasBackups()" title="关闭"><i data-lucide="x"></i></button></div>
-            <button class="run-btn backup-create" type="button" onclick="createSmartCanvasBackup()"><i data-lucide="hard-drive"></i><span>立即备份</span></button>
+            <div class="log-head"><div class="log-title">画布备份</div><button class="preview-icon-btn" type="button" onclick="closeSmartCanvasBackups()" title="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" />
+  <path d="m6 6 12 12" /></svg></button></div>
+            <div class="backup-toolbar"><p>创建当前画布的节点与连线快照，支持随时回滚恢复</p><button class="backup-create" type="button" onclick="createSmartCanvasBackup()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" x2="2" y1="12" y2="12" />
+  <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+  <line x1="6" x2="6.01" y1="16" y2="16" />
+  <line x1="10" x2="10.01" y1="16" y2="16" /></svg><span>立即备份</span></button></div>
             <div class="log-list">${rows}</div>
         </div>
     </div>`);

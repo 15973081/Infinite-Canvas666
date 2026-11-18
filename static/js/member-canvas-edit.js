@@ -588,6 +588,7 @@
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
             const more=element('details'), moreSummary=element('summary','更多'), moreItems=element('div');
             more.className='member-canvas-more'; moreItems.className='member-canvas-menu';
+            more.setAttribute('name','member-canvas-popover');presencePanel.setAttribute('name','member-canvas-popover');
             if(options.snapshot().kind!=='smart'||!window.MemberCanvasHistory)moreItems.append(button('自动草稿',() => {more.open=false;return showDrafts();}));
             moreItems.append(button('刷新占用状态',async () => {
                     if(!validEntry(entry))throw new Error('当前会话已暂停，请先确认登录状态。');

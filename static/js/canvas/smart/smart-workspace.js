@@ -1915,6 +1915,7 @@ function thumbMediaHtml(img, deferPreview=false){
 }
 
 function imageResolutionLabel(img){
+    if(isVideoMediaItem(img))return '';
     const w = Number(img?.natural_w || img?.width || img?.w || 0);
     const h = Number(img?.natural_h || img?.height || img?.h || 0);
     return w > 0 && h > 0 ? `${Math.round(w)} x ${Math.round(h)}` : '';
@@ -2163,7 +2164,7 @@ function smartNodeMediaBodyHtml(node, layout){
     if(generationKind) return `<button class="generation-node-placeholder" type="button" aria-label="编辑${generationKind === 'video' ? '视频' : '图片'}生成提示词">
         ${pixmaxSvg(generationKind==='video'?'video-fill':'image-fill')}
         <span>点击输入提示词</span>
-    </button><button class="media-node-upload" type="button" data-node-upload aria-label="上传${generationKind === 'video' ? '视频' : '图片'}" title="上传${generationKind === 'video' ? '视频' : '图片'}，也可直接拖入"><i data-lucide="upload" aria-hidden="true"></i></button>`;
+    </button>`;
     if(isSmartVideoAssetNode(node))return `<button class="node-drop" type="button" data-node-upload aria-label="上传视频">${pixmaxSvg('video-fill')}</button>`;
     return `<button class="node-drop" type="button" data-upload-action="files" aria-label="上传图片、视频或音频">${pixmaxSvg('image-fill')}</button>`;
 }
