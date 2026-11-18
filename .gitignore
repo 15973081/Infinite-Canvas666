@@ -24,3 +24,21 @@ node_modules/
 
 # Local editor workspace settings
 .idea/
+
+# 本地配置和运行数据
+/API/.env
+/assets/
+/data/
+/history.json
+
+# 浏览器测试结果
+/frontend/test-results/
+
+# 本地安装的 Python 依赖和工具
+/python/Lib/site-packages/
+/python/Scripts/
+/python/share/
+
+# 本地验收截图，保留 output 下其他类型的正式交付物
+/output/**/*.png
+/output/**/*.jpg
