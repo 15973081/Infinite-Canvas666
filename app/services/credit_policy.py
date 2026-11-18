@@ -185,7 +185,9 @@ def management(actor, *, config=None, expected_version=None, reason=''):
                      details={'version': current['version'] + 1, 'reason': reason.strip(),
                               'before': current['config'], 'after': clean})
             current = read(conn)
+        from app.services.credit_catalog import read as read_catalog
         return {**current, 'reference': 'Pixmax 2026-10-16',
+                'model_catalog': read_catalog(conn, current['config']['rules']),
                 'mode': MODE}
 
 

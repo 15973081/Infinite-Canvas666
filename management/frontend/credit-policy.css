@@ -17,4 +17,14 @@
 .credit-policy .actions{display:flex;align-items:end;gap:16px}
 .credit-policy .actions label{flex:1}
 .credit-policy [disabled]{opacity:.65}
+.credit-policy-model-picker>label:last-child{grid-column:1/-1}
+.credit-policy-bindings{padding:16px;border:1px solid rgba(113,113,122,.2);border-radius:8px;line-height:1.65;overflow-wrap:anywhere}
+.credit-policy-bindings h3{margin:0 0 12px;font-size:15px;font-weight:600}
+.credit-policy-bindings ul,.credit-policy-unmapped ul{margin:12px 0 0;padding-left:20px;overflow-wrap:anywhere}
+.credit-policy-bindings li+li{margin-top:6px}
+.credit-policy-trial-model{grid-column:1/-1;margin:0;overflow-wrap:anywhere;font-weight:500}
+.credit-policy-unmapped summary{list-style:none;display:flex;align-items:center;gap:8px}
+.credit-policy-unmapped summary::-webkit-details-marker{display:none}
+.credit-policy-unmapped summary::before{content:'';width:16px;height:16px;flex:none;background:center/16px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");transition:transform .15s}
+.credit-policy-unmapped[open] summary::before{transform:rotate(90deg)}
 @media(max-width:700px){.credit-policy fieldset{padding:14px}.credit-policy-tiers .provider-fields{grid-template-columns:1fr}.credit-policy .actions{align-items:stretch;flex-direction:column}}

@@ -48,6 +48,7 @@ def test_policy_auditor_can_read_and_quote_but_not_write(platform):
     token=members.login(target['username'],PASSWORD,audience='management',source=uuid.uuid4().hex)['token']
     actor=members.resolve_session(token,'management')
     data=credit_policy.management(actor)
+    assert 'model_catalog' in data
     assert credit_policy.preview(actor,CreditPolicyPreview(kind='topup'))['total']==1190
     with pytest.raises(HTTPException) as exc:
         credit_policy.management(actor,config=data['config'],expected_version=data['version'],reason='denied')
@@ -108,3 +109,35 @@ def test_member_credit_policy_public_projection_auth_and_management_updates(plat
         restored = admin.put('/api/credits/policy', json={
             'config': defaults(), 'expected_version': current['version'], 'reason': '恢复测试默认配置'})
         assert restored.status_code == 200
+
+
+def test_credit_catalog_tracks_live_provider_availability_without_rewriting_rules(platform):
+    import uuid
+    from app.services import provider_control
+    client = platform['client']
+    actor = platform['operator']
+    pid = 'credit-catalog-' + uuid.uuid4().hex[:12]
+    config = {'name': '目录关联验收', 'protocol': 'openai', 'enabled': True,
+              'base_url': 'https://private-catalog.example',
+              'chat_models': ['gemini-2.5-pro', 'gemini-2.5-pro-preview'],
+              'model_policies': {'chat:gemini-2.5-pro': {'enabled': True, 'visible': False}}}
+    provider = provider_control.save(actor, pid, config, 0, secrets={'api_key': 'not-for-credit-catalog'}, reason='目录关联验收')
+    before = client.get('/api/credits/policy').json()
+    binding = next(b for b in before['model_catalog']['bindings'] if b['provider_id'] == pid)
+    assert binding['model_code'] == 'GEMINI_25_PRO' and not binding['enabled']
+    assert binding['model_id'] == 'gemini-2.5-pro'
+    assert any(b['model_id'] == 'gemini-2.5-pro-preview' for b in before['model_catalog']['unmapped_models'])
+    assert 'private-catalog.example' not in str(before) and 'not-for-credit-catalog' not in str(before)
+    config['model_policies'] = {}
+    provider = provider_control.save(actor, pid, config, provider['version'], reason='开放已映射模型')
+    after = client.get('/api/credits/policy').json()
+    assert next(b for b in after['model_catalog']['bindings'] if b['provider_id'] == pid)['enabled']
+    assert after['config'] == before['config'] and after['version'] == before['version']
+    saved = client.put('/api/credits/policy', json={'config': after['config'], 'expected_version': after['version'],
+                                                 'reason': '验证目录投影与价格保存分离'}).json()
+    assert saved['config'] == before['config']
+    assert saved['model_catalog'] == after['model_catalog']
+    config['enabled'] = False
+    provider_control.save(actor, pid, config, provider['version'], reason='停用目录验收供应商')
+    disabled = client.get('/api/credits/policy').json()
+    assert not next(b for b in disabled['model_catalog']['bindings'] if b['provider_id'] == pid)['enabled']
