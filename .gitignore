@@ -42,3 +42,7 @@ node_modules/
 # 本地验收截图，保留 output 下其他类型的正式交付物
 /output/**/*.png
 /output/**/*.jpg
+
+# 本地工具配置与未引用样式草稿
+/reasonix.toml
+/static/css/smart-pixmax.css
