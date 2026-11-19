@@ -426,7 +426,15 @@ main>header .scope select{border:0;border-left:1px solid #e5e8ef;border-radius:0
 .provider-catalog>label{max-width:340px;margin-bottom:16px}.provider-catalog td:last-child{white-space:nowrap}
 .credit-gifts{gap:0}.credit-gifts>.muted{background:#f1f5ff;padding:12px 16px;margin:0 0 20px;font-size:12px}
 .credit-gifts fieldset{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}.credit-gifts legend{font-size:16px}
-.credit-gifts [data-credit-panel=grant]{max-width:1000px}.credit-gifts .actions{justify-content:flex-start;border-top:1px solid #e5e8ef;padding-top:20px}
+.credit-presets,.credit-account-summary{grid-column:1/-1}
+.credit-presets{display:flex;gap:8px;flex-wrap:wrap}
+.credit-account-field{display:flex;align-items:end;gap:8px;margin:16px 0}
+.credit-account-field label{flex:1;min-width:0;margin:0}
+.credit-account-field button{white-space:nowrap;align-self:end;min-height:34px}
+.credit-account-summary{margin:0;overflow-wrap:anywhere}.credit-account-summary:empty{display:none}
+.credit-gifts select{appearance:none;padding-right:32px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:14px}
+.credit-gifts :is([data-credit-panel=grant],[data-credit-panel=deduct]){max-width:1000px}.credit-gifts .actions{justify-content:flex-start;border-top:1px solid #e5e8ef;padding-top:20px}
+.credit-gifts [data-credit-panel=deduct] textarea{resize:none}
 .credit-steps{display:flex;list-style:none;counter-reset:steps;margin:0 0 28px;padding:0 0 22px;border-bottom:1px solid #e5e8ef}
 .credit-steps li{counter-increment:steps;flex:1;color:#86909c;display:flex;align-items:center;gap:10px}.credit-steps li::before{content:counter(steps);display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#f2f3f5;color:#86909c}
 .credit-steps li.current{color:#1664ff}.credit-steps li.current::before{color:white;background:#1664ff}

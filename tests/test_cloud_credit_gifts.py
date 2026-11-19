@@ -2,6 +2,7 @@
 import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
@@ -15,6 +16,23 @@ def person(platform):
     from app.services import members
     invited = invite(platform['client'])
     return members.activate(invited['activation_token'], PASSWORD)
+
+
+def test_management_username_balance_matches_gift_preview(platform):
+    target = person(platform)
+    client = platform['client']
+    query = {'username': target['username'].upper()}
+    path = '/api/credits/wallets'
+    assert client.get(path, params=query).json()['wallet']['availableBalance'] == '0'
+    data = body(target, category='recharge')
+    ready = preview(client, data)
+    assert client.post('/api/credits/gifts/apply', json=ready).status_code == 200
+    result = client.get(path, params=query).json()
+    assert result['target']['id'] == target['id']
+    assert result['wallet'] == dict(total_balance='125', recharge_balance='125', gift_balance='0',
+                                    frozenBalance='0', availableBalance='125')
+    assert client.post('/api/credits/gifts/preview', json=body(target)).json()['wallet'] == result['wallet']
+    assert client.get(path, params={'username':'absent-account'}).status_code == 409
 
 
 def body(target, **changes):
@@ -56,10 +74,51 @@ def test_credit_gift_preview_apply_and_retry_are_one_atomic_entry(platform):
     assert result.headers['cache-control'] == 'no-store'
 
 
+@pytest.mark.parametrize('category, relative', [('recharge', True), ('gift', False)])
+def test_credit_gift_category_expiry_preview_and_original_add_receipt(platform, category, relative):
+    from app.services.credit_wallet import settle_expired_grants
+    from app.storage.database import connection
+    client = platform['client']
+    target = person(platform)
+    now = datetime.now(timezone.utc)
+    expiry = {'valid_days': 7} if relative else {'expires_at': (now + timedelta(days=7)).isoformat()}
+    data = body(target, category=category, **expiry)
+    planned = client.post('/api/credits/gifts/preview', json=data).json()
+    assert (planned['category'], planned['validity'], planned['valid_days'], planned['expires_at']) == (
+        category, 'FIXED_EXPIRY', expiry.get('valid_days'), expiry.get('expires_at'))
+    ready = {**data, 'preview_token': planned['preview_token']}
+    for change in ({'category': 'gift' if category == 'recharge' else 'recharge'},
+                   {'valid_days': 8} if relative else {'expires_at': (now + timedelta(days=8)).isoformat()}):
+        assert client.post('/api/credits/gifts/apply', json={**ready, **change}).status_code == 409
+    response = client.post('/api/credits/gifts/apply', json=ready)
+    assert response.status_code == 200, response.text
+    receipt = response.json()
+    assert (receipt['source'], receipt['category'], receipt['validity']) == ('PLATFORM_GIFT', category, 'FIXED_EXPIRY')
+    actual_expiry = datetime.fromisoformat(receipt['expires_at'])
+    if relative:
+        assert now <= actual_expiry - timedelta(days=expiry['valid_days']) <= datetime.now(timezone.utc)
+    else:
+        assert actual_expiry == datetime.fromisoformat(expiry['expires_at'])
+    with connection() as conn:
+        wallet = conn.execute('SELECT * FROM credit_wallets WHERE member_id=%s FOR UPDATE', (target['id'],)).fetchone()
+        assert (wallet['recharge_balance'], wallet['gift_balance']) == ((125, 0) if category == 'recharge' else (0, 125))
+        conn.execute("UPDATE credit_grants SET expires_at=clock_timestamp()-interval '1 day' WHERE id=%s",
+                     (receipt['grant_id'],))
+        settle_expired_grants(conn, target['id'])
+    replay = client.post('/api/credits/gifts/apply', json=ready).json()
+    assert (replay['transaction_id'], replay['balance_after']) == (receipt['transaction_id'], '125')
+    history = client.get('/api/credits/gifts', params={'request_id': receipt['request_id']}).json()['entries']
+    assert len(history) == 1
+    assert (history[0]['transaction_id'], history[0]['category']) == (receipt['transaction_id'], category)
+
+
 @pytest.mark.parametrize('changes', [
     {'amount':'0'}, {'amount':'-1'}, {'amount':'1.5'}, {'amount':True}, {'amount':125},
     {'amount':'9223372036854775808'}, {'reason':'  '}, {'evidence_ref':'  '},
     {'source':'RECHARGE'}, {'actor_id':'forged'}, {'validity':'EXPIRING'},
+    {'category':'restricted'}, {'valid_days':0}, {'valid_days':True},
+    {'expires_at':'2099-01-01'}, {'expires_at':'2000-01-01T00:00:00Z'},
+    {'expires_at':'2099-01-01T00:00:00Z','valid_days':7},
 ])
 def test_credit_gift_rejects_unverified_or_invalid_inputs(platform, changes):
     target = person(platform); data = {**body(target), **changes}

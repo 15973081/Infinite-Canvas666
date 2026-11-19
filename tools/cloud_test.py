@@ -92,6 +92,7 @@ def main(argv=None):
             suites.append("test_cloud_subject_library.py")
             suites.append("test_cloud_camera_motions.py")
             suites.extend(["test_credit_wallet.py", "test_cloud_credit_wallet.py", "test_cloud_credit_gifts.py", "test_cloud_account_tasks.py"])
+            suites.append("test_cloud_credit_deductions.py")
             suites.append("test_cloud_tenants.py")
             suites.append("test_cloud_credit_policy.py")
             suites.append("test_cloud_credit_consumption.py")

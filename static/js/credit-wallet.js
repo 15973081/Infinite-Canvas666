@@ -54,9 +54,10 @@
       for(const entry of data.entries){
         const row=el('tr');
         const values=[new Date(entry.created_at).toLocaleString('zh-CN'),
-          ({recharge:'充值积分',gift:'赠送积分',mixed:'赠送及充值积分'}[entry.category]||'积分')+' / '+(entry.type==='SPEND'?'消费':sources[entry.source]||entry.source),
+          ({recharge:'充值积分',gift:'赠送积分',mixed:'赠送及充值积分'}[entry.category]||'积分')+' / '+({SPEND:'消费',EXPIRE:'到期扣除',DEDUCT:'管理员扣减'}[entry.type]||sources[entry.source]||entry.source),
           (entry.type==='ADD'?'+':'−')+points(entry.amount),points(entry.balance_after),entry.remaining_amount==null?'—':points(entry.remaining_amount),
-          entry.type==='SPEND'?'—':entry.validity==='PERMANENT'?'永久有效':'待核实',entry.note||'—'];
+          entry.expires_at!=null?new Date(entry.expires_at).toLocaleString('zh-CN'):entry.validity==='PERMANENT'?'永久有效':'—',
+          entry.type==='EXPIRE'?'批次到期':entry.note||'—'];
         for(const value of values)row.append(el('td',value));body.append(row);
       }
       rows.replaceChildren(table);

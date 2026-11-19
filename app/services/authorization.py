@@ -15,7 +15,7 @@ from app.storage.database import connection
 AUTH_LOCK = 642193004
 PLATFORM_PERMISSIONS = {
     'tenant.manage': '管理企业租户',
-    'credits.gift.platform': '赠送并查看平台赠送积分',
+    'credits.gift.platform': '发放、扣减平台积分并查看相关记录',
     'credits.configure.platform': '配置平台积分规则',
     'billing.platform': '查看平台账号费用',
     'billing.assign.platform': '调整平台费用归属',

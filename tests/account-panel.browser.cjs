@@ -146,7 +146,7 @@ test('task list renders frozen, settled, partial, released and historical credit
  assert.deepEqual(errors,[]);
 });
 
-test('account consumption and grant tabs request separate transaction types',async t=>{
+test('account consumption, grant, expiry and deduction tabs request separate transaction types',async t=>{
  const {page,calls,errors}=await setup(t);
  await page.getByRole('button',{name:'积分明细',exact:true}).click();
  await page.getByText('赠送积分 / 平台赠送',{exact:true}).waitFor();
@@ -154,6 +154,20 @@ test('account consumption and grant tabs request separate transaction types',asy
  await page.getByRole('tab',{name:'消耗明细',exact:true}).click();
  await page.getByText('赠送积分 / 平台赠送',{exact:true}).waitFor();
  assert.equal(calls.filter(c=>c.path==='/api/account/credits'&&c.query.category!==undefined).at(-1).query.transaction_type,'SPEND');
+ await page.route('**/api/account/credits?*',route=>route.fulfill({json:{wallet:{total_balance:'0',recharge_balance:'0',gift_balance:'0',frozenBalance:'0',availableBalance:'0'},
+   page:1,pages:1,records:1,entries:[{type:'EXPIRE',category:'gift',source:'PLATFORM_GIFT',amount:'20',balance_after:'0',
+     remaining_amount:'0',validity:'FIXED_EXPIRY',created_at:1792001000000,expires_at:1792000000000}]}}));
+ await page.getByRole('tab',{name:'过期明细',exact:true}).click();
+ await page.getByText('赠送积分 / 到期扣除',{exact:true}).waitFor();
+ await page.getByText('−20',{exact:true}).waitFor();
+ const deducted = page.waitForRequest(r => new URL(r.url()).searchParams.get('transaction_type') === 'DEDUCT');
+ await page.route('**/api/account/credits?*',route=>route.fulfill({json:{wallet:{total_balance:'0',recharge_balance:'0',gift_balance:'0',frozenBalance:'0',availableBalance:'0'},
+   page:1,pages:1,records:1,entries:[{type:'DEDUCT',category:'recharge',source:'PLATFORM_GIFT',amount:'25',balance_after:'0',
+     remaining_amount:'0',validity:'PERMANENT',created_at:1792001000000,expires_at:null,note:'管理员扣减积分'}]}}));
+ await page.getByRole('tab',{name:'扣减明细',exact:true}).click();
+ await deducted;
+ await page.getByText('充值积分 / 管理员扣减',{exact:true}).waitFor();
+ await page.getByText('−25',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);
 });
 

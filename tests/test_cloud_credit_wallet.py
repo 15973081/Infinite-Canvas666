@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 import pytest
 from test_cloud_member_gateway import operator, world
 from app.storage.database import connection
@@ -7,13 +8,37 @@ from app.services.credit_wallet import record_grant
 pytestmark=pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST')!='1',reason='Use tools/cloud_test.py')
 
 
+def test_credit_wallet_http_materializes_expiry_once(world):
+    owner = world['people'][0]['id']
+    client = world['editor']
+    path = '/api/account/credits'
+    expiry = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=1)
+    with connection() as conn:
+        grant = record_grant(conn, owner, source='PLATFORM_GIFT', category='gift',
+                             amount=100, reference='fixed', expires_at=expiry)
+    initial = client.get(path).json()
+    assert initial['entries'][0]['expires_at'] == int(expiry.timestamp() * 1000)
+    assert initial['wallet']['gift_balance'] == '100'
+    with connection() as conn:
+        conn.execute("UPDATE credit_grants SET expires_at=clock_timestamp()-interval '1 day' WHERE id=%s", (grant,))
+    params = {'transaction_type': 'EXPIRE', 'category': 'gift'}
+    result = client.get(path, params=params).json()
+    assert result['wallet']['gift_balance'] == result['wallet']['availableBalance'] == '0'
+    assert result['records'] == 1
+    row = result['entries'][0]
+    assert (row['type'], row['grant_id'], row['category'], row['amount'], row['remaining_amount']) == (
+        'EXPIRE', grant, 'gift', '100', '0')
+    assert isinstance(row['expires_at'], int)
+    assert client.get(path, params=params).json() == result
+
+
 def test_credit_wallet_http_identity_filter_and_no_public_writes(world):
     from fastapi.testclient import TestClient
     from main import app
     owner=world['people'][0]['id'];other=world['people'][1]['id']
     with connection() as conn:
-        record_grant(conn,owner,source='RECHARGE',amount=100,reference='verified:1',validity='PERMANENT')
-        record_grant(conn,owner,source='RECHARGE_GIFT',amount=15,reference='verified:1:gift',validity='PERMANENT')
+        record_grant(conn,owner,source='RECHARGE',amount=100,reference='verified:1')
+        record_grant(conn,owner,source='RECHARGE_GIFT',amount=15,reference='verified:1:gift')
     client=world['editor'];path='/api/account/credits'
     response=client.get(path,headers={'X-Member-ID':owner})
     assert response.status_code==200,response.text

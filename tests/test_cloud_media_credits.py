@@ -44,7 +44,7 @@ def env(world):
     canvas=saved.json()['canvas'];lease={**lease,'revision':canvas['revision']}
     owner=world['people'][0]['id']
     with database.connection() as conn:
-        credit_wallet.record_grant(conn,owner,source='PLATFORM_GIFT',amount=100000,reference=uuid.uuid4().hex,validity='PERMANENT')
+        credit_wallet.record_grant(conn,owner,source='PLATFORM_GIFT',amount=100000,reference=uuid.uuid4().hex)
     return {**world,'path':path,'canvas':canvas,'lease':lease,'url':url,'member':owner}
 
 

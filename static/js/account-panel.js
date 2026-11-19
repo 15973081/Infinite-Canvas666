@@ -149,9 +149,9 @@
       async function choose(id){const generation=++tabVersion;dispose();dispose=()=>{};content.replaceChildren();switches.querySelectorAll('button').forEach(b=>{b.classList.toggle('active',b.dataset.tab===id);b.setAttribute('aria-selected',String(b.dataset.tab===id));});
         if(id==='assistant'){content.append(el('div','创作助手积分结算尚未接入。已有调用费用可在任务明细中查看。','account-empty'));return;}
         await import('/static/js/credit-wallet.js');if(!active()||version!==stamp||generation!==tabVersion)return;
-        const view=window.CanvasCreditWallet.create({isActive:active,transactionType:id==='usage'?'SPEND':'ADD',fetchReport:(params,signal)=>request('/api/account/credits?'+new URLSearchParams(params),{signal})});dispose=view.dispose;content.append(view.element);
+        const view=window.CanvasCreditWallet.create({isActive:active,transactionType:{usage:'SPEND',expiry:'EXPIRE',grants:'ADD',deductions:'DEDUCT'}[id],fetchReport:(params,signal)=>request('/api/account/credits?'+new URLSearchParams(params),{signal})});dispose=view.dispose;content.append(view.element);
       }
-      for(const [id,label] of [['usage','消耗明细'],['assistant','创作助手'],['grants','充值明细']]){const b=button(label,()=>void choose(id));b.dataset.tab=id;b.setAttribute('role','tab');switches.append(b);}switches.setAttribute('role','tablist');await choose('grants');
+      for(const [id,label] of [['usage','消耗明细'],['assistant','创作助手'],['grants','充值明细'],['expiry','过期明细'],['deductions','扣减明细']]){const b=button(label,()=>void choose(id));b.dataset.tab=id;b.setAttribute('role','tab');switches.append(b);}switches.setAttribute('role','tablist');await choose('grants');
     }
     function tasks(stamp){
       function creditText(row){

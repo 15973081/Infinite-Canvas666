@@ -2,9 +2,10 @@
 
 record_grant is an internal transaction primitive; credit_gifts adds management
 authorization, explicit confirmation, private provenance and atomic audit.
-It requires an explicit source, business reference and permanent validity;
+It requires an explicit source and business reference;
 it never infers payment success, reward eligibility or converts currency.
 """
+from datetime import datetime
 import uuid
 
 from fastapi import HTTPException
@@ -13,6 +14,7 @@ from app.services import authorization as az
 
 SOURCES = {'RECHARGE': 'recharge', 'RECHARGE_GIFT': 'gift', 'PLATFORM_GIFT': 'gift'}
 MAX_CREDITS = 9223372036854775807
+EXPIRABLE = 'member_id=%s AND expires_at IS NOT NULL AND remaining_amount>frozen_amount'
 
 
 class CreditWalletError(ValueError):
@@ -27,9 +29,81 @@ def _credits(value, *, allow_zero=False):
         raise CreditWalletError('invalid_credit_amount')
 
 
+def settle_expired_grants(conn, member_id, *, cutoff=None):
+    """Expire the unfrozen portion of batches with the member's wallet locked."""
+    grants = conn.execute(f'''SELECT id,category,remaining_amount-frozen_amount AS expired
+        FROM credit_grants WHERE {EXPIRABLE} AND expires_at<=coalesce(%s,(SELECT clock_timestamp()))
+        ORDER BY expires_at,created_at,id FOR UPDATE''', (member_id, cutoff)).fetchall()
+    wallet = None
+    for grant in grants:
+        expired = grant['expired']
+        conn.execute('UPDATE credit_grants SET remaining_amount=remaining_amount-%s WHERE id=%s',
+                     (expired, grant['id']))
+        wallet = conn.execute('''UPDATE credit_wallets SET recharge_balance=recharge_balance-%s,
+            gift_balance=gift_balance-%s WHERE member_id=%s RETURNING *''',
+            (expired if grant['category'] == 'recharge' else 0,
+             expired if grant['category'] == 'gift' else 0, member_id)).fetchone()
+        conn.execute('''INSERT INTO credit_transactions(member_id,grant_id,type,amount,balance_after)
+            VALUES(%s,%s,'EXPIRE',%s,%s)''',
+            (member_id, grant['id'], expired, wallet['recharge_balance'] + wallet['gift_balance']))
+    return wallet
+
+
+def _available_grants(conn, member_id, cutoff=None, *, lock=False):
+    return conn.execute('''SELECT id,category,remaining_amount-frozen_amount AS available
+        FROM credit_grants WHERE member_id=%s AND remaining_amount>frozen_amount
+          AND (expires_at IS NULL OR expires_at>coalesce(%s,(SELECT clock_timestamp())))
+        ORDER BY CASE WHEN category='gift' THEN 0 ELSE 1 END,expires_at ASC NULLS LAST,created_at,id'''
+        + (' FOR UPDATE' if lock else ''), (member_id, cutoff)).fetchall()
+
+
+def deduction_plan(conn, member_id, *, amount, category=None, cutoff=None, lock=False):
+    _credits(amount)
+    if category not in (None, 'gift', 'recharge'):
+        raise CreditWalletError('invalid_credit_deduction_category')
+    grants = [g for g in _available_grants(conn, member_id, cutoff, lock=lock)
+              if category is None or g['category'] == category]
+    available = sum(g['available'] for g in grants)
+    if available < amount:
+        raise CreditWalletError('insufficient_credits', available_balance=available, required_credits=amount)
+    remaining = amount
+    allocations = []
+    for grant in grants:
+        deducted = min(remaining, grant['available'])
+        allocations.append(dict(grant_id=grant['id'], category=grant['category'], amount=deducted))
+        remaining -= deducted
+        if not remaining:
+            break
+    return {'available_before': available, 'available_after': available - amount, 'allocations': allocations}
+
+
+def deduct_credits(conn, member_id, *, amount, category=None, confirm=None):
+    """Correct available credits under the wallet lock, recording each affected batch."""
+    with conn.transaction():
+        conn.execute('SELECT 1 FROM credit_wallets WHERE member_id=%s FOR UPDATE', (member_id,))
+        cutoff = conn.execute('SELECT clock_timestamp() AS cutoff').fetchone()['cutoff']
+        settle_expired_grants(conn, member_id, cutoff=cutoff)
+        plan = deduction_plan(conn, member_id, amount=amount, category=category, cutoff=cutoff, lock=True)
+        if confirm:
+            confirm(plan)
+        for allocation in plan['allocations']:
+            deducted = allocation['amount']
+            conn.execute('UPDATE credit_grants SET remaining_amount=remaining_amount-%s WHERE id=%s',
+                         (deducted, allocation['grant_id']))
+            wallet = conn.execute('''UPDATE credit_wallets SET gift_balance=gift_balance-%s,
+                recharge_balance=recharge_balance-%s WHERE member_id=%s RETURNING gift_balance+recharge_balance AS total''',
+                (deducted if allocation['category'] == 'gift' else 0,
+                 deducted if allocation['category'] == 'recharge' else 0, member_id)).fetchone()
+            entry = conn.execute('''INSERT INTO credit_transactions(member_id,grant_id,type,amount,balance_after)
+                VALUES(%s,%s,'DEDUCT',%s,%s) RETURNING id''',
+                (member_id, allocation['grant_id'], deducted, wallet['total'])).fetchone()
+            allocation['transaction_id'] = entry['id']
+        return plan
+
+
 def freeze_credits(conn, member_id, *, source_type, source_id, credits,
                    quote_version, quote_snapshot, workspace_id=None, model_code=None):
-    """Reserve gift-first FIFO credits in the caller's transaction; never submit work."""
+    """Reserve gifts first, then the earliest expiry within each category."""
     _credits(credits)
     if (source_type not in {'canvas_task', 'chat_call'} or not isinstance(source_id, str)
             or not source_id.strip() or len(source_id) > 240
@@ -40,6 +114,9 @@ def freeze_credits(conn, member_id, *, source_type, source_id, credits,
         conn.execute('SELECT pg_advisory_xact_lock_shared(%s)', (az.AUTH_LOCK,))
         conn.execute('INSERT INTO credit_wallets(member_id) VALUES(%s) ON CONFLICT DO NOTHING', (member_id,))
         wallet = conn.execute('SELECT * FROM credit_wallets WHERE member_id=%s FOR UPDATE', (member_id,)).fetchone()
+        # Use one database time for expiry and allocation in this reservation.
+        cutoff = conn.execute('SELECT clock_timestamp() AS cutoff').fetchone()['cutoff']
+        wallet = settle_expired_grants(conn, member_id, cutoff=cutoff) or wallet
         existing = conn.execute('SELECT * FROM credit_holds WHERE source_type=%s AND source_id=%s',
                                 (source_type, source_id)).fetchone()
         if existing:
@@ -66,12 +143,10 @@ def freeze_credits(conn, member_id, *, source_type, source_id, credits,
         available = wallet['recharge_balance'] + wallet['gift_balance'] - wallet['frozen_balance']
         if available < credits:
             raise CreditWalletError('insufficient_credits', available_balance=available, required_credits=credits)
-        grants = conn.execute('''SELECT * FROM credit_grants
-            WHERE member_id=%s AND remaining_amount>frozen_amount
-            ORDER BY CASE category WHEN 'gift' THEN 0 ELSE 1 END,created_at,id FOR UPDATE''', (member_id,)).fetchall()
+        grants = _available_grants(conn, member_id, cutoff, lock=True)
         remaining = credits
         for grant in grants:
-            amount = min(remaining, grant['remaining_amount'] - grant['frozen_amount'])
+            amount = min(remaining, grant['available'])
             conn.execute('UPDATE credit_grants SET frozen_amount=frozen_amount+%s WHERE id=%s', (amount, grant['id']))
             conn.execute('''INSERT INTO credit_hold_allocations(hold_id,grant_id,member_id,category,frozen_amount)
                 VALUES(%s,%s,%s,%s,%s)''', (hold['id'], grant['id'], member_id, grant['category'], amount))
@@ -85,7 +160,7 @@ def freeze_credits(conn, member_id, *, source_type, source_id, credits,
 
 
 def _settlement_parts(allocations, actual_credits):
-    """Consume the FIFO prefix; its unused suffix is the reverse-order release."""
+    """Consume the prefix in reservation order and release the unused suffix."""
     remaining = actual_credits
     parts = []
     for allocation in allocations:
@@ -107,7 +182,7 @@ def settle_credits(conn, hold_id, actual_credits, *, reason=''):
         if not owner:
             raise CreditWalletError('credit_hold_not_found')
         member_id = owner['member_id']
-        wallet = conn.execute('SELECT * FROM credit_wallets WHERE member_id=%s FOR UPDATE', (member_id,)).fetchone()
+        conn.execute('SELECT 1 FROM credit_wallets WHERE member_id=%s FOR UPDATE', (member_id,))
         hold = conn.execute('SELECT * FROM credit_holds WHERE id=%s FOR UPDATE', (hold_id,)).fetchone()
         if actual_credits > hold['frozen_credits']:
             raise CreditWalletError('credit_settlement_exceeds_hold')
@@ -118,7 +193,7 @@ def settle_credits(conn, hold_id, actual_credits, *, reason=''):
         allocations = conn.execute('''SELECT a.* FROM credit_hold_allocations a
             JOIN credit_grants g ON g.id=a.grant_id AND g.member_id=a.member_id
             WHERE a.hold_id=%s
-            ORDER BY CASE g.category WHEN 'gift' THEN 0 ELSE 1 END,g.created_at,g.id
+            ORDER BY a.id
             FOR UPDATE OF a,g''', (hold_id,)).fetchall()
         if sum(a['frozen_amount'] for a in allocations) != hold['frozen_credits']:
             raise CreditWalletError('credit_allocation_mismatch')
@@ -140,6 +215,8 @@ def settle_credits(conn, hold_id, actual_credits, *, reason=''):
             conn.execute('''INSERT INTO credit_transactions(member_id,hold_id,type,amount,balance_after)
                 VALUES(%s,%s,'SPEND',%s,%s)''',
                 (member_id, hold_id, actual_credits, wallet['gift_balance'] + wallet['recharge_balance']))
+        if hold['released_credits']:
+            settle_expired_grants(conn, member_id)
         return hold
 
 
@@ -147,12 +224,19 @@ def release_credits(conn, hold_id, *, reason=''):
     return settle_credits(conn, hold_id, 0, reason=reason)
 
 
-def record_grant(conn, member_id, *, source, amount, reference, validity, note=''):
-    if (source not in SOURCES or validity != 'PERMANENT'
+def record_grant(conn, member_id, *, source, amount, reference, category=None,
+                 expires_at: datetime | None = None, note=''):
+    if (source not in SOURCES
             or type(amount) is not int or not 0 < amount <= MAX_CREDITS
             or not isinstance(reference, str) or not reference.strip() or len(reference) > 160
             or not isinstance(note, str) or len(note) > 200):
         raise ValueError('invalid_credit_grant')
+    category = SOURCES[source] if category is None else category
+    if category not in ('gift', 'recharge') or (source != 'PLATFORM_GIFT' and category != SOURCES[source]):
+        raise ValueError('invalid_credit_grant')
+    if expires_at is not None and (not isinstance(expires_at, datetime) or expires_at.utcoffset() is None):
+        raise ValueError('invalid_credit_expiry')
+    validity = 'PERMANENT' if expires_at is None else 'FIXED_EXPIRY'
     reference = reference.strip()
     with conn.transaction():
         # Serialize with account closure/permission changes, then with other grants.
@@ -163,20 +247,24 @@ def record_grant(conn, member_id, *, source, amount, reference, validity, note='
             raise ValueError('credit_member_unavailable')
         conn.execute('INSERT INTO credit_wallets(member_id) VALUES(%s) ON CONFLICT DO NOTHING', (member_id,))
         wallet = conn.execute('SELECT * FROM credit_wallets WHERE member_id=%s FOR UPDATE', (member_id,)).fetchone()
+        if expires_at is not None and expires_at <= conn.execute('SELECT clock_timestamp() AS now').fetchone()['now']:
+            raise ValueError('invalid_credit_expiry')
         existing = conn.execute('SELECT * FROM credit_grants WHERE member_id=%s AND reference=%s',
                                 (member_id, reference)).fetchone()
         if existing:
-            if any(existing[k] != v for k, v in {'source': source, 'amount': amount, 'validity': validity, 'note': note}.items()):
+            if any(existing[k] != v for k, v in dict(source=source, amount=amount, category=category,
+                                                     expires_at=expires_at, note=note).items()):
                 raise ValueError('credit_reference_conflict')
             return existing['id']
+        wallet = settle_expired_grants(conn, member_id) or wallet
         total = wallet['recharge_balance'] + wallet['gift_balance'] + amount
         if total > MAX_CREDITS:
             raise ValueError('credit_balance_overflow')
         grant_id = 'crg_' + uuid.uuid4().hex
-        category = SOURCES[source]
-        conn.execute('''INSERT INTO credit_grants(id,member_id,reference,category,source,amount,remaining_amount,validity,note)
-            VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
-            (grant_id, member_id, reference, category, source, amount, amount, validity, note))
+        conn.execute('''INSERT INTO credit_grants
+            (id,member_id,reference,category,source,amount,remaining_amount,validity,expires_at,note)
+            VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+            (grant_id, member_id, reference, category, source, amount, amount, validity, expires_at, note))
         conn.execute('''UPDATE credit_wallets SET recharge_balance=recharge_balance+%s,
             gift_balance=gift_balance+%s WHERE member_id=%s''',
             (amount if category == 'recharge' else 0, amount if category == 'gift' else 0, member_id))
@@ -206,8 +294,12 @@ def management_report(actor, member_id, *, category='', page=1, page_size=25, tr
 
 
 def _report(conn, owner, category, page, page_size, transaction_type):
-    if category not in ('', 'recharge', 'gift') or transaction_type not in ('', 'ADD', 'SPEND') or page < 1 or not 1 <= page_size <= 100:
+    if category not in ('', 'recharge', 'gift') or transaction_type not in ('', 'ADD', 'SPEND', 'EXPIRE', 'DEDUCT') or page < 1 or not 1 <= page_size <= 100:
         raise HTTPException(400, {'code': 'invalid_credit_query'})
+    if conn.execute(f'''SELECT 1 FROM credit_grants WHERE {EXPIRABLE}
+        AND expires_at<=(SELECT clock_timestamp()) LIMIT 1''', (owner,)).fetchone():
+        conn.execute('SELECT 1 FROM credit_wallets WHERE member_id=%s FOR UPDATE', (owner,))
+        settle_expired_grants(conn, owner)
     # Balance, count, allocations and page share one statement snapshot.
     data = conn.execute('''WITH allocations AS (
             SELECT hold_id,
@@ -221,11 +313,13 @@ def _report(conn, owner, category, page, page_size, transaction_type):
             SELECT t.id::text,t.type,t.amount::text,t.balance_after::text,
                 (extract(epoch FROM t.created_at)*1000)::bigint AS created_at,
                 g.id AS grant_id,
-                CASE WHEN t.type='ADD' THEN g.category
+                CASE WHEN g.id IS NOT NULL THEN g.category
                      WHEN a.gift_spent AND a.recharge_spent THEN 'mixed'
                      WHEN a.gift_spent THEN 'gift' ELSE 'recharge' END AS category,
                 coalesce(g.source,h.source_type) AS source,g.remaining_amount::text,g.validity,
-                coalesce(g.note,h.settlement_note) AS note,t.hold_id,h.source_id,h.model_code,h.workspace_id,
+                (extract(epoch FROM g.expires_at)*1000)::bigint AS expires_at,
+                CASE WHEN t.type='DEDUCT' THEN '管理员扣减积分' ELSE coalesce(g.note,h.settlement_note) END AS note,
+                t.hold_id,h.source_id,h.model_code,h.workspace_id,
                 coalesce(a.entries,'[]'::jsonb) AS allocations
             FROM credit_transactions t
             LEFT JOIN credit_grants g ON g.id=t.grant_id AND g.member_id=t.member_id

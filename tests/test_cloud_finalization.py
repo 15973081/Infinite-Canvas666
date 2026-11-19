@@ -180,7 +180,7 @@ def test_video_with_known_result_resumes_without_poll_or_submission(tmp_path, op
     context = pricing_context(provider, timestamp_ms("2026-09-09T12:00:00+08:00"))
     with database.connection() as conn:
         credit_wallet.record_grant(conn, operator.member_id, source='PLATFORM_GIFT', amount=1000,
-                                   reference=uuid.uuid4().hex, validity='PERMANENT')
+                                   reference=uuid.uuid4().hex)
         username = conn.execute('SELECT username FROM members WHERE id=%s', (operator.member_id,)).fetchone()['username']
     login = members.login(username, 'test-only-password-12345', audience='workbench', source=uuid.uuid4().hex)
     principal = members.resolve_session(login['token'], 'workbench')

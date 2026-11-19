@@ -98,13 +98,19 @@ class Input(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
-class CreditGift(Input):
+class CreditAdjustment(Input):
     request_id: UUID
     username: str = Field(min_length=1, max_length=64)
     # Decimal strings preserve bigint precision in browsers.
     amount: str = Field(pattern=r'^[1-9][0-9]{0,18}$')
     reason: str = Field(min_length=1, max_length=1000)
+
+
+class CreditGift(CreditAdjustment):
     evidence_ref: str = Field(min_length=1, max_length=500)
+    category: Literal['gift', 'recharge'] = 'gift'
+    expires_at: str | None = None
+    valid_days: int | None = Field(default=None, strict=True, gt=0)
 
 
 class CreditPolicySave(Input):
@@ -129,6 +135,14 @@ class CreditPolicyPreview(Input):
 
 
 class CreditGiftApply(CreditGift):
+    preview_token: str = Field(min_length=64, max_length=64)
+
+
+class CreditDeduction(CreditAdjustment):
+    category: Literal['gift', 'recharge'] | None = None
+
+
+class CreditDeductionApply(CreditDeduction):
     preview_token: str = Field(min_length=64, max_length=64)
 
 
@@ -449,6 +463,11 @@ def create_app(static_dir=None):
         from app.services.credit_policy import preview
         return preview(actor(request), data)
 
+    @app.get('/api/credits/wallets')
+    def credit_wallet_lookup(request: Request, username: str = Query(min_length=1, max_length=64)):
+        from app.services.credit_gifts import lookup_wallet
+        return lookup_wallet(actor(request), username)
+
     @app.get('/api/credits/wallets/{member_id}')
     def credit_wallet_read(request: Request, member_id: str, category: str = Query('', max_length=20),
                            page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100),
@@ -473,6 +492,24 @@ def create_app(static_dir=None):
     def credit_gift_apply(request: Request, data: CreditGiftApply):
         from app.services.credit_gifts import gift
         return gift(actor(request), **data.model_dump())
+
+    @app.get('/api/credits/deductions')
+    def credit_deduction_history(request: Request, username: str = Query('', max_length=64),
+                                 request_id: UUID | None = None,
+                                 before: int | None = Query(None, ge=1, le=9223372036854775807),
+                                 limit: int = Query(50, ge=1, le=100)):
+        from app.services.credit_deductions import history
+        return history(actor(request), username=username, request_id=request_id, before=before, limit=limit)
+
+    @app.post('/api/credits/deductions/preview')
+    def credit_deduction_preview(request: Request, data: CreditDeduction):
+        from app.services.credit_deductions import deduct
+        return deduct(actor(request), **data.model_dump())
+
+    @app.post('/api/credits/deductions/apply')
+    def credit_deduction_apply(request: Request, data: CreditDeductionApply):
+        from app.services.credit_deductions import deduct
+        return deduct(actor(request), **data.model_dump())
 
     @app.get('/api/billing/assignment/choices')
     def billing_choices(request: Request, workspace: str = Query(min_length=1,max_length=80), query: str = Query('',max_length=100)):

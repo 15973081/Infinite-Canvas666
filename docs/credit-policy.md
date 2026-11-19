@@ -33,7 +33,7 @@
 当前状态为 `active`。已绑定的成员图片、视频及 MediaKit 理解持久任务启用
 预冻结、按实际交付结算和失败释放。图片按交付数量，视频按实际输出整数秒数，理解按档位计费。
 保存规则只影响后续新任务，已提交任务使用冻结的报价。充值支付、首充或邀请奖励发放及过期清理尚未接入。
-当前钱包只支持永久积分，配置不允许切换到暂未实现的有效期类型。
+充值方案配置使用永久有效。管理员赠送可单独设置批次到期时间。
 
 普通 `/api/chat` 与 `/api/chat/stream` 对已绑定模型启用按次积分消费。音频和 3D 保持原有人民币核算，不启用积分扣款。
 历史任务没有 hold 时不补扣；未绑定的供应商或模型保持未接入状态。试算 API 不修改钱包。
@@ -199,7 +199,11 @@ uncertain 显示回复中断。账单按同一 chat_call_id 关联积分记录�
 
 `046_credit_consumption.sql` 扩展钱包和批次的冻结余额，新增 `credit_holds` 与
 `credit_hold_allocations`。原 `ADD` 入账及管理员赠送凭证保留，消费通过独立的
-`SPEND` 流水关联 hold。冻结和全额释放不产生交易流水。
+`SPEND` 流水关联 hold。冻结不产生流水。
+
+`047_credit_grant_expiry_and_decoupling.sql` 增加 `credit_grants.expires_at`。
+历史批次保持 `PERMANENT`。限期批次使用 `FIXED_EXPIRY`，到期后未冻结的余量以 `EXPIRE` 结转。
+`PLATFORM_GIFT` 可计入赠送或充值积分，财务来源始终保持平台赠送。
 
 `app.services.credit_wallet` 提供内部事务接口，调用方传入 PostgreSQL 连接：
 
@@ -218,8 +222,10 @@ with connection() as conn:
 ```
 
 - 写入按成员锁定钱包，再锁定 hold 和批次。可用积分等于充值余额加赠送余额减冻结余额。
-- 冻结按 `gift` 优先、`created_at ASC, id ASC` 分摊；结算消耗相同顺序的前段，
-  未用完的后段全额释放，等价于从最新充值批次开始逆向释放。
+- 冻结排除已到期批次，先用赠送积分，同类先用最早到期的批次，永久批次排最后。
+  到期时间相同时依次按 `created_at`、`id` 排序，结算按原冻结顺序实扣。
+- 到期结转仅扣未冻结余量。到期前已冻结的积分仍可实扣，未用完而释放的到期积分立即结转。
+  同一个批次可以产生多条 `EXPIRE`。钱包读取发现可结转余量时先结转再返回。
 - 冻结 100、实扣 60 时，实扣与释放合计为 100，彻底解除本次冻结；其他 hold 的冻结保留。
   实扣大于冻结额拒绝结算。实扣 0 的终态为 `RELEASED`，正数实扣为 `SETTLED`。
 - `(source_type, source_id)` 全局唯一。同一成员重复冻结返回原 hold（包含原报价及终态），
@@ -243,7 +249,10 @@ with connection() as conn:
   消费记录的 `grant_id`、`remaining_amount`、`validity` 为 null；`allocations` 提供每批的冻结、实扣和释放明细。
 - 同时消耗赠送和充值积分的记录标为 `mixed`；分类筛选按实际消耗的批次分类匹配，
   展示整笔消费金额，不将一笔流水拆成两笔。分页计数和余额在同一 SQL 快照中读取。
-- `transaction_type=ADD|SPEND` 筛选收支类型；账户的消耗明细只读取 SPEND，充值明细只读取 ADD。
+- `transaction_type=ADD|SPEND|EXPIRE` 分别对应充值、消耗和过期明细。
+  流水 `expires_at` 为毫秒时间戳，永久入账和消费流水为 null。
+- `transaction_type=DEDUCT` 对应管理员扣减明细。每个受影响批次产生一条流水。
+  钱包显示扣减金额和扣后总余额，操作人和原因保存在管理端凭证。
 - `/api/account/tasks` 与账号费用查询返回 `credit_hold_id`、`credit_status`、`credit_model_code`、
   `credit_quote_version`、`credit_frozen`、`credit_settled`、`credit_released`。历史或未接入任务为 null，
   不将未知值解释为已扣零积分，也不返回报价中的提示词。
@@ -258,11 +267,20 @@ with connection() as conn:
 - `PUT /api/credits/policy`：`config`、`expected_version`、`reason`，保存成功返回新版本。
 - `POST /api/credits/policy/preview`：`kind: topup | model`，可携带未保存的 `config`。
   不携带配置时读取已保存版本；不修改钱包。
+- `POST /api/credits/gifts/preview` 和 `/apply` 接受 `category`（默认 `gift`，也可填
+  `recharge`）。有效期可用带时区的未来 ISO 时间 `expires_at`，或从确认入账起算的正整数
+  `valid_days`。两项只可选一项，均未指定时永久有效。类别和有效期参与预览确认。
+- `POST /api/credits/deductions/preview` 和 `/apply` 接受 `request_id`、`username`、
+  十进制字符串 `amount`、必填 `reason` 及可选 `category`。省略类别时先扣赠送再扣充值，
+  同类按最早到期优先。预览只计算可用积分，确认在钱包锁内先结转到期积分，再核对预览令牌。
+  可用积分或所扣批次变化时需要重新预览。凭证、批次流水和 `credits.deduct` 审计同事务提交。
+  `GET /api/credits/deductions` 支持按账号、请求编号和游标查询。发放权限可预览和确认扣减，
+  平台审计权限可查看历史。
 
 ## 安装与验证
 
 部署需包含 `credit-policy-defaults.json`、`credit-image-models.json`、`credit-media-models.json`、`credit-chat-models.json`
-及截至 `046_credit_consumption.sql` 的迁移。视频时长探测依赖现有媒体探测工具在后端和 worker 中可用。
+及截至 `048_admin_credit_deductions.sql` 的迁移。视频时长探测依赖现有媒体探测工具在后端和 worker 中可用。
 部署后已绑定模型要求足够可用积分，人工赠送仍可用于充值支付开放前的入账。在目标环境按现有部署流程执行：
 
 ```powershell

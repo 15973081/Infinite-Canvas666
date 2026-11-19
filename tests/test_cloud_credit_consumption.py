@@ -1,14 +1,16 @@
 import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from threading import Barrier
 
 import pytest
 from psycopg.errors import CheckViolation, UniqueViolation, ForeignKeyViolation
 
+from app.services import authorization as az
 from app.storage.database import connection
 from app.services.credit_wallet import (record_grant, freeze_credits, settle_credits,
-    release_credits, CreditWalletError, MAX_CREDITS)
+    release_credits, settle_expired_grants, CreditWalletError, MAX_CREDITS)
 from test_cloud_management import platform
 from test_cloud_member_gateway import operator, world
 
@@ -26,7 +28,7 @@ def owner():
 
 def grant(conn, owner, amount, category, reference):
     return record_grant(conn, owner, amount=amount, source='PLATFORM_GIFT' if category == 'gift' else 'RECHARGE',
-                        reference=reference, validity='PERMANENT')
+                        reference=reference)
 
 
 def freeze(conn, owner, credits=100, source=None, **kwargs):
@@ -48,6 +50,61 @@ def batches(conn, hold_id):
     return conn.execute('''SELECT a.*,g.remaining_amount,g.frozen_amount AS batch_frozen
         FROM credit_hold_allocations a JOIN credit_grants g ON g.id=a.grant_id
         WHERE hold_id=%s ORDER BY a.id''', (hold_id,)).fetchall()
+
+
+def test_credit_consumption_fefo_and_partial_settlement_preserve_reservation_order(owner):
+    now = datetime.now(timezone.utc)
+    with connection() as conn:
+        permanent = grant(conn, owner, 20, 'gift', 'permanent')
+        ids = {}
+        for days in (3, 1, 2):
+            ids[days] = record_grant(conn, owner, source='PLATFORM_GIFT', amount=20, reference=str(days),
+                                    expires_at=now + timedelta(days=days))
+        recharge = record_grant(conn, owner, source='PLATFORM_GIFT', category='recharge', amount=20,
+                                reference='recharge', expires_at=now + timedelta(hours=1))
+        hold = freeze(conn, owner, 90)
+        assert [row['grant_id'] for row in batches(conn, hold['id'])] == [
+            ids[1], ids[2], ids[3], permanent, recharge]
+        settle_credits(conn, hold['id'], 25)
+        assert [row['settled_amount'] for row in batches(conn, hold['id'])] == [20, 5, 0, 0, 0]
+
+
+@pytest.mark.parametrize('actual, final_type', [(40, 'SPEND'), (0, 'EXPIRE')])
+def test_credit_consumption_frozen_batch_crosses_expiry(owner, actual, final_type):
+    with connection() as conn:
+        grant_id = record_grant(conn, owner, source='PLATFORM_GIFT', category='recharge', amount=100,
+                                reference='fixed', expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+        hold = freeze(conn, owner, 40)
+        conn.execute("UPDATE credit_grants SET expires_at=clock_timestamp()-interval '1 day' WHERE id=%s", (grant_id,))
+        conn.execute('SELECT 1 FROM credit_wallets WHERE member_id=%s FOR UPDATE', (owner,))
+        settle_expired_grants(conn, owner)
+        batch = batches(conn, hold['id'])[0]
+        assert (batch['remaining_amount'], batch['batch_frozen']) == (40, 40)
+        wallet = balances(conn, owner)
+        assert (wallet['recharge_balance'], wallet['frozen_balance']) == (40, 40)
+        result = settle_credits(conn, hold['id'], actual) if actual else release_credits(conn, hold['id'])
+        assert result['status'] == ('SETTLED' if actual else 'RELEASED')
+        assert settle_credits(conn, hold['id'], actual) == result
+        assert balances(conn, owner)['recharge_balance'] == 0
+        rows = conn.execute('''SELECT type,grant_id,amount,balance_after FROM credit_transactions
+            WHERE member_id=%s ORDER BY id''', (owner,)).fetchall()
+        assert [(row['type'], row['amount'], row['balance_after']) for row in rows] == [
+            ('ADD', 100, 100), ('EXPIRE', 60, 40), (final_type, 40, 0)]
+        assert rows[-1]['grant_id'] == (None if actual else grant_id)
+
+
+def test_credit_consumption_freeze_excludes_expired_batches(owner):
+    with connection() as conn:
+        expired = record_grant(conn, owner, source='PLATFORM_GIFT', amount=30, reference='fixed',
+                               expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+        available = grant(conn, owner, 50, 'recharge', 'available')
+        conn.execute("UPDATE credit_grants SET expires_at=clock_timestamp()-interval '1 day' WHERE id=%s", (expired,))
+        with pytest.raises(CreditWalletError, match='insufficient_credits') as error:
+            freeze(conn, owner, 51)
+        assert error.value.details['available_balance'] == 50
+        hold = freeze(conn, owner, 50)
+        assert [row['grant_id'] for row in batches(conn, hold['id'])] == [available]
+        assert balances(conn, owner)['gift_balance'] == 0
 
 
 def test_credit_consumption_partial_settlement_fifo_and_conservation(owner):
@@ -283,22 +340,34 @@ def test_credit_consumption_migration_preserves_existing_grants_and_admin_receip
         assert conn.execute('SELECT current_schema() AS name').fetchone()['name'].startswith('cloud_test_')
         conn.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
         conn.execute(sql.SQL('SET LOCAL search_path TO {}, public').format(sql.Identifier(schema)))
-        for version, source in migrations():
+        sources = migrations()
+        for version, source in sources:
             if version < 46:
                 conn.execute(source.replace('canvas_cloud.', schema + '.'), prepare=False)
         mid = 'upgrade-member'
         conn.execute("INSERT INTO members(id,username,display_name,status,password_salt,password_digest) VALUES(%s,%s,'成员','active','s','d')", (mid, mid))
-        gift = grant(conn, mid, 70, 'gift', 'old-gift')
-        grant(conn, mid, 30, 'recharge', 'old-recharge')
+        conn.execute("INSERT INTO permissions(id,scope,description) VALUES('credits.gift.platform','platform','赠送并查看平台赠送积分')")
+        gift = 'historic-gift'
+        conn.execute('INSERT INTO credit_wallets(member_id,gift_balance,recharge_balance) VALUES(%s,70,30)', (mid,))
+        conn.execute('''INSERT INTO credit_grants(id,member_id,reference,category,source,amount,remaining_amount,validity)
+            VALUES(%s,%s,'old-gift','gift','PLATFORM_GIFT',70,70,'PERMANENT'),
+                ('historic-recharge',%s,'old-recharge','recharge','RECHARGE',30,30,'PERMANENT')''', (gift, mid, mid))
+        conn.execute('''INSERT INTO credit_transactions(member_id,grant_id,type,amount,balance_after)
+            VALUES(%s,%s,'ADD',70,70),(%s,'historic-recharge','ADD',30,100)''', (mid, gift, mid))
         request_id = str(uuid.uuid4())
         conn.execute('''INSERT INTO admin_credit_gifts(request_id,actor_id,member_id,grant_id,input,actor_snapshot,target_snapshot,preview_token)
             VALUES(%s,%s,%s,%s,'{}','{}','{}',%s)''', (request_id, mid, mid, gift, 'a' * 64))
         before = conn.execute('SELECT * FROM credit_transactions ORDER BY id').fetchall()
-        migration = next(source for version, source in migrations() if version == 46)
-        conn.execute(migration.replace('canvas_cloud.', schema + '.'), prepare=False)
+        for version, source in sources:
+            if version >= 46:
+                conn.execute(source.replace('canvas_cloud.', schema + '.'), prepare=False)
         after = conn.execute('SELECT * FROM credit_transactions ORDER BY id').fetchall()
         assert [{k:v for k,v in row.items() if k != 'hold_id'} for row in after] == before
+        assert conn.execute('SELECT validity,expires_at FROM credit_grants ORDER BY id').fetchall() == [
+            {'validity': 'PERMANENT', 'expires_at': None},
+            {'validity': 'PERMANENT', 'expires_at': None}]
         assert conn.execute('SELECT grant_id FROM admin_credit_gifts WHERE request_id=%s', (request_id,)).fetchone()['grant_id'] == gift
+        assert conn.execute("SELECT description FROM permissions WHERE id='credits.gift.platform'").fetchone()['description'] == az.PLATFORM_PERMISSIONS['credits.gift.platform']
         assert balances(conn, mid)['frozen_balance'] == 0
         held = freeze(conn, mid)
         settle_credits(conn, held['id'], 60)

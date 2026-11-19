@@ -28,7 +28,7 @@ def world():
 
 
 def grant(conn, actor, amount=10, source='PLATFORM_GIFT', reference='test', **kwargs):
-    return record_grant(conn, actor.member_id, amount=amount, source=source, reference=reference, validity='PERMANENT', **kwargs)
+    return record_grant(conn, actor.member_id, amount=amount, source=source, reference=reference, **kwargs)
 
 
 def test_credit_wallet_zero_and_classified_idempotent_grants(world):
@@ -58,9 +58,9 @@ def test_credit_wallet_reject_invalid_amount(world, amount):
 
 def test_credit_wallet_unknown_rules_overflow_and_atomic_rollback(world):
     conn, (a, _) = world
-    for source, validity in [('SUBSCRIPTION','PERMANENT'),('RECHARGE','AFTER_GRANT_DAYS')]:
+    for source, category in [('SUBSCRIPTION','recharge'),('RECHARGE','gift')]:
         with pytest.raises(ValueError):
-            record_grant(conn,a.member_id,source=source,validity=validity,reference='unsupported',amount=1)
+            record_grant(conn,a.member_id,source=source,category=category,reference='unsupported',amount=1)
     class Abort(Exception): pass
     with pytest.raises(Abort), conn.transaction():
         grant(conn,a,20)
@@ -96,7 +96,7 @@ def test_credit_wallet_concurrent_duplicate_and_distinct_grants():
         conn.execute("INSERT INTO members(id,username,display_name,status,password_salt,password_digest) VALUES(%s,%s,'成员','active','s','d')",(mid,mid))
     def write(reference):
         with connection() as conn:
-            return record_grant(conn,mid,source='PLATFORM_GIFT',amount=7,reference=reference,validity='PERMANENT')
+            return record_grant(conn,mid,source='PLATFORM_GIFT',amount=7,reference=reference)
     try:
         with ThreadPoolExecutor(max_workers=4) as executor:
             ids=list(executor.map(write,['duplicate']*4+['a','b','c']))

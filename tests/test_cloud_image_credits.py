@@ -42,7 +42,7 @@ def images(world):
 def fund(env, amount=10000):
     with database.connection() as conn:
         credit_wallet.record_grant(conn, env['member'], source='PLATFORM_GIFT', amount=amount,
-            reference=uuid.uuid4().hex,validity='PERMANENT')
+            reference=uuid.uuid4().hex)
 
 
 def submit(env, model='gpt-image-2', count=4, **changes):

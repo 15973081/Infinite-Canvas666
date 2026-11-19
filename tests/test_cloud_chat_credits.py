@@ -23,7 +23,7 @@ def funded(chat_world, monkeypatch):
     configure(w, TOKEN)
     with database.connection() as conn:
         credit_wallet.record_grant(conn, w['people'][0]['id'], source='PLATFORM_GIFT', amount=100,
-                                   reference=uuid.uuid4().hex, validity='PERMANENT')
+                                   reference=uuid.uuid4().hex)
     return w
 
 
